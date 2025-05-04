@@ -1,0 +1,141 @@
+[
+  {
+    "ContainingType": "TifoXRCoreWebAPI.Controllers.TifoXRCoreWebController",
+    "Method": "GetMediaData",
+    "RelativePath": "TifoXRCoreWeb/GetMediaData",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "space_sku",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.Dictionary\u00602[[System.String, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Collections.Generic.List\u00601[[TifoXRCoreWebAPI.MediaData, TifoXRCoreWebAPI, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TifoXRCoreWebAPI.Controllers.TifoXRCoreWebController",
+    "Method": "GetTeamScore",
+    "RelativePath": "TifoXRCoreWeb/GetTeamScore",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "space_sku",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "supported_team",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "challenge_name",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.String",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TifoXRCoreWebAPI.Controllers.TifoXRCoreWebController",
+    "Method": "GetWebPortalsData",
+    "RelativePath": "TifoXRCoreWeb/GetWebPortalsData",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "space_sku",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.Dictionary\u00602[[System.String, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Collections.Generic.List\u00601[[TifoXRCoreWebAPI.WebPortalData, TifoXRCoreWebAPI, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TifoXRCoreWebAPI.Controllers.TifoXRCoreWebController",
+    "Method": "RecordUserScore",
+    "RelativePath": "TifoXRCoreWeb/RecordUserScore",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "space_sku",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "user_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ip_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "score",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "supported_team",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "challenge_name",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.String",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  }
+]
