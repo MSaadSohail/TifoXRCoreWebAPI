@@ -1,0 +1,6 @@
+@TifoXR3DBackend_HostAddress = http://localhost:5211
+
+GET {{TifoXR3DBackend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
