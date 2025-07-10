@@ -1,6 +1,0 @@
-@TifoXRCoreWebAPI_HostAddress = http://localhost:5070
-
-GET {{TifoXRCoreWebAPI_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
