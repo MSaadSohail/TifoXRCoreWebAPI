@@ -1626,5 +1626,314 @@ namespace TifoXRWebApi.Controllers
 
             return table;
         }
+
+        [HttpGet("{id}")]
+        [ProducesResponseType(typeof(SpaceData), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<SpaceData>> GetSpaceById(int id)
+        {
+            const string sql = @"
+        SELECT 
+            s.id,
+            s.platform_type_id,
+            s.entity_id,
+            s.sku,
+            s.link,
+            s.is_published,
+            s.is_live,
+            s.description_key,
+            s.creation_time,
+            s.modified_time,
+            s.modified_by,
+            i.locale_id,
+            i.value
+        FROM space s
+        LEFT JOIN i18n i 
+            ON i.`key` = s.description_key 
+            AND i.space_id = s.id
+        WHERE s.id = @Id
+        ORDER BY i.locale_id;
+    ";
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@Id", id);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            SpaceData space = null;
+            var descValues = new List<LocalizedValue>();
+
+            while (await reader.ReadAsync())
+            {
+                if (space == null)
+                {
+                    space = new SpaceData
+                    {
+                        Id = reader.GetInt32("id"),
+                        PlatformTypeId = reader.GetInt32("platform_type_id"),
+                        EntityId = reader.GetInt32("entity_id"),
+                        Sku = reader.IsDBNull(reader.GetOrdinal("sku")) ? null : reader.GetString("sku"),
+                        Link = reader.IsDBNull(reader.GetOrdinal("link")) ? null : reader.GetString("link"),
+                        IsPublished = reader.GetBoolean("is_published"),
+                        IsLive = reader.GetBoolean("is_live"),
+                        CreationTime = reader.GetDateTime("creation_time"),
+                        ModifiedTime = reader.GetDateTime("modified_time"),
+                        ModifiedBy = reader.GetString("modified_by"),
+                        LocalizedDescription = new LocalizedName
+                        {
+                            Key = reader.GetString("description_key"),
+                            Values = descValues
+                        }
+                    };
+                }
+
+                if (!reader.IsDBNull(reader.GetOrdinal("locale_id")))
+                {
+                    descValues.Add(new LocalizedValue
+                    {
+                        LocaleId = reader.GetString("locale_id"),
+                        Value = reader.IsDBNull(reader.GetOrdinal("value")) ? null : reader.GetString("value")
+                    });
+                }
+            }
+
+            return space == null ? NotFound() : Ok(space);
+        }
+
+        [HttpPost("")]
+        [ProducesResponseType(typeof(SpaceData), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<SpaceData>> CreateSpace([FromBody] Space spaceDto)
+        {
+            if (spaceDto == null || spaceDto.LocalizedDescription == null)
+                return BadRequest();
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                const string insertSql = @"
+            INSERT INTO space (
+                platform_type_id, entity_id, sku, link,
+                is_published, is_live, description_key,
+                creation_time, modified_time, modified_by
+            )
+            VALUES (
+                @PlatformTypeId, @EntityId, @Sku, @Link,
+                @IsPublished, @IsLive, @DescriptionKey,
+                @CreationTime, @ModifiedTime, @ModifiedBy
+            );
+            SELECT LAST_INSERT_ID();";
+
+                int newId;
+                await using (var cmd = new MySqlCommand(insertSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@PlatformTypeId", spaceDto.PlatformTypeId);
+                    cmd.Parameters.AddWithValue("@EntityId", spaceDto.EntityId);
+                    cmd.Parameters.AddWithValue("@Sku", (object?)spaceDto.Sku ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Link", (object?)spaceDto.Link ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@IsPublished", spaceDto.IsPublished);
+                    cmd.Parameters.AddWithValue("@IsLive", spaceDto.IsLive);
+                    cmd.Parameters.AddWithValue("@DescriptionKey", spaceDto.LocalizedDescription.Key);
+                    cmd.Parameters.AddWithValue("@CreationTime", DateTime.UtcNow);
+                    cmd.Parameters.AddWithValue("@ModifiedTime", DateTime.UtcNow);
+                    cmd.Parameters.AddWithValue("@ModifiedBy", spaceDto.ModifiedBy ?? "system");
+
+                    newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                }
+
+                const string insertI18nSql = @"
+            INSERT INTO i18n (`key`, locale_id, value, space_id)
+            VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+                foreach (var loc in spaceDto.LocalizedDescription.Values)
+                {
+                    await using var cmdI18n = new MySqlCommand(insertI18nSql, conn, tx);
+                    cmdI18n.Parameters.AddWithValue("@Key", spaceDto.LocalizedDescription.Key);
+                    cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmdI18n.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                    cmdI18n.Parameters.AddWithValue("@SpaceId", newId);
+                    await cmdI18n.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+
+                var created = await LoadSpaceById(conn, newId);
+                return CreatedAtAction(nameof(GetSpaceById), new { id = newId }, created);
+            }
+            catch (MySqlException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        private static async Task<SpaceData> LoadSpaceById(MySqlConnection conn, int spaceId)
+        {
+            const string sql = @"
+        SELECT 
+            s.id,
+            s.platform_type_id,
+            s.entity_id,
+            s.sku,
+            s.link,
+            s.is_published,
+            s.is_live,
+            s.description_key,
+            s.creation_time,
+            s.modified_time,
+            s.modified_by,
+            i.locale_id,
+            i.value
+        FROM space s
+        LEFT JOIN i18n i
+            ON i.`key` = s.description_key AND i.space_id = s.id
+        WHERE s.id = @SpaceId
+        ORDER BY i.locale_id;
+    ";
+
+            await using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            SpaceData space = null;
+            var localizedDescriptions = new List<LocalizedValue>();
+
+            while (await reader.ReadAsync())
+            {
+                if (space == null)
+                {
+                    space = new SpaceData
+                    {
+                        Id = reader.GetInt32("id"),
+                        PlatformTypeId = reader.GetInt32("platform_type_id"),
+                        EntityId = reader.GetInt32("entity_id"),
+                        Sku = reader.IsDBNull(reader.GetOrdinal("sku")) ? null : reader.GetString("sku"),
+                        Link = reader.IsDBNull(reader.GetOrdinal("link")) ? null : reader.GetString("link"),
+                        IsPublished = reader.GetBoolean("is_published"),
+                        IsLive = reader.GetBoolean("is_live"),
+                        CreationTime = reader.GetDateTime("creation_time"),
+                        ModifiedTime = reader.GetDateTime("modified_time"),
+                        ModifiedBy = reader.GetString("modified_by"),
+                        LocalizedDescription = new LocalizedName
+                        {
+                            Key = reader.GetString("description_key"),
+                            Values = localizedDescriptions
+                        }
+                    };
+                }
+
+                if (!reader.IsDBNull(reader.GetOrdinal("locale_id")))
+                {
+                    localizedDescriptions.Add(new LocalizedValue
+                    {
+                        LocaleId = reader.GetString("locale_id"),
+                        Value = reader.IsDBNull(reader.GetOrdinal("value")) ? null : reader.GetString("value")
+                    });
+                }
+            }
+
+            return space;
+        }
+
+        [HttpPut("{id}")]
+        [ProducesResponseType(typeof(SpaceData), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<SpaceData>> UpdateSpaceById(int id, [FromBody] Space spaceDto)
+        {
+            if (spaceDto == null || spaceDto.LocalizedDescription == null)
+                return BadRequest();
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                // 1. Update the space row
+                const string updateSql = @"
+            UPDATE space
+            SET platform_type_id = @PlatformTypeId,
+                entity_id = @EntityId,
+                sku = @Sku,
+                link = @Link,
+                is_published = @IsPublished,
+                is_live = @IsLive,
+                description_key = @DescriptionKey,
+                modified_time = @ModifiedTime,
+                modified_by = @ModifiedBy
+            WHERE id = @Id;
+        ";
+
+                await using (var cmd = new MySqlCommand(updateSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@Id", id);
+                    cmd.Parameters.AddWithValue("@PlatformTypeId", spaceDto.PlatformTypeId);
+                    cmd.Parameters.AddWithValue("@EntityId", spaceDto.EntityId);
+                    cmd.Parameters.AddWithValue("@Sku", (object?)spaceDto.Sku ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Link", (object?)spaceDto.Link ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@IsPublished", spaceDto.IsPublished);
+                    cmd.Parameters.AddWithValue("@IsLive", spaceDto.IsLive);
+                    cmd.Parameters.AddWithValue("@DescriptionKey", spaceDto.LocalizedDescription.Key);
+                    cmd.Parameters.AddWithValue("@ModifiedTime", DateTime.UtcNow);
+                    cmd.Parameters.AddWithValue("@ModifiedBy", "system");
+
+                    if (await cmd.ExecuteNonQueryAsync() == 0)
+                        return NotFound();
+                }
+
+                // 2 & 3. UPSERT i18n description entries
+                const string updateI18nSql = @"
+            UPDATE i18n
+            SET value = @Value
+            WHERE `key` = @Key AND locale_id = @LocaleId AND space_id = @SpaceId;
+        ";
+                const string insertI18nSql = @"
+            INSERT INTO i18n (`key`, locale_id, value, space_id)
+            VALUES (@Key, @LocaleId, @Value, @SpaceId);
+        ";
+
+                foreach (var loc in spaceDto.LocalizedDescription.Values)
+                {
+                    await using var updateCmd = new MySqlCommand(updateI18nSql, conn, tx);
+                    updateCmd.Parameters.AddWithValue("@Key", spaceDto.LocalizedDescription.Key);
+                    updateCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    updateCmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                    updateCmd.Parameters.AddWithValue("@SpaceId", spaceDto.SpaceId);
+
+                    int affected = await updateCmd.ExecuteNonQueryAsync();
+                    if (affected == 0)
+                    {
+                        await using var insertCmd = new MySqlCommand(insertI18nSql, conn, tx);
+                        insertCmd.Parameters.AddWithValue("@Key", spaceDto.LocalizedDescription.Key);
+                        insertCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                        insertCmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@SpaceId", spaceDto.SpaceId);
+                        await insertCmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                await tx.CommitAsync();
+
+                // 4. Return updated data
+                var updated = await LoadSpaceById(conn, id);
+                return Ok(updated);
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+
+
+
     }
 }
