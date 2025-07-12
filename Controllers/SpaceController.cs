@@ -152,6 +152,153 @@ namespace TifoXRWebApi.Controllers
         /// Returns all portals under a specific booth in a space,
         /// including localized name and media localizations.
         /// </summary>
+        //[ProducesResponseType(typeof(List<PortalData>), StatusCodes.Status200OK)]
+        //[ProducesResponseType(StatusCodes.Status404NotFound)]
+        //[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        //public async Task<ActionResult<List<PortalData>>> GetPortalsByBooth(
+        //    [FromRoute] int spaceId,
+        //    [FromRoute] int boothId)
+        //{
+        //    try
+        //    {
+        //        // 1) Fetch the portal rows + portal‐text i18n
+        //        const string sql = @"
+        //    SELECT
+        //      p.id            AS portal_id,
+        //      p.space_id,
+        //      p.booth_id,
+        //      p.portal_type_id,
+        //      p.event_id,
+        //      p.corresponding_media_id,
+        //      p.thumbnail_media_id,
+        //      p.text_field_key AS text_key,
+        //      p.external_link
+        //    FROM portal p
+        //    WHERE p.space_id = @SpaceId
+        //      AND p.booth_id = @BoothId;
+        //";
+        //        var portals = new List<PortalData>();
+        //        await using var conn = new MySqlConnection(_connectionString);
+        //        await conn.OpenAsync();
+
+        //        // load basic portal rows
+        //        await using (var cmd = new MySqlCommand(sql, conn))
+        //        {
+        //            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+        //            cmd.Parameters.AddWithValue("@BoothId", boothId);
+        //            await using var rdr = await cmd.ExecuteReaderAsync();
+        //            while (await rdr.ReadAsync())
+        //            {
+        //                portals.Add(new PortalData
+        //                {
+        //                    PortalId = rdr.GetInt32("portal_id"),
+        //                    SpaceId = rdr.GetInt32("space_id"),
+        //                    BoothId = rdr.GetInt32("booth_id"),
+        //                    PortalTypeId = rdr.IsDBNull("portal_type_id") ? null : rdr.GetInt32("portal_type_id"),
+        //                    EventId = rdr.IsDBNull("event_id") ? null : rdr.GetInt32("event_id"),
+        //                    ExternalLink = rdr.IsDBNull("external_link") ? null : rdr.GetString("external_link"),
+        //                    TextFieldKey = rdr.IsDBNull("text_key")
+        //                                         ? null
+        //                                         : new LocalizedName { Key = rdr.GetString("text_key") },
+        //                    CorrespondingMedia = rdr.IsDBNull("corresponding_media_id")
+        //                                         ? null
+        //                                         : new MediaData
+        //                                         {
+        //                                             Id = rdr.GetString("corresponding_media_id"),
+        //                                             Localizations = new List<MediaLocalization>()  // <–– initialize here
+        //                                         },
+        //                    ThumbnailMedia = rdr.IsDBNull("thumbnail_media_id")
+        //                                         ? null
+        //                                         : new MediaData
+        //                                         {
+        //                                             Id = rdr.GetString("thumbnail_media_id"),
+        //                                             Localizations = new List<MediaLocalization>()  // <–– and here
+        //                                         }
+        //                });
+        //            }
+        //        }
+
+        //        if (portals.Count == 0)
+        //            return NotFound();
+
+        //        // 2) Load portal‐name localizations
+        //        const string i18nSql = @"
+        //    SELECT locale_id, value
+        //      FROM i18n
+        //     WHERE `key`    = @TextKey
+        //       AND space_id = @SpaceId
+        //     ORDER BY locale_id;
+        //";
+        //        foreach (var p in portals)
+        //        {
+        //            p.TextFieldKey = new LocalizedName
+        //            {
+        //                Key = p.TextFieldKey.Key,
+        //                Values = new List<LocalizedValue>()
+        //            };
+        //            await using var i18nCmd = new MySqlCommand(i18nSql, conn);
+        //            i18nCmd.Parameters.AddWithValue("@TextKey", p.TextFieldKey);
+        //            i18nCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+        //            await using var i18nRdr = await i18nCmd.ExecuteReaderAsync();
+        //            while (await i18nRdr.ReadAsync())
+        //            {
+        //                p.TextFieldKey.Values.Add(new LocalizedValue
+        //                {
+        //                    LocaleId = i18nRdr.GetString("locale_id"),
+        //                    Value = i18nRdr.GetString("value")
+        //                });
+        //            }
+        //        }
+
+        //        // 3) Load media_localizations *per media*
+        //        const string mlSql = @"
+        //    SELECT locale_id, media_link
+        //      FROM media_localization
+        //     WHERE media_id = @MediaId
+        //     ORDER BY locale_id;
+        //";
+        //        foreach (var p in portals)
+        //        {
+        //            if (p.CorrespondingMedia != null)
+        //            {
+        //                p.CorrespondingMedia.Localizations = new List<MediaLocalization>();
+        //                await using var mlCmd = new MySqlCommand(mlSql, conn);
+        //                mlCmd.Parameters.AddWithValue("@MediaId", p.CorrespondingMedia.Id);
+        //                await using var mlRdr = await mlCmd.ExecuteReaderAsync();
+        //                while (await mlRdr.ReadAsync())
+        //                {
+        //                    p.CorrespondingMedia.Localizations.Add(new MediaLocalization
+        //                    {
+        //                        LocaleId = mlRdr.GetString("locale_id"),
+        //                        MediaLink = mlRdr.GetString("media_link")
+        //                    });
+        //                }
+        //            }
+        //            if (p.ThumbnailMedia != null)
+        //            {
+        //                p.ThumbnailMedia.Localizations = new List<MediaLocalization>();
+        //                await using var mlCmd2 = new MySqlCommand(mlSql, conn);
+        //                mlCmd2.Parameters.AddWithValue("@MediaId", p.ThumbnailMedia.Id);
+        //                await using var mlRdr2 = await mlCmd2.ExecuteReaderAsync();
+        //                while (await mlRdr2.ReadAsync())
+        //                {
+        //                    p.ThumbnailMedia.Localizations.Add(new MediaLocalization
+        //                    {
+        //                        LocaleId = mlRdr2.GetString("locale_id"),
+        //                        MediaLink = mlRdr2.GetString("media_link")
+        //                    });
+        //                }
+        //            }
+        //        }
+
+        //        return Ok(portals);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, new { error = ex.Message });
+        //    }
+        //}
+
         [HttpGet("{spaceId}/booth/{boothId}/portals")]
         [ProducesResponseType(typeof(List<PortalData>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -880,6 +1027,205 @@ namespace TifoXRWebApi.Controllers
             }
         }
 
+        /// <summary>
+        /// DELETE /api/space/{spaceId}/portal/{portalId}/localizations
+        /// Deletes one or more locale entries from the i18n table for the specified portal’s text key,
+        /// but ensures at least one localization remains.
+        /// </summary>
+        [HttpDelete("{spaceId}/portal/{portalId}/localizations")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeletePortalLocalizations(
+            [FromRoute] int spaceId,
+            [FromRoute] int portalId,
+            [FromBody] List<string> localeIds
+        )
+        {
+            if (localeIds == null || localeIds.Count == 0)
+                return BadRequest("Must supply at least one localeId to delete.");
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                // 1) Fetch the portal's text_field_key
+                const string fetchKeySql = @"
+                    SELECT text_field_key
+                    FROM portal
+                    WHERE id = @PortalId
+                    AND space_id = @SpaceId;
+                ";
+
+                string textKey;
+
+                await using (var cmdKey = new MySqlCommand(fetchKeySql, conn, tx))
+                {
+                    cmdKey.Parameters.AddWithValue("@PortalId", portalId);
+                    cmdKey.Parameters.AddWithValue("@SpaceId", spaceId);
+                    var o = await cmdKey.ExecuteScalarAsync();
+                    if (o == null)
+                        return NotFound();
+                    textKey = o.ToString()!;
+                }
+
+                // 2) Count how many locales currently exist for this key
+                const string countSql = @"
+                    SELECT COUNT(*) 
+                    FROM i18n
+                    WHERE `key`    = @TextKey
+                    AND space_id = @SpaceId;
+                ";
+
+                int totalLocales;
+
+                await using (var cmdCount = new MySqlCommand(countSql, conn, tx))
+                {
+                    cmdCount.Parameters.AddWithValue("@TextKey", textKey);
+                    cmdCount.Parameters.AddWithValue("@SpaceId", spaceId);
+                    totalLocales = Convert.ToInt32(await cmdCount.ExecuteScalarAsync());
+                }
+
+                // Prevent deleting the last remaining localization
+                if (totalLocales - localeIds.Count < 1)
+                    return BadRequest("At least one localization must remain for this portal.");
+
+                // 3) Build IN-clause for locale_ids
+                var inParams = new List<string>();
+                for (int i = 0; i < localeIds.Count; i++)
+                    inParams.Add($"@loc{i}");
+                var inClause = string.Join(", ", inParams);
+
+                // 4) Delete matching i18n rows
+                var deleteSql = $@"
+                    DELETE FROM i18n
+                    WHERE `key`     = @TextKey
+                    AND space_id  = @SpaceId
+                    AND locale_id IN ({inClause});
+                    ";
+
+                await using var cmdDel = new MySqlCommand(deleteSql, conn, tx);
+                cmdDel.Parameters.AddWithValue("@TextKey", textKey);
+                cmdDel.Parameters.AddWithValue("@SpaceId", spaceId);
+                for (int i = 0; i < localeIds.Count; i++)
+                    cmdDel.Parameters.AddWithValue(inParams[i], localeIds[i]);
+
+                var affected = await cmdDel.ExecuteNonQueryAsync();
+                if (affected == 0)
+                    return NotFound();
+
+                await tx.CommitAsync();
+                return NoContent();
+            }
+            catch (MySqlException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        // <summary>
+        /// DELETE /api/space/{spaceId}/portal/{portalId}/media/localizations
+        /// Deletes specified locale entries for one or more media items associated with the portal.
+        /// Ensures at least one localization remains per media.
+        /// </summary>
+        [HttpDelete("{spaceId}/portal/{portalId}/media/localizations")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeletePortalMediaLocalizations(
+            [FromRoute] int spaceId,
+            [FromRoute] int portalId,
+            [FromBody] MediaLocalizationDeleteDto dto
+        )
+        {
+            if (dto?.Media == null || dto.Media.Count == 0)
+                return BadRequest("Must supply at least one media entry with localeIds to delete.");
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // 1) Fetch this portal's media IDs
+                const string fetchSql = @"
+            SELECT corresponding_media_id, thumbnail_media_id
+              FROM portal
+             WHERE id = @PortalId
+               AND space_id = @SpaceId;
+        ";
+                string? corrId, thumbId;
+                await using (var cmdFetch = new MySqlCommand(fetchSql, conn, tx))
+                {
+                    cmdFetch.Parameters.AddWithValue("@PortalId", portalId);
+                    cmdFetch.Parameters.AddWithValue("@SpaceId", spaceId);
+                    await using var rdr = await cmdFetch.ExecuteReaderAsync();
+                    if (!await rdr.ReadAsync())
+                        return NotFound("Portal not found.");
+                    corrId = rdr.IsDBNull("corresponding_media_id") ? null : rdr.GetString("corresponding_media_id");
+                    thumbId = rdr.IsDBNull("thumbnail_media_id") ? null : rdr.GetString("thumbnail_media_id");
+                }
+
+                // Allowed media IDs for this portal
+                var allowed = new HashSet<string>(
+                    new[] { corrId, thumbId }.Where(id => !string.IsNullOrEmpty(id))!);
+
+                // 2) Process each media entry
+                foreach (var entry in dto.Media)
+                {
+                    var mediaId = entry.MediaId;
+                    if (!allowed.Contains(mediaId))
+                        return NotFound($"Media '{mediaId}' is not associated with portal {portalId}.");
+
+                    var locales = entry.LocaleIds;
+                    if (locales == null || locales.Count == 0)
+                        return BadRequest($"Must supply at least one localeId for media '{mediaId}'.");
+
+                    // 2a) Count existing localizations
+                    const string countSql = @"
+                SELECT COUNT(*) 
+                  FROM media_localization
+                 WHERE media_id = @MediaId;
+            ";
+                    int total;
+                    await using (var cmdCount = new MySqlCommand(countSql, conn, tx))
+                    {
+                        cmdCount.Parameters.AddWithValue("@MediaId", mediaId);
+                        total = Convert.ToInt32(await cmdCount.ExecuteScalarAsync());
+                    }
+
+                    if (total - locales.Count < 1)
+                        return BadRequest($"At least one localization must remain for media '{mediaId}'.");
+
+                    // 2b) Delete requested locales
+                    var inParams = locales.Select((_, i) => $"@l{i}").ToList();
+                    var inClause = string.Join(", ", inParams);
+                    var deleteSql = $@"
+                DELETE FROM media_localization
+                 WHERE media_id = @MediaId
+                   AND locale_id IN ({inClause});
+            ";
+                    await using var cmdDel = new MySqlCommand(deleteSql, conn, tx);
+                    cmdDel.Parameters.AddWithValue("@MediaId", mediaId);
+                    for (int i = 0; i < locales.Count; i++)
+                        cmdDel.Parameters.AddWithValue(inParams[i], locales[i]);
+                    await cmdDel.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+                return NoContent();
+            }
+            catch (MySqlException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
         // Helper to insert or update a media row + its localizations, returns media_id
         private static async Task<string> InsertOrUpdateMediaAsync(
             MySqlConnection conn,
@@ -1273,6 +1619,147 @@ namespace TifoXRWebApi.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        /// <summary>
+        /// DELETE /api/space/{spaceId}/booth/{boothId}
+        /// Deletes a booth and all its dependent data:
+        ///  • Booth’s own i18n entries
+        ///  • All portals under that booth, including each portal’s:
+        ///      – i18n entries
+        ///      – corresponding & thumbnail media_localization rows
+        ///      – corresponding & thumbnail media rows
+        ///  • Finally the booth record itself
+        /// </summary>
+        [HttpDelete("{spaceId}/booth/{boothId}")]
+        public async Task<IActionResult> DeleteBoothCascade(
+    [FromRoute] int spaceId,
+    [FromRoute] int boothId
+)
+        {
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // 1) Fetch booth.key and its portals (with their media IDs)
+                const string fetchBooth = @"
+            SELECT b.name_key
+            FROM booth b
+            WHERE b.id = @BoothId AND b.space_id = @SpaceId;
+        ";
+                string boothKey;
+                await using (var cmd = new MySqlCommand(fetchBooth, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@BoothId", boothId);
+                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    var o = await cmd.ExecuteScalarAsync();
+                    if (o == null) return NotFound();
+                    boothKey = o.ToString()!;
+                }
+
+                const string fetchPortals = @"
+            SELECT p.id, p.text_field_key, p.corresponding_media_id, p.thumbnail_media_id
+            FROM portal p
+            WHERE p.booth_id = @BoothId AND p.space_id = @SpaceId;
+        ";
+                var portals = new List<(int Id, string Key, string? C, string? T)>();
+                await using (var cmd = new MySqlCommand(fetchPortals, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@BoothId", boothId);
+                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        portals.Add((
+                            r.GetInt32("id"),
+                            r.GetString("text_field_key"),
+                            r.IsDBNull("corresponding_media_id") ? null : r.GetString("corresponding_media_id"),
+                            r.IsDBNull("thumbnail_media_id") ? null : r.GetString("thumbnail_media_id")
+                        ));
+                    }
+                }
+
+                // 2) Delete each portal's i18n and then portal row
+                foreach (var (pid, key, _, _) in portals)
+                {
+                    await using (var delI18n = new MySqlCommand(
+                        @"DELETE FROM i18n WHERE `key`=@K AND space_id=@S;", conn, tx))
+                    {
+                        delI18n.Parameters.AddWithValue("@K", key);
+                        delI18n.Parameters.AddWithValue("@S", spaceId);
+                        await delI18n.ExecuteNonQueryAsync();
+                    }
+                    await using (var delPortal = new MySqlCommand(
+                        @"DELETE FROM portal WHERE id=@P AND space_id=@S;", conn, tx))
+                    {
+                        delPortal.Parameters.AddWithValue("@P", pid);
+                        delPortal.Parameters.AddWithValue("@S", spaceId);
+                        await delPortal.ExecuteNonQueryAsync();
+                    }
+                }
+
+                // 3) Now safe to delete media_localization & media for each collected ID
+                foreach (var (_, _, corr, thumb) in portals)
+                {
+                    if (!string.IsNullOrEmpty(corr))
+                    {
+                        await using (var cmd = new MySqlCommand(
+                            "DELETE FROM media_localization WHERE media_id=@M;", conn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@M", corr);
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+                        await using (var cmd = new MySqlCommand(
+                            "DELETE FROM media WHERE id=@M;", conn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@M", corr);
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(thumb))
+                    {
+                        await using (var cmd = new MySqlCommand(
+                            "DELETE FROM media_localization WHERE media_id=@M;", conn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@M", thumb);
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+                        await using (var cmd = new MySqlCommand(
+                            "DELETE FROM media WHERE id=@M;", conn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@M", thumb);
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+                    }
+                }
+
+                // 4) Delete booth’s own i18n then booth row
+                await using (var delBi18n = new MySqlCommand(
+                    "DELETE FROM i18n WHERE `key`=@K AND space_id=@S;", conn, tx))
+                {
+                    delBi18n.Parameters.AddWithValue("@K", boothKey);
+                    delBi18n.Parameters.AddWithValue("@S", spaceId);
+                    await delBi18n.ExecuteNonQueryAsync();
+                }
+                await using (var delBooth = new MySqlCommand(
+                    "DELETE FROM booth WHERE id=@B AND space_id=@S;", conn, tx))
+                {
+                    delBooth.Parameters.AddWithValue("@B", boothId);
+                    delBooth.Parameters.AddWithValue("@S", spaceId);
+                    await delBooth.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+                return NoContent();
+            }
+            catch (MySqlException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+
 
         private static async Task<BoothModel> LoadBoothById(MySqlConnection conn, int spaceId, int boothId)
         {

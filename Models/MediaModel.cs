@@ -11,7 +11,7 @@ namespace TifoXRWebApi.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public List<MediaLocalization> Localizations { get; set; }
+        public required List<MediaLocalization> Localizations { get; set; }
     }
 
     /// <summary>
@@ -19,11 +19,11 @@ namespace TifoXRWebApi.Models
     /// </summary>
     public class MediaData
     {
-        public string Id { get; set; }
+        public required string Id { get; set; }
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public List<MediaLocalization> Localizations { get; set; }
+        public required List<MediaLocalization> Localizations { get; set; }
     }
 
     /// <summary>
@@ -31,7 +31,38 @@ namespace TifoXRWebApi.Models
     /// </summary>
     public class MediaLocalization
     {
-        public string LocaleId { get; set; }
-        public string MediaLink { get; set; }
+        public required string LocaleId { get; set; }
+        public required string MediaLink { get; set; }
+    }
+
+    /// <summary>
+    /// DTO for deleting media localizations of a portal.
+    /// </summary>
+    //public class MediaLocalizationDeleteDto
+    //{
+    //    /// <summary>Locale IDs to delete (e.g. ["en_us","es_es"])</summary>
+    //    public required List<string> LocaleIds { get; set; }
+
+    //    /// <summary>Whether to delete from the corresponding media.</summary>
+    //    public bool DeleteCorresponding { get; set; }
+
+    //    /// <summary>Whether to delete from the thumbnail media.</summary>
+    //    public bool DeleteThumbnail { get; set; }
+    //}
+
+    public class MediaLocalizationDeleteDto
+    {
+        /// <summary>
+        /// List of media entries (corresponding or thumbnail) and the locales to delete.
+        /// </summary>
+        public List<MediaLocales> Media { get; set; }
+    }
+
+    public class MediaLocales
+    {
+        /// <summary>ID of the media (must match this portal's corresponding or thumbnail media).</summary>
+        public string MediaId { get; set; }
+        /// <summary>Locale IDs to delete for this media.</summary>
+        public List<string> LocaleIds { get; set; }
     }
 }
