@@ -152,6 +152,9 @@ namespace TifoXRWebApi.Controllers
         /// Returns all portals under a specific booth in a space,
         /// including localized name and media localizations.
         /// </summary>
+        /// FIX ME: Need to fix the get api for localization miss match. In case if
+        /// localiaztion for different media and text are not same then the data is not
+        /// fetched properly
         //[ProducesResponseType(typeof(List<PortalData>), StatusCodes.Status200OK)]
         //[ProducesResponseType(StatusCodes.Status404NotFound)]
         //[ProducesResponseType(StatusCodes.Status500InternalServerError)]
