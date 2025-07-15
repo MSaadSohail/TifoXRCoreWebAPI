@@ -4,17 +4,20 @@ using TifoXRWebApi.Models.Common;
 namespace TifoXRWebApi.Models
 {
     /// <summary>
-    /// DTO for updating a portal’s localized name (i18n).
+    /// DTO for updating a portal’s localized name (i18n), event and external link.
     /// </summary>
     public class PortalUpdateDto
     {
         public required LocalizedName LocalizedName { get; set; }
+        public int? EventId { get; set; }
 
         /// <summary>Upsert this media against p.corresponding_media_id</summary>
         public MediaUpdateDto? CorrespondingMedia { get; set; }
 
         /// <summary>Upsert this media against p.thumbnail_media_id</summary>
         public MediaUpdateDto? ThumbnailMedia { get; set; }
+
+        public string? ExternalLink { get; set; }
     }
 
     /// <summary>
