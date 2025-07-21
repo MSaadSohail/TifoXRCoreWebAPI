@@ -1,5 +1,5 @@
 ﻿
-namespace TifoXRWebApi.Models
+namespace TifoXRCoreWebAPI.Models
 {
     /// <summary>
     /// DTO for upserting a media record.

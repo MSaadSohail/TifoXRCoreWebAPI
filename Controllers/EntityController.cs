@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
-using TifoXRWebApi.Models.Common;
-using TifoXRWebApi.Models;
+using TifoXRCoreWebAPI.Models.Common;
+using TifoXRCoreWebAPI.Models;
 
-namespace TifoXR3DBackend.Controllers
+namespace TifoXRCoreWebAPI.Controllers
 {
     public class EntityController : Controller
     {

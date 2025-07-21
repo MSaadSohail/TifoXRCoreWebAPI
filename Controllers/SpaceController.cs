@@ -2,10 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
 using System.Data;
-using TifoXRWebApi.Models;
-using TifoXRWebApi.Models.Common;
+using TifoXRCoreWebAPI.Models;
+using TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXRWebApi.Controllers
+namespace TifoXRCoreWebAPI.Controllers
 {
     [Route("api/space")]
     [ApiController]

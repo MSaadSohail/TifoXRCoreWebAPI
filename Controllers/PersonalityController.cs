@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
 using System.Data;
-using TifoXRWebApi.Models;
-using TifoXRWebApi.Models.Common;
+using TifoXRCoreWebAPI.Models;
+using TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXR3DBackend.Controllers
+namespace TifoXRCoreWebAPI.Controllers
 {
     public class PersonalityController : Controller
     {

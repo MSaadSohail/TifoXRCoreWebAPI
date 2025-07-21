@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
-using TifoXRWebApi.Models;
+using TifoXRCoreWebAPI.Models;
 
-namespace TifoXRWebApi.Controllers
+namespace TifoXRCoreWebAPI.Controllers
 {
     [Route("api/metrics")]
     [ApiController]

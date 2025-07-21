@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using TifoXRWebApi.Models.Common;
+using TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXRWebApi.Models
+namespace TifoXRCoreWebAPI.Models
 {
     public class PersonalityData
     {

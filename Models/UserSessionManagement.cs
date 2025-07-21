@@ -1,4 +1,4 @@
-﻿namespace TifoXRWebApi.Models
+﻿namespace TifoXRCoreWebAPI.Models
 {
     using System.ComponentModel.DataAnnotations.Schema;
 

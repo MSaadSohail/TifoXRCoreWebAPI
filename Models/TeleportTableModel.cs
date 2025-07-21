@@ -1,6 +1,6 @@
-﻿using TifoXRWebApi.Models.Common;
+﻿using TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXRWebApi.Models
+namespace TifoXRCoreWebAPI.Models
 {
     /// <summary>
     /// The data returned for each teleport table.

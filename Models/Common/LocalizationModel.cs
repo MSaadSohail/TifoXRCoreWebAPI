@@ -1,4 +1,4 @@
-﻿namespace TifoXRWebApi.Models.Common
+﻿namespace TifoXRCoreWebAPI.Models.Common
 {
     /// <summary>
     /// Holds a resource key plus all its localized values.
