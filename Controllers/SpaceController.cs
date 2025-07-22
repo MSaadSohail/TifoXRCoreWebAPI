@@ -531,313 +531,311 @@ namespace TifoXRCoreWebAPI.Controllers
             return booth;
         }
 
-    }
-
     //For Teleport Tables
-    public partial class SpaceController : ControllerBase
-    {
+    //public partial class SpaceController : ControllerBase
+    //{
 
-        /// <summary>
-        /// GET /api/space/{spaceId}/teleport_tables
-        /// Returns all teleport tables in a space, with their localized names and buttons.
-        /// </summary>
-        [HttpGet("{spaceId}/teleport_tables")]
-        [ProducesResponseType(typeof(List<TeleportTableData>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<List<TeleportTableData>>> GetTeleportTablesBySpace(
-            [FromRoute] int spaceId)
-        {
-            try
-            {
-                const string tableSql = @"
-                    SELECT
-                        t.id,
-                        t.space_id,
-                        t.is_active,
-                        t.name_key,
-                        i.locale_id,
-                        i.value
-                    FROM teleport_table AS t
-                    LEFT JOIN i18n AS i
-                      ON i.`key`     = t.name_key
-                     AND i.space_id  = t.space_id
-                    WHERE t.space_id = @SpaceId
-                    ORDER BY t.id, i.locale_id;
-                ";
+    //    /// <summary>
+    //    /// GET /api/space/{spaceId}/teleport_tables
+    //    /// Returns all teleport tables in a space, with their localized names and buttons.
+    //    /// </summary>
+    //    [HttpGet("{spaceId}/teleport_tables")]
+    //    [ProducesResponseType(typeof(List<TeleportTableData>), StatusCodes.Status200OK)]
+    //    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    //    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    //    public async Task<ActionResult<List<TeleportTableData>>> GetTeleportTablesBySpace(
+    //        [FromRoute] int spaceId)
+    //    {
+    //        try
+    //        {
+    //            const string tableSql = @"
+    //                SELECT
+    //                    t.id,
+    //                    t.space_id,
+    //                    t.is_active,
+    //                    t.name_key,
+    //                    i.locale_id,
+    //                    i.value
+    //                FROM teleport_table AS t
+    //                LEFT JOIN i18n AS i
+    //                  ON i.`key`     = t.name_key
+    //                 AND i.space_id  = t.space_id
+    //                WHERE t.space_id = @SpaceId
+    //                ORDER BY t.id, i.locale_id;
+    //            ";
 
-                await using var conn = new MySqlConnection(_connectionString);
-                await conn.OpenAsync();
+    //            await using var conn = new MySqlConnection(_connectionString);
+    //            await conn.OpenAsync();
 
-                var tableMap = new Dictionary<int, TeleportTableData>();
-                // Scope the table reader so it's disposed before button queries
-                {
-                    await using var tblCmd = new MySqlCommand(tableSql, conn);
-                    tblCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+    //            var tableMap = new Dictionary<int, TeleportTableData>();
+    //            // Scope the table reader so it's disposed before button queries
+    //            {
+    //                await using var tblCmd = new MySqlCommand(tableSql, conn);
+    //                tblCmd.Parameters.AddWithValue("@SpaceId", spaceId);
 
-                    await using var tblReader = await tblCmd.ExecuteReaderAsync();
-                    while (await tblReader.ReadAsync())
-                    {
-                        var id = tblReader.GetInt32("id");
-                        if (!tableMap.TryGetValue(id, out var table))
-                        {
-                            table = new TeleportTableData
-                            {
-                                Id = id,
-                                SpaceId = tblReader.GetInt32("space_id"),
-                                IsActive = tblReader.GetBoolean("is_active"),
-                                LocalizedName = new LocalizedName
-                                {
-                                    Key = tblReader.GetString("name_key"),
-                                    Values = new List<LocalizedValue>()
-                                },
-                                Buttons = new List<ButtonData>()
-                            };
-                            tableMap[id] = table;
-                        }
+    //                await using var tblReader = await tblCmd.ExecuteReaderAsync();
+    //                while (await tblReader.ReadAsync())
+    //                {
+    //                    var id = tblReader.GetInt32("id");
+    //                    if (!tableMap.TryGetValue(id, out var table))
+    //                    {
+    //                        table = new TeleportTableData
+    //                        {
+    //                            Id = id,
+    //                            SpaceId = tblReader.GetInt32("space_id"),
+    //                            IsActive = tblReader.GetBoolean("is_active"),
+    //                            LocalizedName = new LocalizedName
+    //                            {
+    //                                Key = tblReader.GetString("name_key"),
+    //                                Values = new List<LocalizedValue>()
+    //                            },
+    //                            Buttons = new List<ButtonData>()
+    //                        };
+    //                        tableMap[id] = table;
+    //                    }
 
-                        if (!tblReader.IsDBNull("locale_id"))
-                        {
-                            table.LocalizedName.Values.Add(new LocalizedValue
-                            {
-                                LocaleId = tblReader.GetString("locale_id"),
-                                Value = tblReader.GetString("value")
-                            });
-                        }
-                    }
-                    // tblReader disposed here
-                }
+    //                    if (!tblReader.IsDBNull("locale_id"))
+    //                    {
+    //                        table.LocalizedName.Values.Add(new LocalizedValue
+    //                        {
+    //                            LocaleId = tblReader.GetString("locale_id"),
+    //                            Value = tblReader.GetString("value")
+    //                        });
+    //                    }
+    //                }
+    //                // tblReader disposed here
+    //            }
 
-                // Now fetch buttons for each table
-                const string btnSql = @"
-                    SELECT
-                        b.id,
-                        b.text_key,
-                        i.locale_id,
-                        i.value
-                    FROM teleport_table_button AS b
-                    LEFT JOIN i18n AS i
-                      ON i.`key`    = b.text_key
-                     AND i.space_id = @SpaceId
-                    WHERE b.table_id = @TableId
-                    ORDER BY b.id, i.locale_id;
-                ";
+    //            // Now fetch buttons for each table
+    //            const string btnSql = @"
+    //                SELECT
+    //                    b.id,
+    //                    b.text_key,
+    //                    i.locale_id,
+    //                    i.value
+    //                FROM teleport_table_button AS b
+    //                LEFT JOIN i18n AS i
+    //                  ON i.`key`    = b.text_key
+    //                 AND i.space_id = @SpaceId
+    //                WHERE b.table_id = @TableId
+    //                ORDER BY b.id, i.locale_id;
+    //            ";
 
-                foreach (var table in tableMap.Values)
-                {
-                    var btnMap = new Dictionary<int, ButtonData>();
+    //            foreach (var table in tableMap.Values)
+    //            {
+    //                var btnMap = new Dictionary<int, ButtonData>();
 
-                    await using var btnCmd = new MySqlCommand(btnSql, conn);
-                    btnCmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                    btnCmd.Parameters.AddWithValue("@TableId", table.Id);
+    //                await using var btnCmd = new MySqlCommand(btnSql, conn);
+    //                btnCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+    //                btnCmd.Parameters.AddWithValue("@TableId", table.Id);
 
-                    await using var btnReader = await btnCmd.ExecuteReaderAsync();
-                    while (await btnReader.ReadAsync())
-                    {
-                        var btnId = btnReader.GetInt32("id");
-                        if (!btnMap.TryGetValue(btnId, out var btn))
-                        {
-                            btn = new ButtonData
-                            {
-                                Id = btnId,
-                                LocalizedName = new LocalizedName
-                                {
-                                    Key = btnReader.GetString("text_key"),
-                                    Values = new List<LocalizedValue>()
-                                }
-                            };
-                            btnMap[btnId] = btn;
-                        }
+    //                await using var btnReader = await btnCmd.ExecuteReaderAsync();
+    //                while (await btnReader.ReadAsync())
+    //                {
+    //                    var btnId = btnReader.GetInt32("id");
+    //                    if (!btnMap.TryGetValue(btnId, out var btn))
+    //                    {
+    //                        btn = new ButtonData
+    //                        {
+    //                            Id = btnId,
+    //                            LocalizedName = new LocalizedName
+    //                            {
+    //                                Key = btnReader.GetString("text_key"),
+    //                                Values = new List<LocalizedValue>()
+    //                            }
+    //                        };
+    //                        btnMap[btnId] = btn;
+    //                    }
 
-                        if (!btnReader.IsDBNull("locale_id"))
-                        {
-                            btn.LocalizedName.Values.Add(new LocalizedValue
-                            {
-                                LocaleId = btnReader.GetString("locale_id"),
-                                Value = btnReader.GetString("value")
-                            });
-                        }
-                    }
+    //                    if (!btnReader.IsDBNull("locale_id"))
+    //                    {
+    //                        btn.LocalizedName.Values.Add(new LocalizedValue
+    //                        {
+    //                            LocaleId = btnReader.GetString("locale_id"),
+    //                            Value = btnReader.GetString("value")
+    //                        });
+    //                    }
+    //                }
 
-                    table.Buttons = new List<ButtonData>(btnMap.Values);
-                }
+    //                table.Buttons = new List<ButtonData>(btnMap.Values);
+    //            }
 
-                var result = new List<TeleportTableData>(tableMap.Values);
-                if (result.Count == 0)
-                    return NotFound();
+    //            var result = new List<TeleportTableData>(tableMap.Values);
+    //            if (result.Count == 0)
+    //                return NotFound();
 
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
-        }
+    //            return Ok(result);
+    //        }
+    //        catch (Exception ex)
+    //        {
+    //            return StatusCode(500, new { error = ex.Message });
+    //        }
+    //    }
 
-        // In Controllers/SpaceController.cs
-        [HttpPut("{spaceId}/teleport_table/{tableId}")]
-        public async Task<ActionResult<TeleportTableData>> UpdateTeleportTableById(
-            [FromRoute] int spaceId,
-            [FromRoute] int tableId,
-            [FromBody] TeleportTableUpdateDto dto
-        )
-        {
-            if (dto == null) return BadRequest();
+    //    // In Controllers/SpaceController.cs
+    //    [HttpPut("{spaceId}/teleport_table/{tableId}")]
+    //    public async Task<ActionResult<TeleportTableData>> UpdateTeleportTableById(
+    //        [FromRoute] int spaceId,
+    //        [FromRoute] int tableId,
+    //        [FromBody] TeleportTableUpdateDto dto
+    //    )
+    //    {
+    //        if (dto == null) return BadRequest();
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var tx = await conn.BeginTransactionAsync();
-            try
-            {
-                // … existing upsert of teleport_table + i18n for table name …
+    //        await using var conn = new MySqlConnection(_connectionString);
+    //        await conn.OpenAsync();
+    //        await using var tx = await conn.BeginTransactionAsync();
+    //        try
+    //        {
+    //            // … existing upsert of teleport_table + i18n for table name …
 
-                // 3) Upsert buttons if provided
-                if (dto.Buttons != null)
-                {
-                    const string updBtnSql = @"
-                        UPDATE teleport_table_button
-                           SET text_key = @TextKey
-                         WHERE id = @BtnId
-                           AND table_id = @TableId;
-                    ";
-                    const string insBtnSql = @"
-                        INSERT INTO teleport_table_button (table_id, text_key)
-                        VALUES (@TableId, @TextKey);
-                    ";
+    //            // 3) Upsert buttons if provided
+    //            if (dto.Buttons != null)
+    //            {
+    //                const string updBtnSql = @"
+    //                    UPDATE teleport_table_button
+    //                       SET text_key = @TextKey
+    //                     WHERE id = @BtnId
+    //                       AND table_id = @TableId;
+    //                ";
+    //                const string insBtnSql = @"
+    //                    INSERT INTO teleport_table_button (table_id, text_key)
+    //                    VALUES (@TableId, @TextKey);
+    //                ";
 
-                    const string updI18n = @"
-                        UPDATE i18n
-                           SET value = @Value
-                         WHERE `key`     = @TextKey
-                           AND locale_id = @LocaleId
-                           AND space_id  = @SpaceId;
-                    ";
+    //                const string updI18n = @"
+    //                    UPDATE i18n
+    //                       SET value = @Value
+    //                     WHERE `key`     = @TextKey
+    //                       AND locale_id = @LocaleId
+    //                       AND space_id  = @SpaceId;
+    //                ";
 
-                    const string insI18n = @"
-                        INSERT INTO i18n (`key`, locale_id, value, space_id)
-                        VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
-                    ";
+    //                const string insI18n = @"
+    //                    INSERT INTO i18n (`key`, locale_id, value, space_id)
+    //                    VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
+    //                ";
 
-                    foreach (var btn in dto.Buttons)
-                    {
-                        // 3a) upsert button row
-                        int btnId;
-                        if (btn.Id.HasValue)
-                        {
-                            await using var cmdU = new MySqlCommand(updBtnSql, conn, tx);
-                            cmdU.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
-                            cmdU.Parameters.AddWithValue("@BtnId", btn.Id.Value);
-                            cmdU.Parameters.AddWithValue("@TableId", tableId);
+    //                foreach (var btn in dto.Buttons)
+    //                {
+    //                    // 3a) upsert button row
+    //                    int btnId;
+    //                    if (btn.Id.HasValue)
+    //                    {
+    //                        await using var cmdU = new MySqlCommand(updBtnSql, conn, tx);
+    //                        cmdU.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
+    //                        cmdU.Parameters.AddWithValue("@BtnId", btn.Id.Value);
+    //                        cmdU.Parameters.AddWithValue("@TableId", tableId);
 
-                            var updatedData = await cmdU.ExecuteNonQueryAsync();
-                            if (updatedData == 0)
-                                return NotFound($"Button {btn.Id.Value} not found on table {tableId}");
+    //                        var updatedData = await cmdU.ExecuteNonQueryAsync();
+    //                        if (updatedData == 0)
+    //                            return NotFound($"Button {btn.Id.Value} not found on table {tableId}");
 
-                            btnId = btn.Id.Value;
-                        }
-                        else
-                        {
-                            await using var cmdI = new MySqlCommand(insBtnSql, conn, tx);
-                            cmdI.Parameters.AddWithValue("@TableId", tableId);
-                            cmdI.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
-                            await cmdI.ExecuteNonQueryAsync();
-                            btnId = Convert.ToInt32(cmdI.LastInsertedId);
-                        }
+    //                        btnId = btn.Id.Value;
+    //                    }
+    //                    else
+    //                    {
+    //                        await using var cmdI = new MySqlCommand(insBtnSql, conn, tx);
+    //                        cmdI.Parameters.AddWithValue("@TableId", tableId);
+    //                        cmdI.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
+    //                        await cmdI.ExecuteNonQueryAsync();
+    //                        btnId = Convert.ToInt32(cmdI.LastInsertedId);
+    //                    }
 
-                        // 3b) upsert i18n entries for this button’s text_key
-                        foreach (var loc in btn.LocalizedName.Values)
-                        {
-                            await using var cu = new MySqlCommand(updI18n, conn, tx);
-                            cu.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
-                            cu.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                            cu.Parameters.AddWithValue("@Value", loc.Value);
-                            cu.Parameters.AddWithValue("@SpaceId", spaceId);
-                            if (await cu.ExecuteNonQueryAsync() == 0)
-                            {
-                                await using var ci = new MySqlCommand(insI18n, conn, tx);
-                                ci.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
-                                ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                                ci.Parameters.AddWithValue("@Value", loc.Value);
-                                ci.Parameters.AddWithValue("@SpaceId", spaceId);
-                                await ci.ExecuteNonQueryAsync();
-                            }
-                        }
-                    }
-                }
+    //                    // 3b) upsert i18n entries for this button’s text_key
+    //                    foreach (var loc in btn.LocalizedName.Values)
+    //                    {
+    //                        await using var cu = new MySqlCommand(updI18n, conn, tx);
+    //                        cu.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
+    //                        cu.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+    //                        cu.Parameters.AddWithValue("@Value", loc.Value);
+    //                        cu.Parameters.AddWithValue("@SpaceId", spaceId);
+    //                        if (await cu.ExecuteNonQueryAsync() == 0)
+    //                        {
+    //                            await using var ci = new MySqlCommand(insI18n, conn, tx);
+    //                            ci.Parameters.AddWithValue("@TextKey", btn.LocalizedName.Key);
+    //                            ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+    //                            ci.Parameters.AddWithValue("@Value", loc.Value);
+    //                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
+    //                            await ci.ExecuteNonQueryAsync();
+    //                        }
+    //                    }
+    //                }
+    //            }
 
-                await tx.CommitAsync();
+    //            await tx.CommitAsync();
 
-                // 4) reload and return the updated table (with buttons)
-                var updated = await LoadTeleportTableById(conn, spaceId, tableId);
-                return Ok(updated);
-            }
-            catch (MySqlException ex)
-            {
-                await tx.RollbackAsync();
-                return StatusCode(500, new { error = ex.Message });
-            }
-        }
+    //            // 4) reload and return the updated table (with buttons)
+    //            var updated = await LoadTeleportTableById(conn, spaceId, tableId);
+    //            return Ok(updated);
+    //        }
+    //        catch (MySqlException ex)
+    //        {
+    //            await tx.RollbackAsync();
+    //            return StatusCode(500, new { error = ex.Message });
+    //        }
+    //    }
 
-        // Helper to load a single teleport table with its localizations
-        private static async Task<TeleportTableData> LoadTeleportTableById(
-            MySqlConnection conn,
-            int spaceId,
-            int tableId
-        )
-        {
-            const string sql = @"
-                SELECT
-                    t.id,
-                    t.space_id,
-                    t.is_active,
-                    t.name_key,
-                    i.locale_id,
-                    i.value
-                FROM teleport_table AS t
-                LEFT JOIN i18n AS i
-                  ON i.`key`    = t.name_key
-                 AND i.space_id = t.space_id
-                WHERE t.id = @TableId
-                  AND t.space_id = @SpaceId
-                ORDER BY i.locale_id;
-            ";
+    //    // Helper to load a single teleport table with its localizations
+    //    private static async Task<TeleportTableData> LoadTeleportTableById(
+    //        MySqlConnection conn,
+    //        int spaceId,
+    //        int tableId
+    //    )
+    //    {
+    //        const string sql = @"
+    //            SELECT
+    //                t.id,
+    //                t.space_id,
+    //                t.is_active,
+    //                t.name_key,
+    //                i.locale_id,
+    //                i.value
+    //            FROM teleport_table AS t
+    //            LEFT JOIN i18n AS i
+    //              ON i.`key`    = t.name_key
+    //             AND i.space_id = t.space_id
+    //            WHERE t.id = @TableId
+    //              AND t.space_id = @SpaceId
+    //            ORDER BY i.locale_id;
+    //        ";
 
-            await using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@TableId", tableId);
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+    //        await using var cmd = new MySqlCommand(sql, conn);
+    //        cmd.Parameters.AddWithValue("@TableId", tableId);
+    //        cmd.Parameters.AddWithValue("@SpaceId", spaceId);
 
-            var map = new Dictionary<int, TeleportTableData>();
-            await using var reader = await cmd.ExecuteReaderAsync();
-            TeleportTableData table = null!;
-            while (await reader.ReadAsync())
-            {
-                if (table == null)
-                {
-                    table = new TeleportTableData
-                    {
-                        Id = reader.GetInt32("id"),
-                        SpaceId = reader.GetInt32("space_id"),
-                        IsActive = reader.GetBoolean("is_active"),
-                        LocalizedName = new LocalizedName
-                        {
-                            Key = reader.GetString("name_key"),
-                            Values = new List<LocalizedValue>()
-                        }
-                    };
-                }
+    //        var map = new Dictionary<int, TeleportTableData>();
+    //        await using var reader = await cmd.ExecuteReaderAsync();
+    //        TeleportTableData table = null!;
+    //        while (await reader.ReadAsync())
+    //        {
+    //            if (table == null)
+    //            {
+    //                table = new TeleportTableData
+    //                {
+    //                    Id = reader.GetInt32("id"),
+    //                    SpaceId = reader.GetInt32("space_id"),
+    //                    IsActive = reader.GetBoolean("is_active"),
+    //                    LocalizedName = new LocalizedName
+    //                    {
+    //                        Key = reader.GetString("name_key"),
+    //                        Values = new List<LocalizedValue>()
+    //                    }
+    //                };
+    //            }
 
-                if (!reader.IsDBNull("locale_id"))
-                {
-                    table.LocalizedName.Values.Add(new LocalizedValue
-                    {
-                        LocaleId = reader.GetString("locale_id"),
-                        Value = reader.GetString("value")
-                    });
-                }
-            }
+    //            if (!reader.IsDBNull("locale_id"))
+    //            {
+    //                table.LocalizedName.Values.Add(new LocalizedValue
+    //                {
+    //                    LocaleId = reader.GetString("locale_id"),
+    //                    Value = reader.GetString("value")
+    //                });
+    //            }
+    //        }
 
-            return table;
-        }
+    //        return table;
+    //    }
 
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(SpaceData), StatusCodes.Status200OK)]
