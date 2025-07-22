@@ -17,7 +17,7 @@ namespace TifoXRCoreWebAPI.Repositories
         }
 
         // GET
-        public async Task<EntityData?> GetByIdAsync(int id)
+        public async Task<EntityData> GetByIdAsync(int id)
         {
             await using var conn = new MySqlConnection(_connStr);
             await conn.OpenAsync();
@@ -101,7 +101,7 @@ namespace TifoXRCoreWebAPI.Repositories
         }
 
         // PUT
-        public async Task<EntityData?> UpdateAsync(int id, Entity dto)
+        public async Task<EntityData> UpdateAsync(int id, Entity dto)
         {
             await using var conn = new MySqlConnection(_connStr);
             await conn.OpenAsync();
@@ -189,7 +189,7 @@ namespace TifoXRCoreWebAPI.Repositories
         }
 
         // Helper Function
-        private static async Task<EntityData?> LoadEntityById(MySqlConnection conn, int entityId)
+        private static async Task<EntityData> LoadEntityById(MySqlConnection conn, int entityId)
         {
             const string sql = @"
                     SELECT
@@ -217,7 +217,7 @@ namespace TifoXRCoreWebAPI.Repositories
             cmd.Parameters.AddWithValue("@EntityId", entityId);
 
             await using var rdr = await cmd.ExecuteReaderAsync();
-            EntityData? entity = null;
+            EntityData entity = null;
             var names = new List<LocalizedValue>();
             var descs = new List<LocalizedValue>();
 
@@ -250,11 +250,23 @@ namespace TifoXRCoreWebAPI.Repositories
 
                 var locale = rdr.GetString("name_locale_id");
 
-                var nameVal = rdr.IsDBNull("name_value") ? null : rdr.GetString("name_value");
-                names.Add(new LocalizedValue { LocaleId = locale, Value = nameVal });
+                if (!rdr.IsDBNull(rdr.GetOrdinal("name_value")))
+                {
+                    names.Add(new LocalizedValue
+                    {
+                        LocaleId = locale,
+                        Value = rdr.GetString("name_value")
+                    });
+                }
 
-                var descVal = rdr.IsDBNull("desc_value") ? null : rdr.GetString("desc_value");
-                descs.Add(new LocalizedValue { LocaleId = locale, Value = descVal });
+                if (!rdr.IsDBNull(rdr.GetOrdinal("desc_value")))
+                {
+                    descs.Add(new LocalizedValue
+                    {
+                        LocaleId = locale,
+                        Value = rdr.GetString("desc_value")
+                    });
+                }
             }
 
             return entity;
