@@ -1,10 +1,13 @@
-using Microsoft.EntityFrameworkCore;
-using TifoXRCoreWebAPI.Repositories;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
+﻿using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 using TifoXRCoreWebAPI.Data;
+using System.Reflection;
+using TifoXRCoreWebAPI.Repositories.Interfaces;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -14,11 +17,32 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection"),
         new MySqlServerVersion(new Version(8, 0, 0))));
 
-builder.Services.AddScoped<IEntityRepository, EntityRepository>();
+var services = builder.Services;
+
+// Automatically register all IRepository -> Repository mappings
+var repositoryAssembly = Assembly.GetExecutingAssembly();
+
+var typesWithInterfaces = repositoryAssembly
+    .GetTypes()
+    .Where(t => t.IsClass && !t.IsAbstract)
+    .Select(t => new
+    {
+        Implementation = t,
+        Interface = t.GetInterface($"I{t.Name}")
+    })
+    .Where(t => t.Interface != null);
+
+foreach (var type in typesWithInterfaces)
+{
+    services.AddScoped(type.Interface, type.Implementation);
+}
+
 
 var app = builder.Build();
 
-app.UseCors(p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+app.UseCors(policy =>
+    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
 app.UseSwagger();
 app.UseSwaggerUI();
 app.MapControllers();
