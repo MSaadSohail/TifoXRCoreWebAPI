@@ -9,7 +9,7 @@ namespace TifoXRCoreWebAPI.Repositories.Interfaces
         Task<PortalData?> GetPortalByIdAsync(int spaceId, int portalId);
         Task<PortalData> CreatePortalAsync(int spaceId, PortalCreateDto portalDto);
         Task<PortalData?> UpdatePortalAsync(int spaceId, int portalId, PortalUpdateDto portalDto);
-        Task<PortalData?> UpdatePortalAsync(int spaceId, int boothId, int portalId, PortalUpdateDto dto)
+        Task<PortalData?> UpdatePortalAsync(int spaceId, int boothId, int portalId, PortalUpdateDto dto);
         Task<bool> DeletePortalAsync(int spaceId, int portalId);
         Task<bool> DeletePortalAsync(int spaceId, int boothId, int portalId);
     }
