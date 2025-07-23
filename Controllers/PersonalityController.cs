@@ -95,7 +95,7 @@ ORDER BY i.locale_id;
                             : new MediaData
                             {
                                 Id = reader.GetString("media_id"),
-                                Localizations = []
+                                LinkLocalizations = []
                             }
                     };
                 }
@@ -127,7 +127,7 @@ ORDER BY i.locale_id;
                         var MediaLink = reader.GetString("media_link");
                         if (MediaLink != null)
 
-                            personality.Media.Localizations[locale] = MediaLink;
+                            personality.Media.LinkLocalizations[locale] = MediaLink;
                     }
                 }
             }

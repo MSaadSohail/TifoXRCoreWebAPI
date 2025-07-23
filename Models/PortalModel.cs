@@ -19,14 +19,9 @@ namespace TifoXRCoreWebAPI.Models
         /// </summary>
         public required LocalizedResource LocalizedName { get; set; }
         public int? EventId { get; set; }
-
-        /// <summary>Upsert this media against p.corresponding_media_id</summary>
-        public MediaUpdateDto? CorrespondingMedia { get; set; }
-
-        /// <summary>Upsert this media against p.thumbnail_media_id</summary>
-        public MediaUpdateDto? ThumbnailMedia { get; set; }
-
         public string? ExternalLink { get; set; }
+        public MediaUpdateDto? CorrespondingMedia { get; set; }
+        public MediaUpdateDto? ThumbnailMedia { get; set; }
     }
 
     /// <summary>
@@ -43,18 +38,14 @@ namespace TifoXRCoreWebAPI.Models
     public class PortalModel
     {
         public int PortalId { get; set; }
-        public int SpaceId { get; set; }
+        public required int SpaceId { get; set; }
         public int? BoothId { get; set; }
-        public int? PortalTypeId { get; set; }
+        public required int? PortalTypeId { get; set; }
         public int? EventId { get; set; }
-        public MediaData? CorrespondingMedia { get; set; }
-        public MediaData? ThumbnailMedia { get; set; }
-
-        /// <summary>
-        /// The i18n key and its localizations.
-        /// </summary>
-        public LocalizedResource? TextFieldKey { get; set; }
-        public string? ExternalLink { get; set; }
+        public required LocalizedResource? LocalizedName { get; set; }
+        public required string? ExternalLink { get; set; }
+        public required MediaData CorrespondingMedia { get; set; }
+        public required MediaData ThumbnailMedia { get; set; }
     }
 
     /// <summary>
@@ -67,7 +58,7 @@ namespace TifoXRCoreWebAPI.Models
         public int? EventId { get; set; }
         public LocalizedResource? LocalizedName { get; set; }
         public string? ExternalLink { get; set; }
-        public MediaUpdateDto? CorrespondingMedia { get; set; }
-        public MediaUpdateDto? ThumbnailMedia { get; set; }
+        public MediaCreateDto? CorrespondingMedia { get; set; }
+        public MediaCreateDto? ThumbnailMedia { get; set; }
     }
 }
