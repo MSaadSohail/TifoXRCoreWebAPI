@@ -1,4 +1,10 @@
-﻿
+﻿// <copyright file="PortalData.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/09/2025</date>
+// <summary>Data for portals</summary>
+
 using TifoXRCoreWebAPI.Models.Common;
 
 namespace TifoXRCoreWebAPI.Models
@@ -8,7 +14,10 @@ namespace TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalUpdateDto
     {
-        public required LocalizedName LocalizedName { get; set; }
+        /// <summary>
+        /// The resource key and its localized values (locale → value).
+        /// </summary>
+        public required LocalizedResource LocalizedName { get; set; }
         public int? EventId { get; set; }
 
         /// <summary>Upsert this media against p.corresponding_media_id</summary>
@@ -25,13 +34,13 @@ namespace TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalResponse
     {
-        public required PortalData Portal { get; set; }
+        public required PortalModel Portal { get; set; }
     }
 
     /// <summary>
     /// Full portal payload including its localizations.
     /// </summary>
-    public class PortalData
+    public class PortalModel
     {
         public int PortalId { get; set; }
         public int SpaceId { get; set; }
@@ -40,16 +49,23 @@ namespace TifoXRCoreWebAPI.Models
         public int? EventId { get; set; }
         public MediaData? CorrespondingMedia { get; set; }
         public MediaData? ThumbnailMedia { get; set; }
-        public LocalizedName? TextFieldKey { get; set; }
+
+        /// <summary>
+        /// The i18n key and its localizations.
+        /// </summary>
+        public LocalizedResource? TextFieldKey { get; set; }
         public string? ExternalLink { get; set; }
     }
 
+    /// <summary>
+    /// DTO for creating a new portal.
+    /// </summary>
     public class PortalCreateDto
     {
         public int? BoothId { get; set; }
         public int? PortalTypeId { get; set; }
         public int? EventId { get; set; }
-        public LocalizedName?                                                                                                             LocalizedName { get; set; }
+        public LocalizedResource? LocalizedName { get; set; }
         public string? ExternalLink { get; set; }
         public MediaUpdateDto? CorrespondingMedia { get; set; }
         public MediaUpdateDto? ThumbnailMedia { get; set; }

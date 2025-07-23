@@ -1,4 +1,10 @@
-﻿
+﻿// <copyright file="SpaceController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/09/2025</date>
+// <summary>Controller to handle space routes</summary>
+
 using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
 using System.Data;
@@ -11,127 +17,10 @@ namespace TifoXRCoreWebAPI.Controllers
     [Route("api/space")]
     [ApiController]
 
-    //For Portals
-    public partial class SpaceController : ControllerBase
-    {
-        private readonly string _connectionString;
-
-        //public SpaceController(IConfiguration configuration)
-        //    => _connectionString = configuration.GetConnectionString("DefaultConnection");
-
-        private readonly IPortalRepository _portalRepository;
-
-        public SpaceController(IPortalRepository portalRepository)
-        {
-            _portalRepository = portalRepository;
-        }
-
-        [HttpGet("{spaceId}/portals")]
-        public async Task<ActionResult<List<PortalData>>> GetPortalsBySpace(
-            [FromRoute] int spaceId
-        )
-        {
-            var portals = await _portalRepository.GetPortalsBySpaceAsync(spaceId);
-            if (portals == null || portals.Count == 0)
-                return NotFound();
-            return Ok(portals);
-        }
-
-        [HttpGet("{spaceId}/booth/{boothId}/portals")]
-        public async Task<ActionResult<List<PortalData>>> GetPortalsByBooth(
-            [FromRoute] int spaceId, 
-            [FromRoute] int boothId
-        )
-        {
-            var portals = await _portalRepository.GetPortalsByBoothAsync(spaceId, boothId);
-            if (portals == null || portals.Count == 0)
-                return NotFound();
-            return Ok(portals);
-        }
-
-        [HttpGet("{spaceId}/portal/{portalId}")]
-        public async Task<ActionResult<PortalData>> GetPortalById(
-            [FromRoute] int spaceId, 
-            [FromRoute] int portalId)
-        {
-            var portal = await _portalRepository.GetPortalByIdAsync(spaceId, portalId);
-            if (portal == null) return NotFound();
-            return Ok(portal);
-        }
-
-        [HttpPost("{spaceId}/portal")]
-        public async Task<ActionResult<PortalData>> CreatePortal(
-            [FromRoute] int spaceId, 
-            [FromBody] PortalCreateDto portalDto
-        )
-        {
-            if (portalDto == null) return BadRequest();
-            var created = await _portalRepository.CreatePortalAsync(spaceId, portalDto);
-            return CreatedAtAction(nameof(GetPortalById), 
-                new { spaceId, portalId = created.PortalId }, created);
-        }
-
-        [HttpPut("{spaceId}/portal/{portalId}")]
-        public async Task<ActionResult<PortalData>> UpdatePortal(
-            [FromRoute] int spaceId, 
-            [FromRoute] int portalId, 
-            [FromBody] PortalUpdateDto portalDto)
-        {
-            if (portalDto == null) return BadRequest();
-            
-            var updated = await _portalRepository.UpdatePortalAsync(spaceId, portalId, portalDto);
-            
-            if(updated == null) return NotFound();
-            
-            return Ok(updated);
-        }
-
-        [HttpPut("{spaceId}/booth/{boothId}/portal/{portalId}")]
-        public async Task<ActionResult<PortalResponse>> UpdatePortalData(
-            [FromRoute] int spaceId,
-            [FromRoute] int boothId,
-            [FromRoute] int portalId,
-            [FromBody] PortalUpdateDto dto
-        )
-        {
-            if (dto == null) return BadRequest();
-
-            var updated = await _portalRepository.UpdatePortalAsync(spaceId, boothId, portalId, dto);
-
-            if (updated == null) return NotFound();
-
-            return Ok(updated);
-        }
-
-        [HttpDelete("{spaceId}/portal/{portalId}")]
-        public async Task<IActionResult> DeletePortal(
-            [FromRoute] int spaceId, 
-            [FromRoute] int portalId)
-        {
-            var deleted = await _portalRepository.DeletePortalAsync(spaceId, portalId);
-            if (!deleted)
-                return NotFound();
-            return NoContent();
-        }
-
-        [HttpDelete("{spaceId}/booth/{boothId}/portal/{portalId}")]
-        public async Task<IActionResult> DeletePortal(
-            [FromRoute] int spaceId,
-            [FromRoute] int boothId,
-            [FromRoute] int portalId
-        )
-        {
-            var deleted = await _portalRepository.DeletePortalAsync(spaceId, boothId, portalId);
-            if (!deleted)
-                return NotFound(); // Could be 404 for not found or mismatched booth
-            return NoContent();
-        }
-
-    }
-
     //For Booths
     public partial class SpaceController : ControllerBase
     {
+        private readonly string _connectionString;
 
         // GET /api/space/{spaceId}/booths
         [HttpGet("{spaceId}/booths")]

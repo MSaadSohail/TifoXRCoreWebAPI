@@ -1,4 +1,11 @@
-﻿using MySqlConnector;
+﻿// <copyright file="PortalRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/23/2025</date>
+// <summary>Class to handle portal SQL side</summary>
+
+using MySqlConnector;
 using System.Collections.Generic;
 using System.Data;
 using TifoXRCoreWebAPI.Models;
@@ -16,7 +23,7 @@ namespace TifoXRCoreWebAPI.Repositories
             _connectionString = configuration.GetConnectionString("DefaultConnection");
         }
 
-        public async Task<List<PortalData>> GetPortalsBySpaceAsync(int spaceId)
+        public async Task<List<PortalModel>> GetPortalsBySpaceAsync(int spaceId)
         {
             const string sql = @"
                 SELECT 
@@ -28,7 +35,7 @@ namespace TifoXRCoreWebAPI.Repositories
                     p.external_link,
                     p.corresponding_media_id      AS corr_media_id,
                     p.thumbnail_media_id          AS thumb_media_id,
-                    p.text_field_key              AS i18n_key,
+                    p.text_field_key              AS text_key,
                     
                     cm.media_type_id              AS corr_media_type_id,
                     tm.media_type_id              AS thumb_media_type_id,
@@ -79,7 +86,7 @@ namespace TifoXRCoreWebAPI.Repositories
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@SpaceId", spaceId);
 
-            var map = new Dictionary<int, PortalData>();
+            var map = new Dictionary<int, PortalModel>();
             await using var reader = await cmd.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
@@ -87,7 +94,7 @@ namespace TifoXRCoreWebAPI.Repositories
                 var id = reader.GetInt32("portal_id");
                 if (!map.TryGetValue(id, out var portal))
                 {
-                    portal = new PortalData
+                    portal = new PortalModel
                     {
                         PortalId = id,
                         SpaceId = reader.GetInt32("space_id"),
@@ -96,10 +103,10 @@ namespace TifoXRCoreWebAPI.Repositories
                         EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                         ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                        TextFieldKey = new LocalizedName
+                        TextFieldKey = new LocalizedResource
                         {
-                            Key = reader.GetString("i18n_key"),
-                            Values = new List<LocalizedValue>()
+                            Key = reader.GetString("text_key"),
+                            Localizations = new Dictionary<string, string>()
                         },
 
                         CorrespondingMedia = reader.IsDBNull("corr_media_id")
@@ -129,13 +136,10 @@ namespace TifoXRCoreWebAPI.Repositories
                 if (!reader.IsDBNull("locale_id"))
                 {
                     var locale = reader.GetString("locale_id");
-                    portal.TextFieldKey.Values.Add(new LocalizedValue
-                    {
-                        LocaleId = locale,
-                        Value = reader.IsDBNull("localized_text_value")
-                                   ? null
-                                   : reader.GetString("localized_text_value")
-                    });
+                    var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
+                    
+                    if (textValue != null)
+                        portal.TextFieldKey.Localizations[locale] = textValue;
 
                     if (portal.CorrespondingMedia != null)
                     {
@@ -164,45 +168,64 @@ namespace TifoXRCoreWebAPI.Repositories
             return [.. map.Values];
         }
 
-        public async Task<List<PortalData>> GetPortalsByBoothAsync(int spaceId, int boothId)
+        public async Task<List<PortalModel>> GetPortalsByBoothAsync(int spaceId, int boothId)
         {
             const string sql = @"
                 SELECT
-                    p.id                            AS portal_id,
+                    p.id                      AS portal_id,
                     p.space_id,
                     p.booth_id,
                     p.portal_type_id,
                     p.event_id,
-                    CONCAT(p.corresponding_media_id,'') AS corr_media_id,
-                    CONCAT(p.thumbnail_media_id,'')     AS thumb_media_id,
-                    CONCAT(p.text_field_key,'')         AS text_key,
+                    p.corresponding_media_id  AS corr_media_id,
+                    cm.media_type_id          AS corr_media_type_id,
+                    p.thumbnail_media_id      AS thumb_media_id,
+                    tm.media_type_id          AS thumb_media_type_id,
+                    p.text_field_key          AS text_key,
                     p.external_link,
-
-                    sl.locale_id                    AS locale_id,
-                    i.value                         AS localized_text_value,
-
-                    ml1.media_link                  AS corr_media_link,
-                    ml2.media_link                  AS thumb_media_link
-
+                
+                    sl.locale_id              AS locale_id,
+                    i.value                   AS localized_text_value,
+                
+                    ml1.media_link            AS corr_media_link,
+                    ml2.media_link            AS thumb_media_link
+                
                 FROM portal p
-                /* join only supported languages for this space */
+                
+                -- Get only supported languages for the space
                 LEFT JOIN supported_languages sl
                     ON sl.space_id = p.space_id
-                LEFT JOIN i18n i 
-                    ON i.`key`     = p.text_field_key
-                    AND i.space_id = p.space_id
-                    AND i.locale_id = sl.locale_id
-                LEFT JOIN media_localization ml1 
-                    ON ml1.media_id   = p.corresponding_media_id
-                    AND ml1.locale_id  = sl.locale_id
-                LEFT JOIN media_localization ml2 
-                    ON ml2.media_id   = p.thumbnail_media_id
-                    AND ml2.locale_id  = sl.locale_id
 
+                -- Portal name translations for supported locales                
+                LEFT JOIN i18n i 
+                    ON i.`key`      = p.text_field_key
+                   AND i.space_id   = p.space_id
+                   AND i.locale_id  = sl.locale_id
+                
+                -- Join corresponding media to get type ID
+                LEFT JOIN media cm
+                    ON cm.id        = p.corresponding_media_id
+                   AND cm.space_id  = p.space_id
+                
+                -- Join thumbnail media to get type ID
+                LEFT JOIN media tm
+                    ON tm.id        = p.thumbnail_media_id
+                   AND tm.space_id  = p.space_id
+
+                -- Localized links for corresponding media
+                LEFT JOIN media_localization ml1 
+                    ON ml1.media_id  = p.corresponding_media_id
+                   AND ml1.locale_id = sl.locale_id
+                
+                -- Localized links for thumbnail media
+                LEFT JOIN media_localization ml2 
+                    ON ml2.media_id  = p.thumbnail_media_id
+                   AND ml2.locale_id = sl.locale_id
+                
                 WHERE p.space_id = @SpaceId
-                    AND p.booth_id = @BoothId
+                  AND p.booth_id = @BoothId
                 ORDER BY p.id, sl.locale_id;
-                ";
+            ";
 
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
@@ -210,14 +233,14 @@ namespace TifoXRCoreWebAPI.Repositories
             cmd.Parameters.AddWithValue("@SpaceId", spaceId);
             cmd.Parameters.AddWithValue("@BoothId", boothId);
 
-            var map = new Dictionary<int, PortalData>();
+            var map = new Dictionary<int, PortalModel>();
             await using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
                 var id = reader.GetInt32("portal_id");
                 if (!map.TryGetValue(id, out var portal))
                 {
-                    portal = new PortalData
+                    portal = new PortalModel
                     {
                         PortalId = id,
                         SpaceId = reader.GetInt32("space_id"),
@@ -226,10 +249,10 @@ namespace TifoXRCoreWebAPI.Repositories
                         EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                         ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                        TextFieldKey = new LocalizedName
+                        TextFieldKey = new LocalizedResource
                         {
                             Key = reader.GetString("text_key"),
-                            Values = new List<LocalizedValue>()
+                            Localizations = new Dictionary<string, string>()
                         },
 
                         CorrespondingMedia = reader.IsDBNull("corr_media_id")
@@ -237,6 +260,8 @@ namespace TifoXRCoreWebAPI.Repositories
                             : new MediaData
                             {
                                 Id = reader.GetString("corr_media_id"),
+                                MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
+                                reader.GetInt32("corr_media_type_id"),
                                 Localizations = new List<MediaLocalization>()
                             },
 
@@ -245,22 +270,21 @@ namespace TifoXRCoreWebAPI.Repositories
                             : new MediaData
                             {
                                 Id = reader.GetString("thumb_media_id"),
+                                MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
+                                reader.GetInt32("thumb_media_type_id"),
                                 Localizations = new List<MediaLocalization>()
                             }
                     };
+
                     map[id] = portal;
                 }
 
                 if (!reader.IsDBNull("locale_id"))
                 {
                     var locale = reader.GetString("locale_id");
-                    portal.TextFieldKey.Values.Add(new LocalizedValue
-                    {
-                        LocaleId = locale,
-                        Value = reader.IsDBNull("localized_text_value")
-                                    ? null!
-                                    : reader.GetString("localized_text_value")
-                    });
+                    var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
+                    if (textValue != null)
+                        portal.TextFieldKey.Localizations[locale] = textValue;
 
                     if (portal.CorrespondingMedia != null)
                     {
@@ -289,7 +313,7 @@ namespace TifoXRCoreWebAPI.Repositories
             return [.. map.Values];
         }
 
-        public async Task<PortalData?> GetPortalByIdAsync(int spaceId, int portalId)
+        public async Task<PortalModel?> GetPortalByIdAsync(int spaceId, int portalId)
         {
             const string sql = @"
                 SELECT 
@@ -361,11 +385,11 @@ namespace TifoXRCoreWebAPI.Repositories
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
-            PortalData portal = null!;
+            PortalModel portal = null!;
 
             while (await reader.ReadAsync())
             {
-                portal ??= new PortalData
+                portal ??= new PortalModel
                 {
                     PortalId = reader.GetInt32("portal_id"),
                     SpaceId = reader.GetInt32("space_id"),
@@ -374,10 +398,10 @@ namespace TifoXRCoreWebAPI.Repositories
                     EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                     ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                    TextFieldKey = new LocalizedName
+                    TextFieldKey = new LocalizedResource
                     {
                         Key = reader.GetString("text_key"),
-                        Values = new List<LocalizedValue>()
+                        Localizations = new Dictionary<string, string>()
                     },
 
                     CorrespondingMedia = reader.IsDBNull("corr_media_id")
@@ -406,14 +430,9 @@ namespace TifoXRCoreWebAPI.Repositories
                 {
                     var locale = reader.GetString("locale_id");
 
-                    // add text value
-                    portal.TextFieldKey.Values.Add(new LocalizedValue
-                    {
-                        LocaleId = locale,
-                        Value = reader.IsDBNull("localized_text_value")
-                                   ? null!
-                                   : reader.GetString("localized_text_value")
-                    });
+                    var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
+                    if (textValue != null)
+                        portal.TextFieldKey.Localizations[locale] = textValue;
 
                     // add corresponding media link
                     if (portal.CorrespondingMedia != null)
@@ -444,7 +463,7 @@ namespace TifoXRCoreWebAPI.Repositories
             return portal;
         }
 
-        public async Task<PortalData> CreatePortalAsync(int spaceId, PortalCreateDto portalDto)
+        public async Task<PortalModel> CreatePortalAsync(int spaceId, PortalCreateDto portalDto)
         {
             if (portalDto == null)
                 throw new ArgumentNullException(nameof(portalDto));
@@ -529,12 +548,12 @@ namespace TifoXRCoreWebAPI.Repositories
                     VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
                 ";
 
-                foreach (var loc in portalDto.LocalizedName.Values
-                    .Where(x => supportedLocales.Contains(x.LocaleId)))
+                foreach (var loc in portalDto.LocalizedName.Localizations
+                    .Where(x => supportedLocales.Contains(x.Key)))
                 {
                     await using var cmdI = new MySqlCommand(insertI18n, conn, tx);
                     cmdI.Parameters.AddWithValue("@TextKey", portalDto.LocalizedName.Key);
-                    cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmdI.Parameters.AddWithValue("@LocaleId", loc.Key);
                     cmdI.Parameters.AddWithValue("@Value", loc.Value);
                     cmdI.Parameters.AddWithValue("@SpaceId", spaceId);
                     await cmdI.ExecuteNonQueryAsync();
@@ -552,7 +571,7 @@ namespace TifoXRCoreWebAPI.Repositories
             }
         }
 
-        public async Task<PortalData?> UpdatePortalAsync(int spaceId, int portalId, PortalUpdateDto dto)
+        public async Task<PortalModel?> UpdatePortalAsync(int spaceId, int portalId, PortalUpdateDto dto)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
@@ -608,20 +627,23 @@ namespace TifoXRCoreWebAPI.Repositories
                     VALUES(@TextKey,@LocaleId,@Value,@SpaceId);
                 ";
 
-                foreach (var loc in dto.LocalizedName.Values)
+                foreach (var kvp in dto.LocalizedName.Localizations)
                 {
+                    string localeId = kvp.Key;
+                    string value = kvp.Value;
+
                     await using var cu = new MySqlCommand(updI18n, conn, tx);
                     cu.Parameters.AddWithValue("@TextKey", textKey);
-                    cu.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                    cu.Parameters.AddWithValue("@Value", loc.Value);
+                    cu.Parameters.AddWithValue("@LocaleId", localeId);
+                    cu.Parameters.AddWithValue("@Value", value);
                     cu.Parameters.AddWithValue("@SpaceId", spaceId);
 
                     if (await cu.ExecuteNonQueryAsync() == 0)
                     {
                         await using var ci = new MySqlCommand(insI18n, conn, tx);
                         ci.Parameters.AddWithValue("@TextKey", textKey);
-                        ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        ci.Parameters.AddWithValue("@Value", loc.Value);
+                        ci.Parameters.AddWithValue("@LocaleId", localeId);
+                        ci.Parameters.AddWithValue("@Value", value);
                         ci.Parameters.AddWithValue("@SpaceId", spaceId);
                         await ci.ExecuteNonQueryAsync();
                     }
@@ -728,7 +750,7 @@ namespace TifoXRCoreWebAPI.Repositories
             }
         }
 
-        public async Task<PortalData?> UpdatePortalAsync(int spaceId, int boothId, int portalId, PortalUpdateDto dto)
+        public async Task<PortalModel?> UpdatePortalAsync(int spaceId, int boothId, int portalId, PortalUpdateDto dto)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
@@ -792,24 +814,28 @@ namespace TifoXRCoreWebAPI.Repositories
                     VALUES(@TextKey,@LocaleId,@Value,@SpaceId);
                 ";
 
-                foreach (var loc in dto.LocalizedName.Values)
+                foreach (var kvp in dto.LocalizedName.Localizations)
                 {
+                    string localeId = kvp.Key;
+                    string value = kvp.Value;
+
                     await using var cu = new MySqlCommand(updI18n, conn, tx);
                     cu.Parameters.AddWithValue("@TextKey", textKey);
-                    cu.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                    cu.Parameters.AddWithValue("@Value", loc.Value);
+                    cu.Parameters.AddWithValue("@LocaleId", localeId);
+                    cu.Parameters.AddWithValue("@Value", value);
                     cu.Parameters.AddWithValue("@SpaceId", spaceId);
 
                     if (await cu.ExecuteNonQueryAsync() == 0)
                     {
                         await using var ci = new MySqlCommand(insI18n, conn, tx);
                         ci.Parameters.AddWithValue("@TextKey", textKey);
-                        ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        ci.Parameters.AddWithValue("@Value", loc.Value);
+                        ci.Parameters.AddWithValue("@LocaleId", localeId);
+                        ci.Parameters.AddWithValue("@Value", value);
                         ci.Parameters.AddWithValue("@SpaceId", spaceId);
                         await ci.ExecuteNonQueryAsync();
                     }
                 }
+
 
                 // Helper to upsert one media block
                 async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
