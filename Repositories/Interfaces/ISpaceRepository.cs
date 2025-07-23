@@ -6,5 +6,7 @@ namespace TifoXRCoreWebAPI.Repositories.Interfaces
     {
         Task<SpaceData> GetSpaceByIdAsync(int id);
         Task<SpaceData> CreateSpaceAsync(Space spaceDto);
+        Task<SpaceData> UpdateSpaceAsync(int id, Space spaceDto);
+
     }
 }

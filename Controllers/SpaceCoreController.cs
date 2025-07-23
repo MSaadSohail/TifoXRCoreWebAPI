@@ -43,5 +43,34 @@ namespace TifoXRCoreWebAPI.Controllers
                 return BadRequest(new { error = ex.Message });
             }
         }
+
+        [HttpPut("{id}")]
+        [ProducesResponseType(typeof(SpaceData), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<SpaceData>> UpdateSpaceById(int id, [FromBody] Space spaceDto)
+        {
+            if (spaceDto == null || spaceDto.LocalizedDescription == null)
+                return BadRequest();
+
+            try
+            {
+                var updated = await _spaceRepo.UpdateSpaceAsync(id, spaceDto);
+                if (updated == null)
+                    return NotFound();
+
+                return Ok(updated);
+            }
+            catch (MySqlException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
     }
 }

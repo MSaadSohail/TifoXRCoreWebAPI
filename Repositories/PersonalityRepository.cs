@@ -1,8 +1,15 @@
-﻿using MySqlConnector;
+﻿// <copyright file="PersonalityRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/23/2025</date>
+// <summary>Personality APIs</summary>
+using MySqlConnector;
 using System.Data;
 using TifoXRCoreWebAPI.Models;
 using TifoXRCoreWebAPI.Models.Common;
 using TifoXRCoreWebAPI.Repositories.Interfaces;
+using TifoXRCoreWebAPI.Repositories;
 
 namespace TifoXRCoreWebAPI.Repositories
 {
@@ -125,7 +132,156 @@ namespace TifoXRCoreWebAPI.Repositories
 
             return personality;
         }
-    }
 
+        public async Task<PersonalityData> CreatePersonalityAsync(PersonalityCreateDto dto)
+        {
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                var countryKey = dto.LocalizedCountry?.Key;
+                var bioKey = dto.LocalizedBio?.Key;
+
+                if (string.IsNullOrWhiteSpace(countryKey) || string.IsNullOrWhiteSpace(bioKey))
+                    throw new ArgumentException("Both country and bio localization keys must be provided.");
+
+                // Insert media if exists
+                string? mediaId = null;
+                if (dto.Media != null && dto.Media.Localizations.Any())
+                {
+                    mediaId = await InsertOrUpdateMediaAsync(conn, tx, dto.SpaceId, dto.Media);
+                }
+
+                // Insert into personality
+                const string insertSql = @"
+    INSERT INTO personality (
+        name, sport_id, entity_id,
+        country_name_key, bio_data_key, media_id,
+        creation_time, modified_time, modified_by
+    )
+    VALUES (
+        @Name, @SportId, @EntityId,
+        @CountryKey, @BioKey, @MediaId,
+        @CreationTime, @ModifiedTime, @ModifiedBy
+    );
+    SELECT LAST_INSERT_ID();";
+
+                int newId;
+                await using (var cmd = new MySqlCommand(insertSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@Name", dto.Name);
+                    cmd.Parameters.AddWithValue("@SportId", (object?)dto.SportId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@EntityId", (object?)dto.EntityId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@CountryKey", countryKey);
+                    cmd.Parameters.AddWithValue("@BioKey", bioKey);
+                    cmd.Parameters.AddWithValue("@MediaId", (object?)mediaId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@CreationTime", DateTime.UtcNow);
+                    cmd.Parameters.AddWithValue("@ModifiedTime", DateTime.UtcNow);
+                    cmd.Parameters.AddWithValue("@ModifiedBy", dto.ModifiedBy ?? "system");
+
+                    newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                }
+
+                // Insert i18n for country and bio
+                const string insertI18n = @"
+    INSERT INTO i18n (`key`, locale_id, value, space_id)
+    VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+                foreach (var loc in dto.LocalizedCountry.Values)
+                {
+                    await using var cmd = new MySqlCommand(insertI18n, conn, tx);
+                    cmd.Parameters.AddWithValue("@Key", dto.LocalizedCountry.Key);
+                    cmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@SpaceId", dto.SpaceId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                foreach (var loc in dto.LocalizedBio.Values)
+                {
+                    await using var cmd = new MySqlCommand(insertI18n, conn, tx);
+                    cmd.Parameters.AddWithValue("@Key", dto.LocalizedBio.Key);
+                    cmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@SpaceId", dto.SpaceId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+                return (await GetPersonalityByIdAsync(newId))!;
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+
+
+
+
+        private static async Task<string> InsertOrUpdateMediaAsync(
+            MySqlConnection conn,
+            MySqlTransaction tx,
+            int spaceId,
+            MediaUpdateDto dto
+        )
+        {
+            // 1) Ask MySQL itself for a new UUID()
+            string mediaId;
+            {
+                await using var uuidCmd = new MySqlCommand("SELECT UUID()", conn, tx);
+                mediaId = (await uuidCmd.ExecuteScalarAsync())!.ToString()!;
+            }
+
+            // 2) Insert into media, using that server‐generated UUID
+            const string insMedia = @"
+                INSERT INTO media
+                  (id, space_id, media_type_id, text_key, description_key)
+                VALUES
+                  (@Id, @SpaceId, @MediaTypeId, @TextKey, @DescKey);
+            ";
+
+            await using (var cmd = new MySqlCommand(insMedia, conn, tx))
+            {
+                cmd.Parameters.AddWithValue("@Id", mediaId);
+                if (spaceId == 0)
+                    throw new InvalidOperationException("SpaceId is zero or not set properly.");
+                cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                cmd.Parameters.AddWithValue("@MediaTypeId", dto.MediaTypeId);
+                // allow nulls
+                cmd.Parameters.AddWithValue("@TextKey", (object?)dto.TextKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 3) Now insert each localization (their id column will default to UUID())
+            const string insLoc = @"
+                INSERT INTO media_localization
+                  (media_id, locale_id, media_link)
+                VALUES
+                  (@MediaId, @LocaleId, @MediaLink);
+            ";
+
+            foreach (var loc in dto.Localizations)
+            {
+                await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
+                cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
+                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                await cmdLoc.ExecuteNonQueryAsync();
+            }
+
+            return mediaId;
+        }
+
+        
+
+
+
+    }
 
 }

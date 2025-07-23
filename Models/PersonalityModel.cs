@@ -21,4 +21,35 @@ namespace TifoXRCoreWebAPI.Models
         public DateTime ModifiedTime { get; set; }
         public string ModifiedBy { get; set; }
     }
+
+    public class PersonalityCreateDto
+    {
+        public string Name { get; set; }
+        public int? SportId { get; set; }
+        public int? EntityId { get; set; }
+        public int SpaceId { get; set; } // Required for media
+        public string? ModifiedBy { get; set; }
+
+        public LocalizedName LocalizedCountry { get; set; } = new();
+        public LocalizedName LocalizedBio { get; set; } = new();
+        public MediaUpdateDto? Media { get; set; }
+    }
+
+    public class PersonalityUpdateDto
+    {
+        public string Name { get; set; }
+        public int? SportId { get; set; }
+        public int? EntityId { get; set; }
+        public int SpaceId { get; set; } // Needed for media and i18n
+        public string? ModifiedBy { get; set; }
+
+        public LocalizedName LocalizedCountry { get; set; } = new();
+        public LocalizedName LocalizedBio { get; set; } = new();
+
+        public MediaUpdateDto? Media { get; set; }
+    }
+
+
+
+
 }
