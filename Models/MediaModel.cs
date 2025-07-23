@@ -17,7 +17,7 @@ namespace TifoXRCoreWebAPI.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public required List<MediaLocalization> Localizations { get; set; }
+        public required Dictionary<string, string> Localizations { get; set; }
     }
 
     /// <summary>
@@ -29,7 +29,7 @@ namespace TifoXRCoreWebAPI.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public required List<MediaLocalization> Localizations { get; set; }
+        public required Dictionary<string, string> Localizations { get; set; }
     }
 
     /// <summary>

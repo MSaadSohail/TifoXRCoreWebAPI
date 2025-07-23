@@ -65,7 +65,7 @@ ORDER BY i.locale_id;
             PersonalityData personality = null;
             var countryValues = new List<LocalizedValue>();
             var bioValues = new List<LocalizedValue>();
-            var mediaLocalizations = new List<MediaLocalization>();
+            //var mediaLocalizations = new List<MediaLocalization>();
 
             while (await reader.ReadAsync())
             {
@@ -95,7 +95,7 @@ ORDER BY i.locale_id;
                             : new MediaData
                             {
                                 Id = reader.GetString("media_id"),
-                                Localizations = mediaLocalizations
+                                Localizations = []
                             }
                     };
                 }
@@ -124,11 +124,10 @@ ORDER BY i.locale_id;
 
                     if (!reader.IsDBNull("media_link"))
                     {
-                        mediaLocalizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.GetString("media_link")
-                        });
+                        var MediaLink = reader.GetString("media_link");
+                        if (MediaLink != null)
+
+                            personality.Media.Localizations[locale] = MediaLink;
                     }
                 }
             }

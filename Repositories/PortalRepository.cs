@@ -116,7 +116,7 @@ namespace TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
                                 reader.GetInt32("corr_media_type_id"),
-                                Localizations = new List<MediaLocalization>()
+                                Localizations = new()
                             },
 
                         ThumbnailMedia = reader.IsDBNull("thumb_media_id")
@@ -126,7 +126,7 @@ namespace TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("thumb_media_id"),
                                 MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
                                 reader.GetInt32("thumb_media_type_id"),
-                                Localizations = new List<MediaLocalization>()
+                                Localizations = new()
                             }
                     };
                     map[id] = portal;
@@ -143,24 +143,21 @@ namespace TifoXRCoreWebAPI.Repositories
 
                     if (portal.CorrespondingMedia != null)
                     {
-                        portal.CorrespondingMedia.Localizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.IsDBNull("corresponding_media_link")
-                                        ? null
-                                        : reader.GetString("corresponding_media_link")
-                        });
+                        var link = reader.IsDBNull("corresponding_media_link") ? null 
+                            : reader.GetString("corresponding_media_link");
+
+                        if (link != null) // Only add if not null (optional, up to you)
+                            portal.CorrespondingMedia.Localizations[locale] = link;
                     }
 
                     if (portal.ThumbnailMedia != null)
                     {
-                        portal.ThumbnailMedia.Localizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.IsDBNull("thumbnail_media_link")
+                        var link = reader.IsDBNull("thumbnail_media_link")
                                         ? null
-                                        : reader.GetString("thumbnail_media_link")
-                        });
+                                        : reader.GetString("thumbnail_media_link");
+
+                        if (link!=null)
+                            portal.ThumbnailMedia.Localizations[locale] = link;
                     }
                 }
             }
@@ -262,7 +259,7 @@ namespace TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
                                 reader.GetInt32("corr_media_type_id"),
-                                Localizations = new List<MediaLocalization>()
+                                Localizations = new()
                             },
 
                         ThumbnailMedia = reader.IsDBNull("thumb_media_id")
@@ -272,7 +269,7 @@ namespace TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("thumb_media_id"),
                                 MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
                                 reader.GetInt32("thumb_media_type_id"),
-                                Localizations = new List<MediaLocalization>()
+                                Localizations = new()
                             }
                     };
 
@@ -288,24 +285,21 @@ namespace TifoXRCoreWebAPI.Repositories
 
                     if (portal.CorrespondingMedia != null)
                     {
-                        portal.CorrespondingMedia.Localizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.IsDBNull("corr_media_link")
-                                        ? null!
-                                        : reader.GetString("corr_media_link")
-                        });
+                        var link = reader.IsDBNull("corresponding_media_link") ? null
+                            : reader.GetString("corresponding_media_link");
+
+                        if (link != null) // Only add if not null (optional, up to you)
+                            portal.CorrespondingMedia.Localizations[locale] = link;
                     }
 
                     if (portal.ThumbnailMedia != null)
                     {
-                        portal.ThumbnailMedia.Localizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.IsDBNull("thumb_media_link")
-                                        ? null!
-                                        : reader.GetString("thumb_media_link")
-                        });
+                        var link = reader.IsDBNull("thumbnail_media_link")
+                                        ? null
+                                        : reader.GetString("thumbnail_media_link");
+
+                        if (link != null)
+                            portal.ThumbnailMedia.Localizations[locale] = link;
                     }
                 }
             }
@@ -411,7 +405,7 @@ namespace TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : 
                                 reader.GetInt32("corr_media_type_id"),
-                                Localizations = new List<MediaLocalization>()
+                                Localizations = new()
                             },
 
                     ThumbnailMedia = reader.IsDBNull("thumb_media_id")
@@ -421,7 +415,7 @@ namespace TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("thumb_media_id"),
                                 MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : 
                                 reader.GetInt32("thumb_media_type_id"),
-                                Localizations = new List<MediaLocalization>()
+                                Localizations = new()
                             }
                 };
 
@@ -434,28 +428,23 @@ namespace TifoXRCoreWebAPI.Repositories
                     if (textValue != null)
                         portal.TextFieldKey.Localizations[locale] = textValue;
 
-                    // add corresponding media link
                     if (portal.CorrespondingMedia != null)
                     {
-                        portal.CorrespondingMedia.Localizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.IsDBNull("corresponding_media_link")
-                                        ? null!
-                                        : reader.GetString("corresponding_media_link")
-                        });
+                        var link = reader.IsDBNull("corresponding_media_link") ? null
+                            : reader.GetString("corresponding_media_link");
+
+                        if (link != null) // Only add if not null (optional, up to you)
+                            portal.CorrespondingMedia.Localizations[locale] = link;
                     }
 
-                    // add thumbnail media link
                     if (portal.ThumbnailMedia != null)
                     {
-                        portal.ThumbnailMedia.Localizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.IsDBNull("thumbnail_media_link")
-                                        ? null!
-                                        : reader.GetString("thumbnail_media_link")
-                        });
+                        var link = reader.IsDBNull("thumbnail_media_link")
+                                        ? null
+                                        : reader.GetString("thumbnail_media_link");
+
+                        if (link != null)
+                            portal.ThumbnailMedia.Localizations[locale] = link;
                     }
                 }
             }
@@ -497,8 +486,8 @@ namespace TifoXRCoreWebAPI.Repositories
                     // Filter localizations to supported only
                     portalDto.CorrespondingMedia.Localizations =
                         portalDto.CorrespondingMedia.Localizations
-                            .Where(x => supportedLocales.Contains(x.LocaleId))
-                            .ToList();
+                            .Where(x => supportedLocales.Contains(x.Key))
+                            .ToDictionary(x => x.Key, x => x.Value);
 
                     if (portalDto.CorrespondingMedia.Localizations.Count > 0)
                         corrMediaId = await InsertOrUpdateMediaAsync(conn, tx, spaceId, portalDto.CorrespondingMedia);
@@ -510,8 +499,8 @@ namespace TifoXRCoreWebAPI.Repositories
                 {
                     portalDto.ThumbnailMedia.Localizations =
                         portalDto.ThumbnailMedia.Localizations
-                            .Where(x => supportedLocales.Contains(x.LocaleId))
-                            .ToList();
+                            .Where(x => supportedLocales.Contains(x.Key))
+                            .ToDictionary(x => x.Key, x => x.Value);
 
                     if (portalDto.ThumbnailMedia.Localizations.Count > 0)
                         thumbMediaId = await InsertOrUpdateMediaAsync(conn, tx, spaceId, portalDto.ThumbnailMedia);
@@ -528,6 +517,7 @@ namespace TifoXRCoreWebAPI.Repositories
                        @CorrId,   @ThumbId,
                        @TextKey,  @ExternalLink);
                 ";
+
                 int newPortalId;
                 await using (var cmd = new MySqlCommand(insertPortal, conn, tx))
                 {
@@ -719,15 +709,15 @@ namespace TifoXRCoreWebAPI.Repositories
                     {
                         await using var cl = new MySqlCommand(updLoc, conn, tx);
                         cl.Parameters.AddWithValue("@MediaId", mediaId);
-                        cl.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cl.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                        cl.Parameters.AddWithValue("@LocaleId", loc.Key);
+                        cl.Parameters.AddWithValue("@MediaLink", loc.Value);
                         if (await cl.ExecuteNonQueryAsync() == 0)
                         {
                             await using var ci = new MySqlCommand(insLoc, conn, tx);
                             ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
                             ci.Parameters.AddWithValue("@MediaId", mediaId);
-                            ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                            ci.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                            ci.Parameters.AddWithValue("@LocaleId", loc.Key);
+                            ci.Parameters.AddWithValue("@MediaLink", loc.Value);
                             await ci.ExecuteNonQueryAsync();
                         }
                     }
@@ -908,15 +898,15 @@ namespace TifoXRCoreWebAPI.Repositories
                     {
                         await using var cl = new MySqlCommand(updLoc, conn, tx);
                         cl.Parameters.AddWithValue("@MediaId", mediaId);
-                        cl.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cl.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                        cl.Parameters.AddWithValue("@LocaleId", loc.Key);
+                        cl.Parameters.AddWithValue("@MediaLink", loc.Value);
                         if (await cl.ExecuteNonQueryAsync() == 0)
                         {
                             await using var ci = new MySqlCommand(insLoc, conn, tx);
                             ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
                             ci.Parameters.AddWithValue("@MediaId", mediaId);
-                            ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                            ci.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                            ci.Parameters.AddWithValue("@LocaleId", loc.Key);
+                            ci.Parameters.AddWithValue("@MediaLink", loc.Value);
                             await ci.ExecuteNonQueryAsync();
                         }
                     }
@@ -1230,8 +1220,8 @@ namespace TifoXRCoreWebAPI.Repositories
             {
                 await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
                 cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
-                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.Key);
+                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.Value);
                 await cmdLoc.ExecuteNonQueryAsync();
             }
 
