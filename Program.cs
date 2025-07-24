@@ -1,8 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using TifoXRCoreWebAPI.Data;
-using System.Reflection;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
 
 
 var builder = WebApplication.CreateBuilder(args);
