@@ -141,5 +141,82 @@ namespace TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
+        public async Task<SpaceData?> UpdateSpaceAsync(int id, Space spaceDto)
+        {
+            await using var conn = new MySqlConnection(_connStr);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                const string updateSql = @"
+            UPDATE space
+            SET platform_type_id = @PlatformTypeId,
+                entity_id = @EntityId,
+                sku = @Sku,
+                link = @Link,
+                is_published = @IsPublished,
+                is_live = @IsLive,
+                description_key = @DescriptionKey,
+                modified_time = @ModifiedTime,
+                modified_by = @ModifiedBy
+            WHERE id = @Id;";
+
+                await using (var cmd = new MySqlCommand(updateSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@Id", id);
+                    cmd.Parameters.AddWithValue("@PlatformTypeId", spaceDto.PlatformTypeId);
+                    cmd.Parameters.AddWithValue("@EntityId", spaceDto.EntityId);
+                    cmd.Parameters.AddWithValue("@Sku", (object?)spaceDto.Sku ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Link", (object?)spaceDto.Link ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@IsPublished", spaceDto.IsPublished);
+                    cmd.Parameters.AddWithValue("@IsLive", spaceDto.IsLive);
+                    cmd.Parameters.AddWithValue("@DescriptionKey", spaceDto.LocalizedDescription.Key);
+                    cmd.Parameters.AddWithValue("@ModifiedTime", DateTime.UtcNow);
+                    cmd.Parameters.AddWithValue("@ModifiedBy", spaceDto.ModifiedBy ?? "system");
+
+                    if (await cmd.ExecuteNonQueryAsync() == 0)
+                        return null;
+                }
+
+                const string updateI18n = @"
+            UPDATE i18n
+            SET value = @Value
+            WHERE `key` = @Key AND locale_id = @LocaleId AND space_id = @SpaceId;";
+                const string insertI18n = @"
+            INSERT INTO i18n (`key`, locale_id, value, space_id)
+            VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+                foreach (var loc in spaceDto.LocalizedDescription.Values)
+                {
+                    await using var updateCmd = new MySqlCommand(updateI18n, conn, tx);
+                    updateCmd.Parameters.AddWithValue("@Key", spaceDto.LocalizedDescription.Key);
+                    updateCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    updateCmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                    updateCmd.Parameters.AddWithValue("@SpaceId", spaceDto.SpaceId);
+
+                    int affected = await updateCmd.ExecuteNonQueryAsync();
+                    if (affected == 0)
+                    {
+                        await using var insertCmd = new MySqlCommand(insertI18n, conn, tx);
+                        insertCmd.Parameters.AddWithValue("@Key", spaceDto.LocalizedDescription.Key);
+                        insertCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                        insertCmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@SpaceId", spaceDto.SpaceId);
+                        await insertCmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                await tx.CommitAsync();
+                return await GetSpaceByIdAsync(id);
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
     }
 }
