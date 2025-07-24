@@ -1,4 +1,10 @@
-﻿
+﻿// <copyright file="MediaModel.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/23/2025</date>
+// <summary>Data for Media </summary>
+
 namespace TifoXRCoreWebAPI.Models
 {
     /// <summary>
@@ -11,7 +17,7 @@ namespace TifoXRCoreWebAPI.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public required List<MediaLocalization> Localizations { get; set; }
+        public required Dictionary<string, string> LinkLocalizations { get; set; }
     }
 
     /// <summary>
@@ -23,7 +29,17 @@ namespace TifoXRCoreWebAPI.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public required List<MediaLocalization> Localizations { get; set; }
+        public required Dictionary<string, string> LinkLocalizations { get; set; }
+    }
+
+    public class MediaCreateDto
+    {
+        public int MediaTypeId { get; set; }
+        public string? TextKey { get; set; }
+        public Dictionary<string, string>? TextLocalizations { get; set; }
+        public string? DescriptionKey { get; set; }
+        public Dictionary<string, string>? DescriptionLocalizations { get; set; }
+        public Dictionary<string, string>? LinkLocalizations { get; set; }
     }
 
     /// <summary>
@@ -34,21 +50,6 @@ namespace TifoXRCoreWebAPI.Models
         public required string LocaleId { get; set; }
         public required string MediaLink { get; set; }
     }
-
-    /// <summary>
-    /// DTO for deleting media localizations of a portal.
-    /// </summary>
-    //public class MediaLocalizationDeleteDto
-    //{
-    //    /// <summary>Locale IDs to delete (e.g. ["en_us","es_es"])</summary>
-    //    public required List<string> LocaleIds { get; set; }
-
-    //    /// <summary>Whether to delete from the corresponding media.</summary>
-    //    public bool DeleteCorresponding { get; set; }
-
-    //    /// <summary>Whether to delete from the thumbnail media.</summary>
-    //    public bool DeleteThumbnail { get; set; }
-    //}
 
     public class MediaLocalizationDeleteDto
     {
