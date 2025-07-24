@@ -9,15 +9,18 @@ namespace TifoXRCoreWebAPI.Models
     {
         public int Id { get; set; }
         public int SpaceId { get; set; }
+        public string? NameKey { get; set; }
         public bool IsActive { get; set; }
-        public LocalizedName LocalizedName { get; set; }
-        public List<ButtonData> Buttons { get; set; }
+        public Dictionary<string,string>? LocalizedName { get; set; }
+        public List<ButtonData>? Buttons { get; set; }
     }
 
     public class ButtonData
     {
         public int Id { get; set; }
-        public LocalizedName LocalizedName { get; set; }
+        public string NameKey { get; set; }
+        public int BoothToVisit { get; set; }
+        public Dictionary<string, string> LocalizedName { get; set; }
     }
 
     /// <summary>
@@ -25,28 +28,35 @@ namespace TifoXRCoreWebAPI.Models
     /// </summary>
     public class TeleportTableCreateDto
     {
+        public int SpaceId { get; set; } // Required for table creation
+        public string? NameKey { get; set; } // i18n key for the table's name (optional if handled by i18n service)
         public bool IsActive { get; set; }
-        public LocalizedName LocalizedName { get; set; }
+        public Dictionary<string, string>? LocalizedName { get; set; } // Localized name values (optional, can be ignored if service-side i18n)
+        public List<ButtonCreateDto>? Buttons { get; set; } // Buttons to create with the table
     }
 
     public class TeleportTableUpdateDto
     {
+        public int Id { get; set; } // Table ID to update
         public bool IsActive { get; set; }
-        public LocalizedName LocalizedName { get; set; }
+        public string? NameKey { get; set; }
+        public Dictionary<string, string>? LocalizedName { get; set; }
         public List<ButtonUpdateDto>? Buttons { get; set; }
+    }
+
+    public class ButtonCreateDto
+    {
+        public string NameKey { get; set; } // i18n key for the button's name
+        public Dictionary<string, string>? LocalizedName { get; set; } // Localized name values (optional)
+        public int BoothToVisit { get; set; } // FK to booth to teleport to
     }
 
     public class ButtonUpdateDto
     {
-        /// <summary>
-        /// The DB identity for an existing button; null ⇒ insert new.
-        /// </summary>
         public int? Id { get; set; }
-
-        /// <summary>
-        /// The i18n key + its localized values for the button text.
-        /// </summary>
-        public LocalizedName LocalizedName { get; set; }
+        public string NameKey { get; set; } // i18n key for the button's name
+        public Dictionary<string, string>? LocalizedName { get; set; }
+        public int BoothToVisit { get; set; }
     }
 
     /// <summary>
@@ -56,4 +66,5 @@ namespace TifoXRCoreWebAPI.Models
     {
         public TeleportTableData TeleportTable { get; set; }
     }
+
 }
