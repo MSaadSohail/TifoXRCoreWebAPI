@@ -1,4 +1,9 @@
-﻿using TifoXRCoreWebAPI.Models.Common;
+﻿// <copyright file="TeleportTableModel.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/09/2025</date>
+// <summary>Data for teleport table</summary>
 
 namespace TifoXRCoreWebAPI.Models
 {

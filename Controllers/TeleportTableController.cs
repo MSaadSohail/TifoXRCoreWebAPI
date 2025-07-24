@@ -1,16 +1,22 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// <copyright file="TeleportController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/23/2025</date>
+// <summary>Controller to handle teleport able routes</summary>
+
+using Microsoft.AspNetCore.Mvc;
 using TifoXRCoreWebAPI.Models;
 using TifoXRCoreWebAPI.Repositories.Interfaces;
-
 
 namespace TifoXRCoreWebAPI.Controllers
 {
     [Route("api/space")]
     [ApiController]
-    public class TeleportController : ControllerBase
+    public class TeleportTableController : ControllerBase
     {
-        private readonly ITeleportRepository _teleportRepository;
-        public TeleportController(ITeleportRepository teleportRepository)
+        private readonly ITeleportTableRepository _teleportRepository;
+        public TeleportTableController(ITeleportTableRepository teleportRepository)
         {
             _teleportRepository = teleportRepository;
         }

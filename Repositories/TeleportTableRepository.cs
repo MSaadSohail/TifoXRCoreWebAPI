@@ -12,10 +12,10 @@ using TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace TifoXRCoreWebAPI.Repositories
 {
-    public class TeleportRepository : ITeleportRepository
+    public class TeleportTableRepository : ITeleportTableRepository
     {
         private readonly string _connStr;
-        public TeleportRepository(IConfiguration configuration)
+        public TeleportTableRepository(IConfiguration configuration)
             => _connStr = configuration.GetConnectionString("DefaultConnection");
 
         public async Task<TeleportTableData?> GetTeleportTableBySpaceAsync(int spaceId)
