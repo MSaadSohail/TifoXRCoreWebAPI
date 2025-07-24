@@ -37,7 +37,6 @@ namespace TifoXRCoreWebAPI.Models
 
     public class TeleportTableUpdateDto
     {
-        public int Id { get; set; } // Table ID to update
         public bool IsActive { get; set; }
         public string? NameKey { get; set; }
         public Dictionary<string, string>? LocalizedName { get; set; }

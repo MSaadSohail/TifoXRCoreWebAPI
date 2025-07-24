@@ -20,18 +20,18 @@ namespace TifoXRCoreWebAPI.Controllers
         /// Returns all teleport tables in a space, with their localized names and buttons.
         /// </summary>
         [HttpGet("{spaceId}/teleport_tables")]
-        [ProducesResponseType(typeof(List<TeleportTableData>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(TeleportTableData), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<List<TeleportTableData>>> GetTeleportTablesBySpace(
+        public async Task<ActionResult<TeleportTableData>> GetTeleportTablesBySpace(
             [FromRoute] int spaceId)
         {
             try
             {
-                var tables = await _teleportRepository.GetTeleportTablesBySpaceAsync(spaceId);
-                if (tables == null || tables.Count == 0)
+                var table = await _teleportRepository.GetTeleportTableBySpaceAsync(spaceId);
+                if (table == null)
                     return NotFound();
-                return Ok(tables);
+                return Ok(table);
             }
             catch (Exception ex)
             {

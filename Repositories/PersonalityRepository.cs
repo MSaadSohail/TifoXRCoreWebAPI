@@ -64,7 +64,7 @@ namespace TifoXRCoreWebAPI.Repositories
             PersonalityData? personality = null;
             var countryValues = new List<LocalizedValue>();
             var bioValues = new List<LocalizedValue>();
-            var mediaLocalizations = new List<MediaLocalization>();
+            Dictionary<string, string> mediaLocalizations = new ();
 
             while (await reader.ReadAsync())
             {
@@ -92,7 +92,7 @@ namespace TifoXRCoreWebAPI.Repositories
                         Media = reader.IsDBNull("media_id") ? null : new MediaData
                         {
                             Id = reader.GetString("media_id"),
-                            Localizations = mediaLocalizations
+                            LinkLocalizations = mediaLocalizations
                         }
                     };
                 }
@@ -121,11 +121,7 @@ namespace TifoXRCoreWebAPI.Repositories
 
                     if (!reader.IsDBNull("media_link"))
                     {
-                        mediaLocalizations.Add(new MediaLocalization
-                        {
-                            LocaleId = locale,
-                            MediaLink = reader.GetString("media_link")
-                        });
+                        mediaLocalizations.Add(locale, reader.GetString("media_link"));
                     }
                 }
             }
@@ -149,7 +145,7 @@ namespace TifoXRCoreWebAPI.Repositories
 
                 // Insert media if exists
                 string? mediaId = null;
-                if (dto.Media != null && dto.Media.Localizations.Any())
+                if (dto.Media != null && dto.Media.LinkLocalizations.Any())
                 {
                     mediaId = await InsertOrUpdateMediaAsync(conn, tx, dto.SpaceId, dto.Media);
                 }
@@ -220,9 +216,6 @@ namespace TifoXRCoreWebAPI.Repositories
         }
 
 
-
-
-
         private static async Task<string> InsertOrUpdateMediaAsync(
             MySqlConnection conn,
             MySqlTransaction tx,
@@ -266,22 +259,16 @@ namespace TifoXRCoreWebAPI.Repositories
                   (@MediaId, @LocaleId, @MediaLink);
             ";
 
-            foreach (var loc in dto.Localizations)
+            foreach (var loc in dto.LinkLocalizations)
             {
                 await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
                 cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
-                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.Key);
+                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.Value);
                 await cmdLoc.ExecuteNonQueryAsync();
             }
 
             return mediaId;
         }
-
-        
-
-
-
     }
-
 }
