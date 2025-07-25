@@ -7,6 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="TifoXRCoreWebAPI.Tests\**" />
+    <Content Remove="TifoXRCoreWebAPI.Tests\**" />
+    <EmbeddedResource Remove="TifoXRCoreWebAPI.Tests\**" />
+    <None Remove="TifoXRCoreWebAPI.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Google.Apis.Auth" Version="1.70.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
       <PrivateAssets>all</PrivateAssets>
