@@ -1,8 +1,8 @@
 ﻿// <copyright file="TeleportController.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Urvashi Dhingra</author>
-// <date>07/24/2025</date>
+// <author>Saad Sohail</author>
+// <date>07/23/2025</date>
 // <summary>Controller to handle teleport able routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
