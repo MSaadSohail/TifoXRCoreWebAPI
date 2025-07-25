@@ -1,6 +1,6 @@
-﻿using TifoXRCoreWebAPI.Models;
+﻿using GMS.TifoXRCoreWebAPI.Models;
 
-namespace TifoXRCoreWebAPI.Repositories.Interfaces
+namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
 {
     public interface IPersonalityRepository
     {

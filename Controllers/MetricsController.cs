@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
-namespace TifoXRCoreWebAPI.Controllers
+namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [Route("api/metrics")]
     [ApiController]

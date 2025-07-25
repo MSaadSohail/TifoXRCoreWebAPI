@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Models;
 
-namespace TifoXRCoreWebAPI.Data
+namespace GMS.TifoXRCoreWebAPI.Data
 {
     public class AppDbContext : DbContext
     {

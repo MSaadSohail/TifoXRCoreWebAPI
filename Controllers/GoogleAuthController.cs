@@ -1,10 +1,10 @@
 ﻿using Google.Apis.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Data;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Data;
 
-namespace TifoXRCoreWebAPI.Controllers
+namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [ApiController]
     [Route("api/auth")]

@@ -7,11 +7,11 @@
 
 using MySqlConnector;
 using System.Data;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
-using TifoXRCoreWebAPI.Utilities;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Utilities;
 
-namespace TifoXRCoreWebAPI.Repositories
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public class TeleportTableRepository : ITeleportTableRepository
     {

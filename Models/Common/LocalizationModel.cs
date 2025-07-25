@@ -5,7 +5,7 @@
 // <date>07/09/2025</date>
 // <summary>Data for Localization </summary>
 
-namespace TifoXRCoreWebAPI.Models.Common
+namespace GMS.TifoXRCoreWebAPI.Models.Common
 {
     /// <summary>
     /// Holds a resource key plus all its localized values.

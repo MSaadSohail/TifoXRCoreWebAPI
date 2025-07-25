@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Reflection;
-using TifoXRCoreWebAPI.Data;
-using TifoXRCoreWebAPI.Utilities;
+using GMS.TifoXRCoreWebAPI.Data;
+using GMS.TifoXRCoreWebAPI.Utilities;
 
 var builder = WebApplication.CreateBuilder(args);
 

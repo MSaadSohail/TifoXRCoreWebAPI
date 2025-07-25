@@ -1,6 +1,6 @@
 ﻿using Serilog;
 using RollingInterval = Serilog.RollingInterval;
-namespace TifoXRCoreWebAPI.Utilities
+namespace GMS.TifoXRCoreWebAPI.Utilities
 {
     public static class AppLogger
     {
