@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using TifoXRCoreWebAPI.Data;
-
+using TifoXRCoreWebAPI.Utilities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +19,7 @@ var services = builder.Services;
 
 // Automatically register all IRepository -> Repository mappings
 var repositoryAssembly = Assembly.GetExecutingAssembly();
+AppLogger.Initialize();
 
 var typesWithInterfaces = repositoryAssembly
     .GetTypes()

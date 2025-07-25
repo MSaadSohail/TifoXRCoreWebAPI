@@ -9,6 +9,7 @@ using MySqlConnector;
 using System.Data;
 using TifoXRCoreWebAPI.Models;
 using TifoXRCoreWebAPI.Repositories.Interfaces;
+using TifoXRCoreWebAPI.Utilities;
 
 namespace TifoXRCoreWebAPI.Repositories
 {
@@ -20,6 +21,7 @@ namespace TifoXRCoreWebAPI.Repositories
 
         public async Task<TeleportTableData?> GetTeleportTableBySpaceAsync(int spaceId)
         {
+            AppLogger.Info("GetTeleportTableBySpaceAsync called!");
             const string sql = @"
                 SELECT
                     t.id AS table_id,
