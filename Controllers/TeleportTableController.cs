@@ -37,6 +37,13 @@ namespace TifoXRCoreWebAPI.Controllers
                 var table = await _teleportRepository.GetTeleportTableBySpaceAsync(spaceId);
                 if (table == null)
                     return NotFound();
+
+                if (table.LocalizedName == null)
+                    return StatusCode(500, new { error = "LocalizedName cannot be null" });
+
+                if (table.Buttons == null)
+                    return StatusCode(500, new { error = "Buttons cannot be null" });
+
                 return Ok(table);
             }
             catch (Exception ex)
@@ -62,6 +69,12 @@ namespace TifoXRCoreWebAPI.Controllers
         {
             if (dto == null)
                 return BadRequest();
+
+            if (dto.LocalizedName == null)
+                return BadRequest("LocalizedName is required");
+
+            if (dto.Buttons == null)
+                return BadRequest("Buttons are required");
 
             try
             {

@@ -209,6 +209,43 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
             ok.Value.Should().BeEquivalentTo(sample);
         }
 
+        [Fact]
+        public async Task GetTeleportTablesBySpace_Returns500_WhenLocalizedNameIsNull()
+        {
+            // Arrange
+            var sample = CreateSampleTeleportTable();
+            sample.LocalizedName = null;
+
+            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
+
+            // Act
+            var result = await sut.GetTeleportTablesBySpace(100);
+
+            // Assert
+            var response = result.Result.Should().BeOfType<ObjectResult>().Subject;
+            response.StatusCode.Should().Be(500);
+            response.Value.Should().BeEquivalentTo(new { error = "LocalizedName cannot be null" });
+        }
+
+        [Fact]
+        public async Task GetTeleportTablesBySpace_Returns500_WhenButtonsIsNull()
+        {
+            // Arrange
+            var sample = CreateSampleTeleportTable();
+            sample.Buttons = null;
+
+            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
+
+            // Act
+            var result = await sut.GetTeleportTablesBySpace(100);
+
+            //Assert
+            var response = result.Result.Should().BeOfType<ObjectResult>().Subject;
+            response.StatusCode.Should().Be(500);
+            response.Value.Should().BeEquivalentTo(new { error = "Buttons cannot be null" });
+        }
+
+
 
         // PUT
         [Fact]
@@ -272,6 +309,37 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
             obj.StatusCode.Should().Be(500);
             obj.Value.Should().BeEquivalentTo(new { error = "db error" });
         }
+
+        [Fact]
+        public async Task UpdateTeleportTableById_ReturnsBadRequest_WhenDtoLocalizedNameIsNull()
+        {
+            //Arrange
+            var dto = CreateValidUpdateDto();
+            dto.LocalizedName = null;
+
+            // Act
+            var result = await sut.UpdateTeleportTableById(1, 1, dto);
+
+            //Assert
+            result.Result.Should().BeOfType<BadRequestObjectResult>().Subject.Value
+                .Should().Be("LocalizedName is required");
+        }
+
+        [Fact]
+        public async Task UpdateTeleportTableById_ReturnsBadRequest_WhenDtoButtonsIsNull()
+        {
+            //Arrange
+            var dto = CreateValidUpdateDto();
+            dto.Buttons = null;
+
+            // Act
+            var result = await sut.UpdateTeleportTableById(1, 1, dto);
+
+            // Assert
+            result.Result.Should().BeOfType<BadRequestObjectResult>().Subject.Value
+                .Should().Be("Buttons are required");
+        }
+
 
         [Theory]
         [InlineData(-1, 1)]
