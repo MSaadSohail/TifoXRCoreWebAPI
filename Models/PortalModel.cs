@@ -5,9 +5,9 @@
 // <date>07/09/2025</date>
 // <summary>Data for portals</summary>
 
-using TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXRCoreWebAPI.Models
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     /// <summary>
     /// DTO for updating a portal’s localized name (i18n), event and external link.

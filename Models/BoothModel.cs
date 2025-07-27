@@ -1,7 +1,7 @@
 ﻿
-using TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXRCoreWebAPI.Models
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     public class BoothCreateDto
     {

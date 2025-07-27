@@ -1,12 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
 using System.Data;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Models.Common;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 
-namespace TifoXRCoreWebAPI.Controllers
+namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

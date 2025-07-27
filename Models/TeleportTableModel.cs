@@ -5,7 +5,7 @@
 // <date>07/09/2025</date>
 // <summary>Data for teleport table</summary>
 
-namespace TifoXRCoreWebAPI.Models
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     /// <summary>
     /// The data returned for each teleport table.

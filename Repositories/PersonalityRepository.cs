@@ -6,12 +6,12 @@
 // <summary>Personality APIs</summary>
 using MySqlConnector;
 using System.Data;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Models.Common;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
-using TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 
-namespace TifoXRCoreWebAPI.Repositories
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public class PersonalityRepository : IPersonalityRepository
     {

@@ -5,7 +5,7 @@
 // <date>07/23/2025</date>
 // <summary>Data for Media </summary>
 
-namespace TifoXRCoreWebAPI.Models
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     /// <summary>
     /// DTO for upserting a media record.

@@ -7,11 +7,11 @@
 
 using MySqlConnector;
 using System.Data;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Models.Common;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
-namespace TifoXRCoreWebAPI.Repositories
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public class PortalRepository(IConfiguration configuration) : IPortalRepository
     {
