@@ -37,6 +37,13 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 var table = await _teleportRepository.GetTeleportTableBySpaceAsync(spaceId);
                 if (table == null)
                     return NotFound();
+
+                if (table.LocalizedName == null)
+                    return StatusCode(500, new { error = "LocalizedName cannot be null" });
+
+                if (table.Buttons == null)
+                    return StatusCode(500, new { error = "Buttons cannot be null" });
+
                 return Ok(table);
             }
             catch (Exception ex)
@@ -63,6 +70,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             if (dto == null)
                 return BadRequest();
 
+            if (dto.LocalizedName == null)
+                return BadRequest("LocalizedName is required");
+
+            if (dto.Buttons == null)
+                return BadRequest("Buttons are required");
+
             try
             {
                 var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
@@ -71,7 +84,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
                 return Ok(updated);
             }
-            catch (MySqlConnector.MySqlException ex)
+            catch (Exception ex)
             {
                 return StatusCode(500, new { error = ex.Message });
             }
