@@ -1,4 +1,10 @@
-﻿using MySqlConnector;
+﻿// <copyright file="BoothActivityRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author></author>
+// <date>07/28/2025</date>
+// <summary>Class to handle booth activity SQL side</summary>
+using MySqlConnector;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 

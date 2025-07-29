@@ -1,4 +1,10 @@
-﻿using Google.Apis.Auth;
+﻿// <copyright file="GoogleAuthController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Controller to handle google auth</summary>
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GMS.TifoXRCoreWebAPI.Models;

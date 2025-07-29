@@ -1,4 +1,9 @@
-﻿
+﻿// <copyright file="BoothModel.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Data for Booth </summary>
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models
@@ -7,6 +12,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int SpaceId { get; set; }
         public LocalizedName LocalizedName { get; set; }
+        public MapSpotModel MapSpot { get; set; }
     }
 
     public class BoothWrapper
@@ -18,12 +24,22 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int Id { get; set; }
         public int SpaceId { get; set; }
+        public int MapSpotId { get; set; }
+        public MapSpotModel? MapSpot { get; set; }
         public LocalizedName LocalizedName { get; set; }
     }
+    public class MapSpotModel
+    {
+        public decimal X { get; set; }
+        public decimal Y { get; set; }
+        public decimal Z { get; set; }
+    }
+
 
     public class BoothUpdateDto
     {
         public LocalizedName LocalizedName { get; set; }
+        public MapSpotModel MapSpot { get; set; }
     }
 
     public class Response
