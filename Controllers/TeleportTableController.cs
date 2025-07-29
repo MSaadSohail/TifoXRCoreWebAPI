@@ -38,17 +38,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 if (table == null)
                     return NotFound();
 
-                if (table.LocalizedName == null)
-                    return StatusCode(500, new { error = "LocalizedName cannot be null" });
-
-                if (table.Buttons == null)
-                    return StatusCode(500, new { error = "Buttons cannot be null" });
-
                 return Ok(table);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -86,7 +83,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
     }
