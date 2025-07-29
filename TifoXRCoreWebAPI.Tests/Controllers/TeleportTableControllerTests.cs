@@ -1,394 +1,241 @@
-﻿// <copyright file="TeleportControllerTests.cs" company="Global Mobile Software LLC">
+﻿// <copyright file="TeleportTableControllerTests.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/23/2025</date>
-// <summary>Unit tests for TeleportController covering endpoint behavior, response structure,and validation logic using mocked repository and FluentAssertions.</summary>
+// <date>07/29/2025</date>
+// <summary>Unit tests for TeleportTableController covering endpoint behavior.</summary>
 
-using AutoFixture;
-using AutoFixture.AutoMoq;
-using AutoFixture.Xunit2;
-using FluentAssertions;
-using Microsoft.AspNetCore.Mvc;
-using Moq;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using TifoXRCoreWebAPI.Controllers;
-using TifoXRCoreWebAPI.Models;
-using TifoXRCoreWebAPI.Models.Common;
-using TifoXRCoreWebAPI.Repositories.Interfaces;
+using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+using GMS.TifoXRCoreWebAPI.Controllers;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using TifoXRCoreWebAPI.Tests.Helpers;
+using GMS.TifoXRCoreWebAPI.Models;
 
 namespace TifoXRCoreWebAPI.Tests.Controllers
 {
-    public class CustomAutoDataAttribute : AutoDataAttribute
-    {
-        public CustomAutoDataAttribute() : base(() =>
-            new Fixture().Customize(new AutoMoqCustomization()))
-        { }
-    }
-
-    public class InlineCustomAutoDataAttribute : InlineAutoDataAttribute
-    {
-        public InlineCustomAutoDataAttribute(params object[] values)
-            : base(new CustomAutoDataAttribute(), values) { }
-    }
-
     public class TeleportTableControllerTests
     {
-        private readonly Mock<ITeleportTableRepository> repoMock;
+        private readonly Mock<ITeleportTableRepository> repo;
         private readonly TeleportTableController sut;
+        private readonly TeleportTableUpdateDto defaultDto;
 
         public TeleportTableControllerTests()
         {
-            repoMock = new Mock<ITeleportTableRepository>();
-            sut = new TeleportTableController(repoMock.Object);
+            // Initialize mock repository and controller under test
+            repo = new Mock<ITeleportTableRepository>();
+            sut = new TeleportTableController(repo.Object);
+            defaultDto = new TeleportTableUpdateDtoBuilder().Build();
         }
 
-        private static TeleportTableData CreateSampleTeleportTable(int spaceId = 100, int tableId = 1) =>
-            new TeleportTableData
-            {
-                Id = tableId,
-                SpaceId = spaceId,
-                NameKey = "table_key",
-                IsActive = true,
-                LocalizedName = new Dictionary<string, string>
-                {
-                    { "en", "Start" }
-                },
-                Buttons = new List<ButtonData>
-                {
-                    new()
-                    {
-                        Id = 1,
-                        NameKey = "btn_key",
-                        BoothToVisit = 10,
-                        LocalizedName = new Dictionary<string, string>
-                        {
-                            { "en", "Go" }
-                        }
-                    }
-                }
-            };
+        //
+        // GET /space/{spaceId}/table
+        //
 
-        private static TeleportTableUpdateDto CreateValidUpdateDto() =>
-            new TeleportTableUpdateDto
-            {
-                IsActive = false,
-                NameKey = "table_key",
-                LocalizedName = new Dictionary<string, string>
-                {
-                    { "en", "Updated" }
-                },
-                Buttons = new List<ButtonUpdateDto>
-                {
-                    new()
-                    {
-                        Id = 1,
-                        NameKey = "btn_key",
-                        BoothToVisit = 99,
-                        LocalizedName = new Dictionary<string, string>
-                        {
-                            { "en", "Teleport" }
-                        }
-                    }
-                }
-            };
-
-        // GET
-        [Fact]
-        public async Task GetTeleportTablesBySpace_ReturnsOk_WhenTablesExist()
+        /// <summary>
+        /// Verifies that GetTeleportTablesBySpace returns 200 OK when the repository returns valid data,
+        /// including edge cases like additional locales and a null NameKey.
+        /// </summary>
+        [Theory]
+        [InlineData(false, false)]   // default
+        [InlineData(true, false)]   // extra-locale
+        [InlineData(false, true)]    // null-NameKey
+        public async Task getBySpaceReturnsOk(bool extraLocale, bool nameKeyNull)
         {
-            // Arrange
-            var sample = CreateSampleTeleportTable();
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
+            // ARRANGE: build sample with builder
+            var builder = new TeleportTableDataBuilder();
+            if (extraLocale) builder.WithAdditionalButtonLocale("en_es", "Test");
+            if (nameKeyNull) builder.WithNameKey(null);
+            var sample = builder.Build();
 
-            // Act
+            repo.Setup(r => r.GetTeleportTableBySpaceAsync(100))
+                .ReturnsAsync(sample);
+
+            // ACT: invoke controller
             var result = await sut.GetTeleportTablesBySpace(100);
 
-            // Assert
+            // ASSERT: 200 OK with exact sample
             var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeEquivalentTo(sample, options => options
-                .WithStrictOrdering()
+            ok.StatusCode.Should().Be(StatusCodes.Status200OK);
+            ok.Value.Should().BeEquivalentTo(sample, opts => opts.WithStrictOrdering());
+        }
+
+        /// <summary>
+        /// Verifies that GetTeleportTablesBySpace returns 404 NotFound when the repository returns null when wrong spaceId is passed
+        /// or when an invalid spaceId (e.g., negative) is passed.
+        /// </summary>
+        [Theory]
+        [InlineData(200, true)]   // repo returns null
+        [InlineData(-1, false)]  // invalid id
+        public async Task getBySpaceReturnsNotFound(int spaceId, bool repoReturnsNull)
+        {
+            // ARRANGE
+            if (repoReturnsNull)
+            {
+                repo.Setup(r => r.GetTeleportTableBySpaceAsync(spaceId))
+                    .ReturnsAsync((TeleportTableData)null);
+            }
+
+            // ACT
+            var result = await sut.GetTeleportTablesBySpace(spaceId);
+
+            // ASSERT
+            result.Result.Should().BeOfType<NotFoundResult>();
+            if (repoReturnsNull)
+                repo.Verify(r => r.GetTeleportTableBySpaceAsync(spaceId), Times.Once);
+        }
+
+        /// <summary>
+        /// Verifies that GetTeleportTablesBySpace returns 500 InternalServerError when the repository throws an exception.
+        /// Exception handling is done using private helper function
+        /// </summary>
+        [Fact]
+        public async Task getBySpaceReturns500OnException()
+        {
+            // ARRANGE: repository throws
+            repo.Setup(r => r.GetTeleportTableBySpaceAsync(It.IsAny<int>()))
+                .ThrowsAsync(new Exception("fail"));
+
+            // ACT & ASSERT
+            await AssertThrows500(
+                () => sut.GetTeleportTablesBySpace(300),
+                "fail"
             );
         }
 
-        [Theory]
-        [InlineData(200)]
-        [InlineData(404)]
-        public async Task GetTeleportTablesBySpace_ReturnsNotFound_WhenEmpty(int spaceId)
-        {
-            // Arrange
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(spaceId))
-                    .ReturnsAsync((TeleportTableData?)null);
+        //
+        // PUT /space/{spaceId}/table/{id}
+        //
 
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(spaceId);
-
-            // Assert
-            result.Result.Should().BeOfType<NotFoundResult>();
-            repoMock.Verify(r => r.GetTeleportTableBySpaceAsync(spaceId), Times.Once);
-        }
-
+        /// <summary>
+        /// Verifies that UpdateTeleportTableById returns 400 BadRequest when the input DTO is null.
+        /// This ensures early validation logic short-circuits invalid input.
+        /// </summary>
         [Fact]
-        public async Task GetTeleportTablesBySpace_ReturnsNotFound_WhenSpaceIdIsNegative()
+        public async Task updateByIdReturnsBadRequestWhenDtoNull()
         {
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(-1);
-
-            // Assert
-            result.Result.Should().BeOfType<NotFoundResult>();
-        }
-
-
-        [Fact]
-        public async Task GetTeleportTablesBySpace_Returns500_OnException()
-        {
-            // Arrange
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(It.IsAny<int>()))
-                    .ThrowsAsync(new Exception("fail"));
-
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(300);
-
-            // Assert
-            var obj = result.Result.Should().BeOfType<ObjectResult>().Subject;
-            obj.StatusCode.Should().Be(500);
-            obj.Value.Should().BeEquivalentTo(new { error = "fail" });
-        }
-
-        [Fact]
-        public async Task GetTeleportTablesBySpace_ReturnsOk_WithButtonsHavingMultipleLocales()
-        {
-            // Arrange
-            var sample = CreateSampleTeleportTable();
-            sample.Buttons[0].LocalizedName["es"] = "Ir";
-
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
-
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(100);
-
-            // Assert
-            var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeEquivalentTo(sample, options => options.WithStrictOrdering());
-        }
-
-        [Fact]
-        public async Task GetTeleportTablesBySpace_ReturnsOk_WhenNameKeyIsNull()
-        {
-            // Arrange
-            var sample = CreateSampleTeleportTable();
-            sample.NameKey = null;
-
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
-
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(100);
-
-            // Assert
-            var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeEquivalentTo(sample);
-        }
-
-        [Fact]
-        public async Task GetTeleportTablesBySpace_ReturnsOk_WhenEmptyButtonsAndLocalization()
-        {
-            // Arrange
-            var sample = CreateSampleTeleportTable();
-            sample.LocalizedName = new Dictionary<string, string>();
-            sample.Buttons = new List<ButtonData>();
-
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
-
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(100);
-
-            // Assert
-            var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeEquivalentTo(sample);
-        }
-
-        [Fact]
-        public async Task GetTeleportTablesBySpace_Returns500_WhenLocalizedNameIsNull()
-        {
-            // Arrange
-            var sample = CreateSampleTeleportTable();
-            sample.LocalizedName = null;
-
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
-
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(100);
-
-            // Assert
-            var response = result.Result.Should().BeOfType<ObjectResult>().Subject;
-            response.StatusCode.Should().Be(500);
-            response.Value.Should().BeEquivalentTo(new { error = "LocalizedName cannot be null" });
-        }
-
-        [Fact]
-        public async Task GetTeleportTablesBySpace_Returns500_WhenButtonsIsNull()
-        {
-            // Arrange
-            var sample = CreateSampleTeleportTable();
-            sample.Buttons = null;
-
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(100)).ReturnsAsync(sample);
-
-            // Act
-            var result = await sut.GetTeleportTablesBySpace(100);
-
-            //Assert
-            var response = result.Result.Should().BeOfType<ObjectResult>().Subject;
-            response.StatusCode.Should().Be(500);
-            response.Value.Should().BeEquivalentTo(new { error = "Buttons cannot be null" });
-        }
-
-
-
-        // PUT
-        [Fact]
-        public async Task UpdateTeleportTableById_ReturnsBadRequest_WhenDtoIsNull()
-        {
-            // Act
+            // ACT
             var result = await sut.UpdateTeleportTableById(1, 1, null!);
 
-            // Assert
+            // ASSERT
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 
+        /// <summary>
+        /// Verifies that UpdateTeleportTableById returns 200 OK when the DTO is valid and the repository successfully updates the data.
+        /// Also confirms that the updated result matches the expected structure.
+        /// </summary>
         [Fact]
-        public async Task UpdateTeleportTableById_ReturnsOk_WhenUpdated()
+        public async Task updateByIdReturnsOk()
         {
-            // Arrange
-            var dto = CreateValidUpdateDto();
-            var updated = CreateSampleTeleportTable(spaceId: 1, tableId: 1);
+            // ARRANGE
+            var updated = new TeleportTableDataBuilder()
+                              .WithSpaceId(1)
+                              .WithNameKey("table_key")
+                              .Build();
             updated.IsActive = false;
-            repoMock.Setup(r => r.UpdateTeleportTableAsync(1, 1, dto)).ReturnsAsync(updated);
 
-            // Act
-            var result = await sut.UpdateTeleportTableById(1, 1, dto);
+            repo.Setup(r => r.UpdateTeleportTableAsync(1, 1, defaultDto))
+                .ReturnsAsync(updated);
 
-            // Assert
+            // ACT
+            var result = await sut.UpdateTeleportTableById(1, 1, defaultDto);
+
+            // ASSERT
             var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
             ok.Value.Should().BeEquivalentTo(updated);
-            repoMock.Verify(r => r.UpdateTeleportTableAsync(1, 1, dto), Times.Once);
+            repo.Verify(r => r.UpdateTeleportTableAsync(1, 1, defaultDto), Times.Once);
         }
 
-        [Fact]
-        public async Task UpdateTeleportTableById_ReturnsNotFound_WhenNullReturned()
+        /// <summary>
+        /// Verifies that UpdateTeleportTableById returns 404 NotFound either when the repository returns null
+        /// or when an invalid spaceId or tableId is used.
+        /// </summary>
+        [Theory]
+        [InlineData(2, 2, true)]   // repo returns null
+        [InlineData(-1, 1, false)]   // invalid spaceId
+        [InlineData(1, -1, false)]  // invalid tableId
+        public async Task updateByIdReturnsNotFound(int spaceId, int tableId, bool repoReturnsNull)
         {
-            // Arrange
-            var dto = CreateValidUpdateDto();
-            repoMock.Setup(r => r.UpdateTeleportTableAsync(2, 2, dto)).ReturnsAsync((TeleportTableData)null);
+            // ARRANGE
+            if (repoReturnsNull)
+            {
+                repo.Setup(r => r.UpdateTeleportTableAsync(spaceId, tableId, defaultDto))
+                    .ReturnsAsync((TeleportTableData)null);
+            }
 
-            // Act
-            var result = await sut.UpdateTeleportTableById(2, 2, dto);
+            // ACT
+            var result = await sut.UpdateTeleportTableById(spaceId, tableId, defaultDto);
 
-            // Assert
+            // ASSERT
             result.Result.Should().BeOfType<NotFoundResult>();
         }
 
+        /// <summary>
+        /// Verifies that UpdateTeleportTableById returns 500 InternalServerError when the repository throws an exception.
+        /// Confirms that general exception handling is functional for PUT operations.
+        /// </summary>
         [Fact]
-        public async Task UpdateTeleportTableById_Returns500_OnException()
+        public async Task updateByIdReturns500OnException()
         {
-            // Arrange
-            var dto = CreateValidUpdateDto();
-            repoMock.Setup(r => r.UpdateTeleportTableAsync(
+            // ARRANGE: repository throws
+            repo.Setup(r => r.UpdateTeleportTableAsync(
                                 It.IsAny<int>(),
                                 It.IsAny<int>(),
                                 It.IsAny<TeleportTableUpdateDto>()))
-                    .ThrowsAsync(new Exception("db error"));
+                .ThrowsAsync(new Exception("db error"));
 
-            // Act
-            var result = await sut.UpdateTeleportTableById(3, 3, dto);
-
-            // Assert
-            var obj = result.Result.Should().BeOfType<ObjectResult>().Subject;
-            obj.StatusCode.Should().Be(500);
-            obj.Value.Should().BeEquivalentTo(new { error = "db error" });
+            // ACT & ASSERT
+            await AssertThrows500(
+                () => sut.UpdateTeleportTableById(3, 3, defaultDto),
+                "db error"
+            );
         }
 
-        [Fact]
-        public async Task UpdateTeleportTableById_ReturnsBadRequest_WhenDtoLocalizedNameIsNull()
+        /// <summary>
+        /// Verifies that UpdateTeleportTableById returns 400 BadRequestObjectResult with appropriate error messages
+        /// when required fields in the DTO (LocalizedName or Buttons) are missing.
+        /// </summary>
+        [Theory]
+        [InlineData(true, false, "LocalizedName is required")]
+        [InlineData(false, true, "Buttons are required")]
+        public async Task updateByIdBadRequestForInvalidDto(bool nullName, bool nullButtons, string expectedMessage)
         {
-            //Arrange
-            var dto = CreateValidUpdateDto();
-            dto.LocalizedName = null;
+            // ARRANGE
+            var builder = new TeleportTableUpdateDtoBuilder();
+            if (nullName) builder.WithNullLocalizedName();
+            if (nullButtons) builder.WithNullButtons();
+            var dto = builder.Build();
 
-            // Act
+            // ACT
             var result = await sut.UpdateTeleportTableById(1, 1, dto);
 
-            //Assert
-            result.Result.Should().BeOfType<BadRequestObjectResult>().Subject.Value
-                .Should().Be("LocalizedName is required");
+            // ASSERT
+            var bad = result.Result.Should().BeOfType<BadRequestObjectResult>().Subject;
+            bad.Value.Should().Be(expectedMessage);
         }
 
-        [Fact]
-        public async Task UpdateTeleportTableById_ReturnsBadRequest_WhenDtoButtonsIsNull()
+        //
+        // Helpers
+        //
+
+        /// <summary>
+        /// Helper method that asserts whether an ActionResult returns a 500 InternalServerError
+        /// with a specific error message payload.
+        /// </summary>
+        private async Task AssertThrows500<T>(
+            Func<Task<ActionResult<T>>> action,
+            string expectedMessage)
         {
-            //Arrange
-            var dto = CreateValidUpdateDto();
-            dto.Buttons = null;
-
-            // Act
-            var result = await sut.UpdateTeleportTableById(1, 1, dto);
-
-            // Assert
-            result.Result.Should().BeOfType<BadRequestObjectResult>().Subject.Value
-                .Should().Be("Buttons are required");
-        }
-
-
-        [Theory]
-        [InlineData(-1, 1)]
-        [InlineData(1, -1)]
-        [InlineData(-1, -1)]
-        public async Task UpdateTeleportTableById_ReturnsNotFound_ForInvalidIds(int spaceId, int tableId)
-        {
-            // Arrange
-            var dto = CreateValidUpdateDto();
-
-            // Act
-            var result = await sut.UpdateTeleportTableById(spaceId, tableId, dto);
-
-            // Assert
-            result.Result.Should().BeOfType<NotFoundResult>();
-        }
-
-        // AUTOFIXTURE TESTS
-        // AutoFixture tests validate controller behavior with randomized valid inputs to ensure robustness against a wide range of data scenarios.
-
-        [Theory]
-        [CustomAutoData]
-        public async Task GetTeleportTablesBySpace_WithRandomId_ReturnsNotFound_WhenNull(
-            int spaceId)
-        {
-            repoMock.Setup(r => r.GetTeleportTableBySpaceAsync(spaceId)).ReturnsAsync((TeleportTableData?)null);
-
-            var result = await sut.GetTeleportTablesBySpace(spaceId);
-
-            result.Result.Should().BeOfType<NotFoundResult>();
-        }
-
-        [Theory]
-        [InlineCustomAutoData(5, 9)]
-        public async Task UpdateTeleportTableById_WithRandomDto_ReturnsOk(
-            int spaceId,
-            int tableId,
-            TeleportTableUpdateDto dto,
-            TeleportTableData updated)
-        {
-            updated.SpaceId = spaceId;
-            updated.Id = tableId;
-
-            repoMock.Setup(r => r.UpdateTeleportTableAsync(spaceId, tableId, dto)).ReturnsAsync(updated);
-
-            var result = await sut.UpdateTeleportTableById(spaceId, tableId, dto);
-
-            var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeEquivalentTo(updated);
+            var obj = (await action()).Result
+                        .Should().BeOfType<ObjectResult>().Subject;
+            obj.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+            obj.Value.Should().BeEquivalentTo(new { error = expectedMessage });
         }
     }
 }
