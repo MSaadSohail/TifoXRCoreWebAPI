@@ -1,4 +1,10 @@
-﻿using MySqlConnector;
+﻿// <copyright file="EntityRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Class to handle entity SQL side</summary>
+using MySqlConnector;
 using System.Data;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;

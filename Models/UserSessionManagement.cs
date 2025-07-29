@@ -1,4 +1,10 @@
-﻿namespace GMS.TifoXRCoreWebAPI.Models
+﻿// <copyright file="UserSessionManagement.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Data for User Session </summary>
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     using System.ComponentModel.DataAnnotations.Schema;
 
