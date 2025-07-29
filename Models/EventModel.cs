@@ -1,4 +1,9 @@
-﻿
+﻿// <copyright file="EventModel.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Data for Event </summary>
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models

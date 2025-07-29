@@ -1,4 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// <copyright file="EventController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Controller to handle Event APIs</summary>
+using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
 using System.Data;
 using GMS.TifoXRCoreWebAPI.Models;

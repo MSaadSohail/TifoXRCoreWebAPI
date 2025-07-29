@@ -1,4 +1,10 @@
-﻿namespace GMS.TifoXRCoreWebAPI.Models
+﻿// <copyright file="User.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Data for User </summary>
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     using System.ComponentModel.DataAnnotations;
     using System.ComponentModel.DataAnnotations.Schema;

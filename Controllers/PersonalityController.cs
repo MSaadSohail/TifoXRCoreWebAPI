@@ -1,4 +1,4 @@
-﻿// <copyright file="PersonalityRepository.cs" company="Global Mobile Software LLC">
+﻿// <copyright file="PersonalityController.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Syed Hussain</author>

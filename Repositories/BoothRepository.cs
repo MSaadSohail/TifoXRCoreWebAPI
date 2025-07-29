@@ -1,4 +1,10 @@
-﻿using MySqlConnector;
+﻿// <copyright file="BoothRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Class to handle booth SQL side</summary>
+using MySqlConnector;
 using System.Data;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
@@ -18,19 +24,25 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<List<BoothModel>> GetAllBoothsBySpaceAsync(int spaceId)
         {
             const string sql = @"
-            SELECT
-                b.id,
-                b.space_id,
-                b.name_key,
-                i.locale_id,
-                i.value
-            FROM booth b
-            INNER JOIN i18n i
-              ON i.`key` = b.name_key
-             AND i.space_id = b.space_id
-            WHERE b.space_id = @SpaceId
-            ORDER BY b.id, i.locale_id;
-        ";
+    SELECT
+        b.id,
+        b.space_id,
+        b.name_key,
+        b.map_spot_id,
+        ms.x,
+        ms.y,
+        ms.z,
+        i.locale_id,
+        i.value
+    FROM booth b
+    INNER JOIN i18n i
+        ON i.`key` = b.name_key
+       AND i.space_id = b.space_id
+    LEFT JOIN map_spot ms
+        ON b.map_spot_id = ms.id
+    WHERE b.space_id = @SpaceId
+    ORDER BY b.id, i.locale_id;
+    ";
 
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
@@ -48,6 +60,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     {
                         Id = id,
                         SpaceId = reader.GetInt32("space_id"),
+                        MapSpotId = reader.GetInt32("map_spot_id"),
+                        MapSpot = reader.IsDBNull("x") ? null : new MapSpotModel
+                        {
+                            X = reader.GetDecimal("x"),
+                            Y = reader.GetDecimal("y"),
+                            Z = reader.GetDecimal("z")
+                        },
                         LocalizedName = new LocalizedName
                         {
                             Key = reader.GetString("name_key"),
@@ -67,6 +86,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return dict.Values.ToList();
         }
 
+
         public async Task<BoothModel?> UpdateBoothAsync(int spaceId, int boothId, BoothUpdateDto dto)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -75,6 +95,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             try
             {
+                // 1) Update booth name_key
                 const string updBooth = @"
                 UPDATE booth
                    SET name_key = @NameKey
@@ -89,6 +110,66 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         return null;
                 }
 
+                // 2) Get map_spot_id for the booth
+                const string getMapSpotIdSql = @"SELECT map_spot_id FROM booth WHERE id = @BoothId AND space_id = @SpaceId;";
+                int mapSpotId;
+                await using (var cmd = new MySqlCommand(getMapSpotIdSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@BoothId", boothId);
+                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result == null)
+                        return null;
+                    mapSpotId = Convert.ToInt32(result);
+                }
+
+                // 3) Update map_spot
+                const string updMapSpot = @"
+                UPDATE map_spot
+                   SET x = @X, y = @Y, z = @Z, modified_time = NOW(6), modified_by = @ModifiedBy
+                 WHERE id = @MapSpotId;";
+                await using (var cmd = new MySqlCommand(updMapSpot, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@X", dto.MapSpot.X);
+                    cmd.Parameters.AddWithValue("@Y", dto.MapSpot.Y);
+                    cmd.Parameters.AddWithValue("@Z", dto.MapSpot.Z);
+                    cmd.Parameters.AddWithValue("@ModifiedBy", "system");
+                    cmd.Parameters.AddWithValue("@MapSpotId", mapSpotId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                // 4) Validate all locales first
+                const string checkSupportedLangSql = @"
+                SELECT locale_id FROM supported_languages 
+                WHERE locale_id IN ({0}) AND space_id = @SpaceId;";
+
+                var allLocales = dto.LocalizedName.Values.Select(v => v.LocaleId).Distinct().ToList();
+                var parameterNames = allLocales.Select((l, i) => $"@loc{i}").ToList();
+                var localeParamMap = allLocales.Zip(parameterNames, (val, param) => new { val, param }).ToList();
+
+                var dynamicQuery = string.Format(checkSupportedLangSql, string.Join(", ", parameterNames));
+
+                await using (var checkCmd = new MySqlCommand(dynamicQuery, conn, tx))
+                {
+                    foreach (var pair in localeParamMap)
+                        checkCmd.Parameters.AddWithValue(pair.param, pair.val);
+
+                    checkCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+
+                    var supportedLocales = new HashSet<string>();
+                    await using var reader = await checkCmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                        supportedLocales.Add(reader.GetString("locale_id"));
+
+                    var unsupportedLocales = allLocales.Where(l => !supportedLocales.Contains(l)).ToList();
+                    if (unsupportedLocales.Any())
+                    {
+                        throw new InvalidOperationException(
+                            $"The following locales are not supported for space {spaceId}: {string.Join(", ", unsupportedLocales)}");
+                    }
+                }
+
+                // 5) Perform update or insert into i18n
                 const string updI18n = @"
                 UPDATE i18n
                    SET value = @Value
@@ -126,40 +207,77 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
         }
 
+
+
         private static async Task<BoothModel?> LoadBoothById(MySqlConnection conn, int spaceId, int boothId)
         {
             const string sql = @"
-            SELECT b.id, b.space_id, b.name_key, i.locale_id, i.value
-            FROM booth b
-            LEFT JOIN i18n i ON i.`key` = b.name_key AND i.space_id = b.space_id
-            WHERE b.id = @BoothId AND b.space_id = @SpaceId
-            ORDER BY i.locale_id;";
+                SELECT 
+                    b.id, 
+                    b.space_id, 
+                    b.name_key, 
+                    b.map_spot_id,
+                    ms.x,
+                    ms.y,
+                    ms.z,
+                    i.locale_id, 
+                    i.value
+                FROM booth b
+                INNER JOIN map_spot ms 
+                    ON b.map_spot_id = ms.id
+                LEFT JOIN i18n i 
+                    ON i.`key` = b.name_key AND i.space_id = b.space_id
+                LEFT JOIN supported_languages sl
+                    ON sl.locale_id = i.locale_id AND sl.space_id = b.space_id
+                WHERE b.id = @BoothId AND b.space_id = @SpaceId
+                  AND (i.locale_id IS NULL OR sl.locale_id IS NOT NULL)
+                ORDER BY i.locale_id;
+                ";
+
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@BoothId", boothId);
             cmd.Parameters.AddWithValue("@SpaceId", spaceId);
 
             await using var reader = await cmd.ExecuteReaderAsync();
             BoothModel? booth = null;
+
             while (await reader.ReadAsync())
             {
-                booth ??= new BoothModel
+                if (booth == null)
                 {
-                    Id = reader.GetInt32("id"),
-                    SpaceId = reader.GetInt32("space_id"),
-                    LocalizedName = new LocalizedName
+                    booth = new BoothModel
                     {
-                        Key = reader.GetString("name_key"),
-                        Values = new List<LocalizedValue>()
-                    }
-                };
-                booth.LocalizedName.Values.Add(new LocalizedValue
+                        Id = reader.GetInt32("id"),
+                        SpaceId = reader.GetInt32("space_id"),
+                        MapSpotId = reader.GetInt32("map_spot_id"),
+                        MapSpot = new MapSpotModel
+                        {
+                            X = reader.GetDecimal("x"),
+                            Y = reader.GetDecimal("y"),
+                            Z = reader.GetDecimal("z")
+                        },
+                        LocalizedName = new LocalizedName
+                        {
+                            Key = reader.GetString("name_key"),
+                            Values = new List<LocalizedValue>()
+                        }
+                    };
+                }
+
+                if (!reader.IsDBNull("locale_id") && !reader.IsDBNull("value"))
                 {
-                    LocaleId = reader.GetString("locale_id"),
-                    Value = reader.GetString("value")
-                });
+                    booth.LocalizedName.Values.Add(new LocalizedValue
+                    {
+                        LocaleId = reader.GetString("locale_id"),
+                        Value = reader.GetString("value")
+                    });
+                }
             }
+
             return booth;
         }
+
+
 
 
         public async Task<BoothModel> CreateBoothAsync(int spaceId, BoothCreateDto boothDto)
@@ -170,43 +288,87 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             try
             {
-                // 1) Insert booth
+                // 1) Insert into map_spot
+                const string insertMapSpotSql = @"
+                INSERT INTO map_spot (x, y, z, creation_time, modified_time, modified_by)
+                VALUES (@X, @Y, @Z, NOW(6), NOW(6), @ModifiedBy);";
+
+                int mapSpotId;
+                await using (var cmd = new MySqlCommand(insertMapSpotSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@X", boothDto.MapSpot.X);
+                    cmd.Parameters.AddWithValue("@Y", boothDto.MapSpot.Y);
+                    cmd.Parameters.AddWithValue("@Z", boothDto.MapSpot.Z);
+                    cmd.Parameters.AddWithValue("@ModifiedBy", "system");
+                    await cmd.ExecuteNonQueryAsync();
+                    mapSpotId = Convert.ToInt32(cmd.LastInsertedId);
+                }
+
+                // 2) Insert into booth with map_spot_id
                 const string insertBoothSql = @"
-            INSERT INTO booth (space_id, name_key)
-            VALUES (@SpaceId, @NameKey);";
-                int newId;
+                INSERT INTO booth (space_id, name_key, map_spot_id)
+                VALUES (@SpaceId, @NameKey, @MapSpotId);";
+
+                int newBoothId;
                 await using (var cmd = new MySqlCommand(insertBoothSql, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
                     cmd.Parameters.AddWithValue("@NameKey", boothDto.LocalizedName.Key);
+                    cmd.Parameters.AddWithValue("@MapSpotId", mapSpotId);
                     await cmd.ExecuteNonQueryAsync();
-                    newId = Convert.ToInt32(cmd.LastInsertedId);
+                    newBoothId = Convert.ToInt32(cmd.LastInsertedId);
                 }
 
-                // 2) Insert i18n
+                // 3) Filter supported localizations and insert into i18n
                 const string insertI18nSql = @"
-            INSERT INTO i18n (`key`, locale_id, value, space_id)
-            VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
+                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
+
+                const string checkSupportedLangSql = @"
+                SELECT 1
+                FROM supported_languages 
+                WHERE locale_id = @LocaleId AND space_id = @SpaceId
+                LIMIT 1;";
+
+                var insertedValues = new List<LocalizedValue>();
+
                 foreach (var val in boothDto.LocalizedName.Values)
                 {
+                    bool isSupported = false;
+
+                    await using (var checkCmd = new MySqlCommand(checkSupportedLangSql, conn, tx))
+                    {
+                        checkCmd.Parameters.AddWithValue("@LocaleId", val.LocaleId);
+                        checkCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                        var result = await checkCmd.ExecuteScalarAsync();
+                        isSupported = result != null;
+                    }
+
+                    if (!isSupported)
+                        continue;
+
                     await using var cmdI18n = new MySqlCommand(insertI18nSql, conn, tx);
                     cmdI18n.Parameters.AddWithValue("@NameKey", boothDto.LocalizedName.Key);
                     cmdI18n.Parameters.AddWithValue("@LocaleId", val.LocaleId);
                     cmdI18n.Parameters.AddWithValue("@Value", val.Value);
                     cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
                     await cmdI18n.ExecuteNonQueryAsync();
+
+                    insertedValues.Add(val); // only return supported entries
                 }
 
                 await tx.CommitAsync();
 
                 return new BoothModel
                 {
-                    Id = newId,
+                    Id = newBoothId,
                     SpaceId = spaceId,
+                    MapSpotId = mapSpotId,
+                    MapSpot = boothDto.MapSpot,
                     LocalizedName = new LocalizedName
                     {
                         Key = boothDto.LocalizedName.Key,
-                        Values = boothDto.LocalizedName.Values
+                        Values = insertedValues
                     }
                 };
             }
@@ -216,6 +378,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
+
+
 
         public async Task<bool> DeleteBoothCascadeAsync(int spaceId, int boothId)
         {

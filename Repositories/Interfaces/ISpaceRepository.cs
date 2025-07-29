@@ -1,4 +1,10 @@
-﻿using GMS.TifoXRCoreWebAPI.Models;
+﻿// <copyright file="ISpaceRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/28/2025</date>
+// <summary>Interface layer for space repository</summary>
+using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
 {

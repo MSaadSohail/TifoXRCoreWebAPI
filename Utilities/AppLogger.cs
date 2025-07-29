@@ -1,4 +1,10 @@
-﻿using Serilog;
+﻿// <copyright file="AppLogger.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>07/25/2025</date>
+// <summary>Thin Wrapper around Serilog</summary>
+using Serilog;
 using RollingInterval = Serilog.RollingInterval;
 namespace GMS.TifoXRCoreWebAPI.Utilities
 {

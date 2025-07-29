@@ -1,4 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// <copyright file="MetricsController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/23/2025</date>
+// <summary>Controller to handle Metrics</summary>
+using Microsoft.AspNetCore.Mvc;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
