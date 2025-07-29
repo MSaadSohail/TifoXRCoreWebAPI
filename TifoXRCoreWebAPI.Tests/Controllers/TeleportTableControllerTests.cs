@@ -2,7 +2,7 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/23/2025</date>
+// <date>07/29/2025</date>
 // <summary>Unit tests for TeleportTableController covering endpoint behavior.</summary>
 
 using System;
@@ -38,10 +38,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         //
 
         /// <summary>
-        /// Tests OK response for three variants:
-        /// - default data
-        /// - extra locale on button
-        /// - null NameKey
+        /// Verifies that GetTeleportTablesBySpace returns 200 OK when the repository returns valid data,
+        /// including edge cases like additional locales and a null NameKey.
         /// </summary>
         [Theory]
         [InlineData(false, false)]   // default
@@ -68,9 +66,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Tests NotFound for:
-        /// - repo returns null
-        /// - invalid (negative) spaceId
+        /// Verifies that GetTeleportTablesBySpace returns 404 NotFound when the repository returns null when wrong spaceId is passed
+        /// or when an invalid spaceId (e.g., negative) is passed.
         /// </summary>
         [Theory]
         [InlineData(200, true)]   // repo returns null
@@ -94,7 +91,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Tests InternalServerError when repository throws
+        /// Verifies that GetTeleportTablesBySpace returns 500 InternalServerError when the repository throws an exception.
+        /// Exception handling is done using private helper function
         /// </summary>
         [Fact]
         public async Task getBySpaceReturns500OnException()
@@ -115,7 +113,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         //
 
         /// <summary>
-        /// Tests BadRequest when DTO is null
+        /// Verifies that UpdateTeleportTableById returns 400 BadRequest when the input DTO is null.
+        /// This ensures early validation logic short-circuits invalid input.
         /// </summary>
         [Fact]
         public async Task updateByIdReturnsBadRequestWhenDtoNull()
@@ -128,7 +127,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Tests OK on valid DTO
+        /// Verifies that UpdateTeleportTableById returns 200 OK when the DTO is valid and the repository successfully updates the data.
+        /// Also confirms that the updated result matches the expected structure.
         /// </summary>
         [Fact]
         public async Task updateByIdReturnsOk()
@@ -153,7 +153,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Tests NotFound when repo returns null OR invalid IDs
+        /// Verifies that UpdateTeleportTableById returns 404 NotFound either when the repository returns null
+        /// or when an invalid spaceId or tableId is used.
         /// </summary>
         [Theory]
         [InlineData(2, 2, true)]   // repo returns null
@@ -176,7 +177,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Tests InternalServerError when update throws
+        /// Verifies that UpdateTeleportTableById returns 500 InternalServerError when the repository throws an exception.
+        /// Confirms that general exception handling is functional for PUT operations.
         /// </summary>
         [Fact]
         public async Task updateByIdReturns500OnException()
@@ -196,7 +198,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Tests BadRequestObject for missing DTO fields
+        /// Verifies that UpdateTeleportTableById returns 400 BadRequestObjectResult with appropriate error messages
+        /// when required fields in the DTO (LocalizedName or Buttons) are missing.
         /// </summary>
         [Theory]
         [InlineData(true, false, "LocalizedName is required")]
@@ -222,7 +225,8 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         //
 
         /// <summary>
-        /// Helper to assert a 500/ObjectResult with a given error message.
+        /// Helper method that asserts whether an ActionResult returns a 500 InternalServerError
+        /// with a specific error message payload.
         /// </summary>
         private async Task AssertThrows500<T>(
             Func<Task<ActionResult<T>>> action,

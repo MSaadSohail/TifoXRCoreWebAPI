@@ -2,7 +2,7 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/28/2025</date>
+// <date>07/29/2025</date>
 // <summary>Fluent builder for TeleportTableUpdateDto used in tests to simplify setup of valid and edge-case DTOs.</summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
@@ -12,7 +12,8 @@ using System.Collections.Generic;
 namespace TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Fluent builder for TeleportTableUpdateDto to reduce repetition in tests.
+    /// Fluent builder for TeleportTableUpdateDto to simplify and standardize DTO creation in unit tests.
+    /// Allows chaining of overrides for localization and button configuration.
     /// </summary>
     public class TeleportTableUpdateDtoBuilder
     {
@@ -40,7 +41,8 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         };
 
         /// <summary>
-        /// Sets LocalizedName to null to simulate missing data.
+        /// Sets LocalizedName to null to simulate a DTO missing localization.
+        /// Useful for testing validation behavior on missing required fields.
         /// </summary>
         public TeleportTableUpdateDtoBuilder WithNullLocalizedName()
         {
@@ -49,7 +51,8 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
-        /// Sets Buttons to null to simulate missing button collection.
+        /// Sets Buttons to null to simulate a DTO missing its button definitions.
+        /// Useful for testing how the controller handles missing collections.
         /// </summary>
         public TeleportTableUpdateDtoBuilder WithNullButtons()
         {
@@ -58,7 +61,8 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
-        /// Returns the configured TeleportTableUpdateDto instance.
+        /// Finalizes and returns the configured TeleportTableUpdateDto instance
+        /// with any overridden values applied.
         /// </summary>
         public TeleportTableUpdateDto Build() => _dto;
     }
