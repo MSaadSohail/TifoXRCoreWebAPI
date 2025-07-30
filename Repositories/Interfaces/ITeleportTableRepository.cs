@@ -13,6 +13,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
     public interface ITeleportTableRepository
     {
         Task<TeleportTableData> GetTeleportTableBySpaceAsync(int spaceId);
+        Task<TeleportTableData> CreateTeleportTableAsync(int spaceId, TeleportTableCreateDto dto);
+
         Task<TeleportTableData> UpdateTeleportTableAsync(int spaceId, int tableId, TeleportTableUpdateDto dto);
+        Task<bool> DeleteTeleportTableAsync(int spaceId, int tableId);
+        Task<int> DeleteTeleportTablesBySpaceAsync(int spaceId);
+        Task<bool> DeleteTeleportTableButtonAsync(int buttonId, int tableId);
+
     }
 }

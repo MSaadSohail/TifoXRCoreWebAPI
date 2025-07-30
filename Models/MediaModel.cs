@@ -5,6 +5,8 @@
 // <date>07/23/2025</date>
 // <summary>Data for Media </summary>
 
+using GMS.TifoXRCoreWebAPI.Models.Common;
+
 namespace GMS.TifoXRCoreWebAPI.Models
 {
     /// <summary>
@@ -17,7 +19,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public required Dictionary<string, string> LinkLocalizations { get; set; }
+        public required List<MediaLocalization> LinkLocalizations { get; set; }
     }
 
     /// <summary>
@@ -29,17 +31,17 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
-        public required Dictionary<string, string> LinkLocalizations { get; set; }
+        public required List<MediaLocalization> LinkLocalizations { get; set; }
     }
 
     public class MediaCreateDto
     {
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
-        public Dictionary<string, string>? TextLocalizations { get; set; }
+        public List<LocalizedValue>? TextLocalizations { get; set; }
         public string? DescriptionKey { get; set; }
-        public Dictionary<string, string>? DescriptionLocalizations { get; set; }
-        public Dictionary<string, string>? LinkLocalizations { get; set; }
+        public List<LocalizedValue>? DescriptionLocalizations { get; set; }
+        public List<MediaLocalization>? LinkLocalizations { get; set; }
     }
 
     /// <summary>

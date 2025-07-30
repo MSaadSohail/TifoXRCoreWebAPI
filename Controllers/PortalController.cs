@@ -17,7 +17,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
     {
         private readonly IPortalRepository _portalRepository = portalRepository;
 
+        #region GET
+
         /// <summary>
+        /// GET /api/space/{spaceId}/portal
         /// Gets all portals for the specified space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -49,6 +52,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         }
 
         /// <summary>
+        /// GET /api/space/{spaceId}/booth/{boothId}/portals
         /// Gets all portals for the specified booth in a space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -83,6 +87,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         }
 
         /// <summary>
+        /// GET /api/space/{spaceId}/portal/{portalId}
         /// Gets a specific portal by its ID within a space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -113,7 +118,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
+
+        #region POST
+
         /// <summary>
+        /// POST /api/space/{spaceId}/portal
         /// Creates a new portal in the specified space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -153,7 +163,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
+
+        #region PUT
+
         /// <summary>
+        /// PUT /api/space/{spaceId}/portal/{portalId}
         /// Updates an existing portal in the specified space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -197,6 +212,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         }
 
         /// <summary>
+        /// PUT /api/space/{spaceId}/booth/{boothId}/portal/{portalId}
         /// Updates a portal belonging to a specific booth within a space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -236,7 +252,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
+
+        #region DELETE
+
         /// <summary>
+        /// DELETE /api/space/{spaceId}/portal/{portalId}
         /// Deletes a portal from the specified space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -269,6 +290,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         }
 
         /// <summary>
+        /// /api/space/{spaceId}/booth/{boothId}/portal/{portalId}
         /// Deletes a portal associated with a specific booth within a space.
         /// </summary>
         /// <param name="spaceId">The ID of the space.</param>
@@ -303,5 +325,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 );
             }
         }
+
+        #endregion
     }
 }

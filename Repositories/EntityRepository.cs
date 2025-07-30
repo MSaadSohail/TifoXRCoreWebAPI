@@ -56,7 +56,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     cmd.Parameters.AddWithValue("@EntityTypeId", dto.EntityTypeId);
                     cmd.Parameters.AddWithValue("@ParentEntityId", (object?)dto.ParentEntityId ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedName.Key);
+                    cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
                     cmd.Parameters.AddWithValue(
                         "@DescriptionKey",
                         string.IsNullOrWhiteSpace(dto.LocalizedDescription?.Key)
@@ -73,10 +73,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         INSERT INTO i18n (`key`, locale_id, value, space_id)
                         VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
-                foreach (var loc in dto.LocalizedName.Values)
+                foreach (var loc in dto.LocalizedPairs.Values)
                 {
                     await using var nameCmd = new MySqlCommand(insertI18nSql, conn, tx);
-                    nameCmd.Parameters.AddWithValue("@Key", dto.LocalizedName.Key);
+                    nameCmd.Parameters.AddWithValue("@Key", dto.LocalizedPairs.Key);
                     nameCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                     nameCmd.Parameters.AddWithValue("@Value", (object?)loc.Value ?? DBNull.Value);
                     nameCmd.Parameters.AddWithValue("@SpaceId", dto.SpaceId);
@@ -131,7 +131,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmd.Parameters.AddWithValue("@Id", id);
                     cmd.Parameters.AddWithValue("@EntityTypeId", dto.EntityTypeId);
                     cmd.Parameters.AddWithValue("@ParentEntityId", (object?)dto.ParentEntityId ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedName.Key);
+                    cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
                     cmd.Parameters.AddWithValue(
                         "@DescriptionKey",
                         string.IsNullOrWhiteSpace(dto.LocalizedDescription?.Key)
@@ -157,7 +157,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         INSERT INTO i18n (`key`, locale_id, value, space_id)
                         VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
-                async Task UpsertAsync(LocalizedName ln)
+                async Task UpsertAsync(LocalizedPairs ln)
                 {
                     foreach (var loc in ln.Values)
                     {
@@ -179,7 +179,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     }
                 }
 
-                await UpsertAsync(dto.LocalizedName);
+                await UpsertAsync(dto.LocalizedPairs);
 
                 if (dto.LocalizedDescription?.Values != null)
                     await UpsertAsync(dto.LocalizedDescription);
@@ -241,12 +241,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         CreationTime = rdr.GetDateTime("creation_time"),
                         ModifiedTime = rdr.GetDateTime("modified_time"),
                         ModifiedBy = rdr.GetString("modified_by"),
-                        LocalizedName = new LocalizedName
+                        LocalizedPairs = new LocalizedPairs
                         {
                             Key = rdr.GetString("name_key"),
                             Values = names
                         },
-                        LocalizedDescription = new LocalizedName
+                        LocalizedDescription = new LocalizedPairs
                         {
                             Key = rdr.GetString("description_key"),
                             Values = descs

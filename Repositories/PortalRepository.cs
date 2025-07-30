@@ -17,6 +17,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     {
         private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection");
 
+        #region GET
         /// <summary>
         /// Retrieves all portals in a given space, including their localized names, associated media, and media localizations.
         /// </summary>
@@ -46,32 +47,26 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 
                 FROM portal p
                 
-                -- Get only supported languages for the space
                 LEFT JOIN supported_languages sl
                   ON sl.space_id = p.space_id
                 
-                -- Portal name translations for supported locales
                 LEFT JOIN i18n i 
                   ON p.text_field_key = i.`key`
                  AND i.space_id      = p.space_id
                  AND i.locale_id     = sl.locale_id
                 
-                -- Join corresponding media to get type ID
                 LEFT JOIN media cm
                   ON cm.id = p.corresponding_media_id
                  AND cm.space_id = p.space_id
                 
-                -- Join thumbnail media to get type ID
                 LEFT JOIN media tm
                   ON tm.id = p.thumbnail_media_id
                  AND tm.space_id = p.space_id
                 
-                -- Localized links for corresponding media
                 LEFT JOIN media_localization ml1 
                   ON ml1.media_id   = p.corresponding_media_id
                  AND ml1.locale_id  = sl.locale_id
                 
-                -- Localized links for thumbnail media
                 LEFT JOIN media_localization ml2 
                   ON ml2.media_id   = p.thumbnail_media_id
                  AND ml2.locale_id  = sl.locale_id
@@ -81,31 +76,42 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             ";
 
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var cmd = new MySqlCommand(sql, conn);
+
             cmd.Parameters.AddWithValue("@SpaceId", spaceId);
 
             var map = new Dictionary<int, PortalModel>();
+
             await using var reader = await cmd.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
                 var id = reader.GetInt32("portal_id");
+
                 if (!map.TryGetValue(id, out var portal))
                 {
                     portal = new PortalModel
                     {
                         PortalId = id,
                         SpaceId = reader.GetInt32("space_id"),
-                        BoothId = reader.IsDBNull("booth_id") ? null : reader.GetInt32("booth_id"),
-                        PortalTypeId = reader.IsDBNull("portal_type_id") ? null : reader.GetInt32("portal_type_id"),
-                        EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
-                        ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
+                        BoothId = reader.IsDBNull("booth_id") ? null :
+                        reader.GetInt32("booth_id"),
 
-                        LocalizedName = new LocalizedResource
+                        PortalTypeId = reader.IsDBNull("portal_type_id") ? null :
+                        reader.GetInt32("portal_type_id"),
+
+                        EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
+
+                        ExternalLink = reader.IsDBNull("external_link") ? null :
+                        reader.GetString("external_link"),
+
+                        LocalizedPairs = new LocalizedPairs
                         {
                             Key = reader.GetString("text_key"),
-                            Localizations = new Dictionary<string, string>()
+                            Values = new List<LocalizedValue>()
                         },
 
                         CorrespondingMedia = reader.IsDBNull("corr_media_id")
@@ -115,7 +121,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
                                 reader.GetInt32("corr_media_type_id"),
-                                LinkLocalizations = new()
+                                LinkLocalizations = new List<MediaLocalization>()
                             },
 
                         ThumbnailMedia = reader.IsDBNull("thumb_media_id")
@@ -123,46 +129,64 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             : new MediaData
                             {
                                 Id = reader.GetString("thumb_media_id"),
-                                MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
-                                reader.GetInt32("thumb_media_type_id"),
-                                LinkLocalizations = new()
+                                MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
+                                LinkLocalizations = new List<MediaLocalization>()
                             }
                     };
+
                     map[id] = portal;
                 }
 
-                // for each supported locale, add entries (value or media_link may be null if missing)
                 if (!reader.IsDBNull("locale_id"))
                 {
                     var locale = reader.GetString("locale_id");
+
+                    // -- Localized Name --
                     var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    
-                    if (textValue != null)
-                        portal.LocalizedName.Localizations[locale] = textValue;
-
-                    if (portal.CorrespondingMedia != null)
+                    if (textValue != null && !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
                     {
-                        var link = reader.IsDBNull("corresponding_media_link") ? null 
-                            : reader.GetString("corresponding_media_link");
-
-                        if (link != null) // Only add if not null (optional, up to you)
-                            portal.CorrespondingMedia.LinkLocalizations[locale] = link;
+                        portal.LocalizedPairs.Values.Add(new LocalizedValue
+                        {
+                            LocaleId = locale,
+                            Value = textValue
+                        });
                     }
 
+                    // -- CorrespondingMedia Localized Links --
+                    if (portal.CorrespondingMedia != null)
+                    {
+                        var link = reader.IsDBNull("corresponding_media_link") ? null : reader.GetString("corresponding_media_link");
+
+                        if (link != null && !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                        {
+                            portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = link
+                            });
+                        }
+                    }
+
+                    // -- ThumbnailMedia Localized Links --
                     if (portal.ThumbnailMedia != null)
                     {
-                        var link = reader.IsDBNull("thumbnail_media_link")
-                                        ? null
-                                        : reader.GetString("thumbnail_media_link");
+                        var link = reader.IsDBNull("thumbnail_media_link") ? null : reader.GetString("thumbnail_media_link");
 
-                        if (link!=null)
-                            portal.ThumbnailMedia.LinkLocalizations[locale] = link;
+                        if (link != null && !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                        {
+                            portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = link
+                            });
+                        }
                     }
                 }
             }
 
             return [.. map.Values];
         }
+
 
         /// <summary>
         /// Retrieves all portals for a given booth within a space, including their localized names and media details.
@@ -194,32 +218,26 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 
                 FROM portal p
                 
-                -- Get only supported languages for the space
                 LEFT JOIN supported_languages sl
                     ON sl.space_id = p.space_id
 
-                -- Portal name translations for supported locales                
                 LEFT JOIN i18n i 
                     ON i.`key`      = p.text_field_key
                    AND i.space_id   = p.space_id
                    AND i.locale_id  = sl.locale_id
                 
-                -- Join corresponding media to get type ID
                 LEFT JOIN media cm
                     ON cm.id        = p.corresponding_media_id
                    AND cm.space_id  = p.space_id
                 
-                -- Join thumbnail media to get type ID
                 LEFT JOIN media tm
                     ON tm.id        = p.thumbnail_media_id
                    AND tm.space_id  = p.space_id
 
-                -- Localized links for corresponding media
                 LEFT JOIN media_localization ml1 
                     ON ml1.media_id  = p.corresponding_media_id
                    AND ml1.locale_id = sl.locale_id
                 
-                -- Localized links for thumbnail media
                 LEFT JOIN media_localization ml2 
                     ON ml2.media_id  = p.thumbnail_media_id
                    AND ml2.locale_id = sl.locale_id
@@ -230,16 +248,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             ";
 
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var cmd = new MySqlCommand(sql, conn);
+
             cmd.Parameters.AddWithValue("@SpaceId", spaceId);
             cmd.Parameters.AddWithValue("@BoothId", boothId);
 
             var map = new Dictionary<int, PortalModel>();
+
             await using var reader = await cmd.ExecuteReaderAsync();
+
             while (await reader.ReadAsync())
             {
                 var id = reader.GetInt32("portal_id");
+
                 if (!map.TryGetValue(id, out var portal))
                 {
                     portal = new PortalModel
@@ -251,10 +275,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                         ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                        LocalizedName = new LocalizedResource
+                        LocalizedPairs = new LocalizedPairs
                         {
                             Key = reader.GetString("text_key"),
-                            Localizations = new Dictionary<string, string>()
+                            Values = []
                         },
 
                         CorrespondingMedia = reader.IsDBNull("corr_media_id")
@@ -264,7 +288,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
                                 reader.GetInt32("corr_media_type_id"),
-                                LinkLocalizations = new()
+                                LinkLocalizations = new List<MediaLocalization>()
                             },
 
                         ThumbnailMedia = reader.IsDBNull("thumb_media_id")
@@ -274,7 +298,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                                 Id = reader.GetString("thumb_media_id"),
                                 MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
                                 reader.GetInt32("thumb_media_type_id"),
-                                LinkLocalizations = new()
+                                LinkLocalizations = new List<MediaLocalization>()
                             }
                     };
 
@@ -284,33 +308,57 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 if (!reader.IsDBNull("locale_id"))
                 {
                     var locale = reader.GetString("locale_id");
-                    var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    if (textValue != null)
-                        portal.LocalizedName.Localizations[locale] = textValue;
 
-                    if (portal.CorrespondingMedia != null)
+                    // --- Localized Name ---
+                    var textValue = reader.IsDBNull("localized_text_value") ? null :
+                        reader.GetString("localized_text_value");
+
+                    if (textValue != null && !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
                     {
-                        var link = reader.IsDBNull("corresponding_media_link") ? null
-                            : reader.GetString("corresponding_media_link");
-
-                        if (link != null) // Only add if not null (optional, up to you)
-                            portal.CorrespondingMedia.LinkLocalizations[locale] = link;
+                        portal.LocalizedPairs.Values.Add(new LocalizedValue
+                        {
+                            LocaleId = locale,
+                            Value = textValue
+                        });
                     }
 
+                    // --- CorrespondingMedia Localized Links ---
+                    if (portal.CorrespondingMedia != null)
+                    {
+                        var link = reader.IsDBNull("corr_media_link") ? null :
+                            reader.GetString("corr_media_link");
+
+                        if (link != null && !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                        {
+                            portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = link
+                            });
+                        }
+                    }
+
+                    // --- ThumbnailMedia Localized Links ---
                     if (portal.ThumbnailMedia != null)
                     {
-                        var link = reader.IsDBNull("thumbnail_media_link")
-                                        ? null
-                                        : reader.GetString("thumbnail_media_link");
+                        var link = reader.IsDBNull("thumb_media_link") ? null :
+                            reader.GetString("thumb_media_link");
 
-                        if (link != null)
-                            portal.ThumbnailMedia.LinkLocalizations[locale] = link;
+                        if (link != null && !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                        {
+                            portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = link
+                            });
+                        }
                     }
                 }
             }
 
-            return [.. map.Values];
+            return map.Values.ToList();
         }
+
 
         /// <summary>
         /// Retrieves a single portal by its ID and space, with full localization and media details.
@@ -353,22 +401,18 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 
                 FROM portal p
                 
-                -- Corresponding media
                 LEFT JOIN media cm 
                     ON p.corresponding_media_id = cm.id
                     AND cm.space_id = p.space_id
                 
-                -- Thumbnail media
                 LEFT JOIN media tm 
                     ON p.thumbnail_media_id = tm.id
                     AND tm.space_id = p.space_id
                 
-                -- Portal i18n for text field
                 LEFT JOIN i18n i 
                     ON p.text_field_key = i.`key`
                     AND i.space_id = p.space_id
                 
-                -- Media localizations for corresponding/thumbnail
                 LEFT JOIN media_localization ml1 
                     ON ml1.media_id = p.corresponding_media_id
                     AND ml1.locale_id = i.locale_id
@@ -390,7 +434,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
-            PortalModel portal = null!;
+            PortalModel? portal = null;
 
             while (await reader.ReadAsync())
             {
@@ -403,65 +447,82 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                     ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                    LocalizedName = new LocalizedResource
+                    LocalizedPairs = new LocalizedPairs
                     {
                         Key = reader.GetString("text_key"),
-                        Localizations = new Dictionary<string, string>()
+                        Values = new List<LocalizedValue>()
                     },
 
                     CorrespondingMedia = reader.IsDBNull("corr_media_id")
-                            ? null
-                            : new MediaData
-                            {
-                                Id = reader.GetString("corr_media_id"),
-                                MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : 
-                                reader.GetInt32("corr_media_type_id"),
-                                LinkLocalizations = new()
-                            },
+                        ? null
+                        : new MediaData
+                        {
+                            Id = reader.GetString("corr_media_id"),
+                            MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : reader.GetInt32("corr_media_type_id"),
+                            LinkLocalizations = new List<MediaLocalization>()
+                        },
 
                     ThumbnailMedia = reader.IsDBNull("thumb_media_id")
-                            ? null
-                            : new MediaData
-                            {
-                                Id = reader.GetString("thumb_media_id"),
-                                MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : 
-                                reader.GetInt32("thumb_media_type_id"),
-                                LinkLocalizations = new()
-                            }
+                        ? null
+                        : new MediaData
+                        {
+                            Id = reader.GetString("thumb_media_id"),
+                            MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
+                            LinkLocalizations = new List<MediaLocalization>()
+                        }
                 };
 
-                // for this locale:
                 if (!reader.IsDBNull("locale_id"))
                 {
                     var locale = reader.GetString("locale_id");
 
+                    // --- Portal Text Localizations ---
                     var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    if (textValue != null)
-                        portal.LocalizedName.Localizations[locale] = textValue;
-
-                    if (portal.CorrespondingMedia != null)
+                    if (textValue != null && !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
                     {
-                        var link = reader.IsDBNull("corresponding_media_link") ? null
-                            : reader.GetString("corresponding_media_link");
-
-                        if (link != null) // Only add if not null (optional, up to you)
-                            portal.CorrespondingMedia.LinkLocalizations[locale] = link;
+                        portal.LocalizedPairs.Values.Add(new LocalizedValue
+                        {
+                            LocaleId = locale,
+                            Value = textValue
+                        });
                     }
 
+                    // --- CorrespondingMedia Localized Links ---
+                    if (portal.CorrespondingMedia != null)
+                    {
+                        var link = reader.IsDBNull("corresponding_media_link") ? null : reader.GetString("corresponding_media_link");
+                        if (link != null && !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                        {
+                            portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = link
+                            });
+                        }
+                    }
+
+                    // --- ThumbnailMedia Localized Links ---
                     if (portal.ThumbnailMedia != null)
                     {
-                        var link = reader.IsDBNull("thumbnail_media_link")
-                                        ? null
-                                        : reader.GetString("thumbnail_media_link");
-
-                        if (link != null)
-                            portal.ThumbnailMedia.LinkLocalizations[locale] = link;
+                        var link = reader.IsDBNull("thumbnail_media_link") ? null : reader.GetString("thumbnail_media_link");
+                        if (link != null && !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                        {
+                            portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = link
+                            });
+                        }
                     }
                 }
             }
 
             return portal;
         }
+
+        #endregion
+
+        #region POST
 
         /// <summary>
         /// Creates a new portal in the specified space, including insertion of localized names and associated media records.
@@ -471,56 +532,57 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>The fully constructed portal model after creation, including assigned IDs.</returns>
         public async Task<PortalModel> CreatePortalAsync(int spaceId, PortalCreateDto portalDto)
         {
-            if (portalDto == null)
-                throw new ArgumentNullException(nameof(portalDto));
+            ArgumentNullException.ThrowIfNull(portalDto);
 
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
                 // 1) Load supported locales for this space
                 var supportedLocales = new HashSet<string>();
-                
+
                 const string fetchLocales = @"
                     SELECT locale_id
                       FROM supported_languages
-                     WHERE space_id = @SpaceId;
-                ";
+                     WHERE space_id = @SpaceId;";
 
                 await using (var cmd = new MySqlCommand(fetchLocales, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+
                     await using var rdr = await cmd.ExecuteReaderAsync();
+
                     while (await rdr.ReadAsync())
                         supportedLocales.Add(rdr.GetString("locale_id"));
                 }
 
                 // 2) Optionally insert corresponding media first
                 string? corrMediaId = null;
-                
+
                 if (portalDto.CorrespondingMedia != null)
                 {
                     corrMediaId = await FilterAndInsertMediaAsync(
                         conn, tx, spaceId,
                         portalDto.CorrespondingMedia,
                         supportedLocales,
-                        InsertMediaAsync // your existing insert function
+                        InsertMediaAsync
                     );
-
                 }
 
                 // 3) Optionally insert thumbnail media
                 string? thumbMediaId = null;
-                
+
                 if (portalDto.ThumbnailMedia != null)
                 {
                     thumbMediaId = await FilterAndInsertMediaAsync(
                         conn, tx, spaceId,
                         portalDto.ThumbnailMedia,
                         supportedLocales,
-                        InsertMediaAsync // your existing insert function
+                        InsertMediaAsync
                     );
                 }
 
@@ -537,7 +599,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 ";
 
                 int newPortalId;
-               
+
                 await using (var cmd = new MySqlCommand(insertPortal, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -545,11 +607,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmd.Parameters.AddWithValue("@EventId", portalDto.EventId);
                     cmd.Parameters.AddWithValue("@CorrId", corrMediaId);
                     cmd.Parameters.AddWithValue("@ThumbId", thumbMediaId);
-                    cmd.Parameters.AddWithValue("@TextKey", portalDto.LocalizedName.Key);
-                    cmd.Parameters.AddWithValue("@ExternalLink", portalDto.ExternalLink);
+                    cmd.Parameters.AddWithValue("@TextKey", portalDto.LocalizedPairs?.Key != null ? portalDto.LocalizedPairs.Key : (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@ExternalLink", portalDto.ExternalLink ?? (object)DBNull.Value);
+
                     await cmd.ExecuteNonQueryAsync();
+
                     newPortalId = Convert.ToInt32(cmd.LastInsertedId);
                 }
+
 
                 // 5) Insert i18n entries for the portal’s text_key, for supported locales only
                 const string insertI18n = @"
@@ -557,15 +622,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
                 ";
 
-                foreach (var loc in portalDto.LocalizedName.Localizations
-                    .Where(x => supportedLocales.Contains(x.Key)))
+                if (portalDto.LocalizedPairs != null && portalDto.LocalizedPairs.Values != null)
                 {
-                    await using var cmdI = new MySqlCommand(insertI18n, conn, tx);
-                    cmdI.Parameters.AddWithValue("@TextKey", portalDto.LocalizedName.Key);
-                    cmdI.Parameters.AddWithValue("@LocaleId", loc.Key);
-                    cmdI.Parameters.AddWithValue("@Value", loc.Value);
-                    cmdI.Parameters.AddWithValue("@SpaceId", spaceId);
-                    await cmdI.ExecuteNonQueryAsync();
+                    foreach (var loc in portalDto.LocalizedPairs.Values.Where(x => supportedLocales.Contains(x.LocaleId)))
+                    {
+                        await using var cmdI = new MySqlCommand(insertI18n, conn, tx);
+
+                        cmdI.Parameters.AddWithValue("@TextKey", portalDto.LocalizedPairs.Key);
+                        cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                        cmdI.Parameters.AddWithValue("@Value", loc.Value);
+                        cmdI.Parameters.AddWithValue("@SpaceId", spaceId);
+
+                        await cmdI.ExecuteNonQueryAsync();
+                    }
                 }
 
                 await tx.CommitAsync();
@@ -580,6 +649,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
         }
 
+        #endregion
+
+        #region PUT
+
         /// <summary>
         /// Updates the details, localizations, and associated media for a specific portal by its ID and space.
         /// </summary>
@@ -590,7 +663,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<PortalModel?> UpdatePortalAsync(int spaceId, int portalId, PortalUpdateDto dto)
         {
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var tx = await conn.BeginTransactionAsync();
 
             try
@@ -606,11 +681,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     ";
 
                     await using var c = new MySqlCommand(fetch, conn, tx);
+
                     c.Parameters.AddWithValue("@PortalId", portalId);
                     c.Parameters.AddWithValue("@SpaceId", spaceId);
 
                     var o = await c.ExecuteScalarAsync();
+
                     if (o == null) return null;
+
                     textKey = o.ToString()!;
                 }
 
@@ -619,18 +697,18 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     UPDATE portal
                     SET external_link = @ExternalLink
                     WHERE id = @PortalId
-                      AND space_id = @SpaceId;
-                ";
+                      AND space_id = @SpaceId;";
 
                 await using (var cmdL = new MySqlCommand(updLink, conn, tx))
                 {
                     cmdL.Parameters.AddWithValue("@ExternalLink", (object?)dto.ExternalLink ?? DBNull.Value);
                     cmdL.Parameters.AddWithValue("@PortalId", portalId);
                     cmdL.Parameters.AddWithValue("@SpaceId", spaceId);
+
                     await cmdL.ExecuteNonQueryAsync();
                 }
 
-                // 3. Upsert i18n for textKey
+                // 3. Upsert i18n for textKey using LocalizedName.Values (list)
                 const string updI18n = @"
                     UPDATE i18n SET value=@Value
                     WHERE `key`=@TextKey 
@@ -643,47 +721,53 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     VALUES(@TextKey,@LocaleId,@Value,@SpaceId);
                 ";
 
-                foreach (var kvp in dto.LocalizedName.Localizations)
+                if (dto.LocalizedPairs?.Values != null)
                 {
-                    string localeId = kvp.Key;
-                    string value = kvp.Value;
-
-                    await using var cu = new MySqlCommand(updI18n, conn, tx);
-                    cu.Parameters.AddWithValue("@TextKey", textKey);
-                    cu.Parameters.AddWithValue("@LocaleId", localeId);
-                    cu.Parameters.AddWithValue("@Value", value);
-                    cu.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    if (await cu.ExecuteNonQueryAsync() == 0)
+                    foreach (var loc in dto.LocalizedPairs.Values)
                     {
-                        await using var ci = new MySqlCommand(insI18n, conn, tx);
-                        ci.Parameters.AddWithValue("@TextKey", textKey);
-                        ci.Parameters.AddWithValue("@LocaleId", localeId);
-                        ci.Parameters.AddWithValue("@Value", value);
-                        ci.Parameters.AddWithValue("@SpaceId", spaceId);
-                        await ci.ExecuteNonQueryAsync();
+                        string localeId = loc.LocaleId;
+                        string value = loc.Value;
+
+                        await using var cu = new MySqlCommand(updI18n, conn, tx);
+
+                        cu.Parameters.AddWithValue("@TextKey", textKey);
+                        cu.Parameters.AddWithValue("@LocaleId", localeId);
+                        cu.Parameters.AddWithValue("@Value", value);
+                        cu.Parameters.AddWithValue("@SpaceId", spaceId);
+
+                        if (await cu.ExecuteNonQueryAsync() == 0)
+                        {
+                            await using var ci = new MySqlCommand(insI18n, conn, tx);
+
+                            ci.Parameters.AddWithValue("@TextKey", textKey);
+                            ci.Parameters.AddWithValue("@LocaleId", localeId);
+                            ci.Parameters.AddWithValue("@Value", value);
+                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
+
+                            await ci.ExecuteNonQueryAsync();
+                        }
                     }
                 }
 
-                // 4. Helper to upsert one media block
+                // 4. Helper to upsert one media block (now using MediaLocalization list)
                 async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
                 {
                     var mediaId = string.IsNullOrWhiteSpace(mDto.Id)
-                                    ? Guid.NewGuid().ToString()
-                                    : mDto.Id;
+                        ? Guid.NewGuid().ToString()
+                        : mDto.Id;
 
                     // a) Update portal set column = @MediaId
                     var updPortalMedia = $@"
                         UPDATE portal
                         SET {columnIdName} = @MediaId
-                        WHERE id=@PortalId AND space_id=@SpaceId;
-                    ";
+                        WHERE id=@PortalId AND space_id=@SpaceId;";
 
                     await using (var cm = new MySqlCommand(updPortalMedia, conn, tx))
                     {
                         cm.Parameters.AddWithValue("@MediaId", mediaId);
                         cm.Parameters.AddWithValue("@PortalId", portalId);
                         cm.Parameters.AddWithValue("@SpaceId", spaceId);
+
                         if (await cm.ExecuteNonQueryAsync() == 0)
                             throw new InvalidOperationException("Portal not found");
                     }
@@ -707,6 +791,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         cm.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
                         cm.Parameters.AddWithValue("@TextKey", mDto.TextKey);
                         cm.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
+
                         if (await cm.ExecuteNonQueryAsync() == 0)
                         {
                             await using var ci = new MySqlCommand(insMedia, conn, tx);
@@ -715,6 +800,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             ci.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
                             ci.Parameters.AddWithValue("@TextKey", mDto.TextKey);
                             ci.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
+
                             await ci.ExecuteNonQueryAsync();
                         }
                     }
@@ -731,20 +817,27 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         VALUES(@Id,@MediaId,@LocaleId,@MediaLink);
                     ";
 
-                    foreach (var loc in mDto.LinkLocalizations)
+                    if (mDto.LinkLocalizations != null)
                     {
-                        await using var cl = new MySqlCommand(updLoc, conn, tx);
-                        cl.Parameters.AddWithValue("@MediaId", mediaId);
-                        cl.Parameters.AddWithValue("@LocaleId", loc.Key);
-                        cl.Parameters.AddWithValue("@MediaLink", loc.Value);
-                        if (await cl.ExecuteNonQueryAsync() == 0)
+                        foreach (var loc in mDto.LinkLocalizations)
                         {
-                            await using var ci = new MySqlCommand(insLoc, conn, tx);
-                            ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
-                            ci.Parameters.AddWithValue("@MediaId", mediaId);
-                            ci.Parameters.AddWithValue("@LocaleId", loc.Key);
-                            ci.Parameters.AddWithValue("@MediaLink", loc.Value);
-                            await ci.ExecuteNonQueryAsync();
+                            await using var cl = new MySqlCommand(updLoc, conn, tx);
+
+                            cl.Parameters.AddWithValue("@MediaId", mediaId);
+                            cl.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                            cl.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+
+                            if (await cl.ExecuteNonQueryAsync() == 0)
+                            {
+                                await using var ci = new MySqlCommand(insLoc, conn, tx);
+
+                                ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
+                                ci.Parameters.AddWithValue("@MediaId", mediaId);
+                                ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                                ci.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+
+                                await ci.ExecuteNonQueryAsync();
+                            }
                         }
                     }
                 }
@@ -756,7 +849,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     await UpsertMedia(dto.ThumbnailMedia, "thumbnail_media_id");
 
                 await tx.CommitAsync();
-
                 return await GetPortalByIdAsync(spaceId, portalId);
             }
             catch (Exception)
@@ -765,6 +857,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 return null;
             }
         }
+
 
         /// <summary>
         /// Updates the details, localizations, and associated media for a specific portal that belongs to a booth.
@@ -777,21 +870,24 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<PortalModel?> UpdatePortalAsync(int spaceId, int boothId, int portalId, PortalUpdateDto dto)
         {
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
                 // Fetch the text_key, confirm portal and booth match
                 const string fetch = @"
-                    SELECT text_field_key
-                    FROM portal
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId
-                      AND booth_id = @BoothId;
+                   SELECT text_field_key
+                   FROM portal
+                   WHERE id = @PortalId
+                     AND space_id = @SpaceId
+                     AND booth_id = @BoothId;
                 ";
 
                 string textKey;
+
                 await using (var c = new MySqlCommand(fetch, conn, tx))
                 {
                     c.Parameters.AddWithValue("@PortalId", portalId);
@@ -799,6 +895,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     c.Parameters.AddWithValue("@BoothId", boothId);
 
                     var o = await c.ExecuteScalarAsync();
+
                     if (o == null)
                     {
                         await tx.RollbackAsync();
@@ -822,10 +919,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmdL.Parameters.AddWithValue("@PortalId", portalId);
                     cmdL.Parameters.AddWithValue("@SpaceId", spaceId);
                     cmdL.Parameters.AddWithValue("@BoothId", boothId);
+
                     await cmdL.ExecuteNonQueryAsync();
                 }
 
-                // Upsert i18n for textKey
+                // Upsert i18n for textKey using list of LocalizedValue
                 const string updI18n = @"
                     UPDATE i18n SET value=@Value
                     WHERE `key`=@TextKey 
@@ -838,30 +936,33 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     VALUES(@TextKey,@LocaleId,@Value,@SpaceId);
                 ";
 
-                foreach (var kvp in dto.LocalizedName.Localizations)
+                if (dto.LocalizedPairs?.Values != null)
                 {
-                    string localeId = kvp.Key;
-                    string value = kvp.Value;
-
-                    await using var cu = new MySqlCommand(updI18n, conn, tx);
-                    cu.Parameters.AddWithValue("@TextKey", textKey);
-                    cu.Parameters.AddWithValue("@LocaleId", localeId);
-                    cu.Parameters.AddWithValue("@Value", value);
-                    cu.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    if (await cu.ExecuteNonQueryAsync() == 0)
+                    foreach (var loc in dto.LocalizedPairs.Values)
                     {
-                        await using var ci = new MySqlCommand(insI18n, conn, tx);
-                        ci.Parameters.AddWithValue("@TextKey", textKey);
-                        ci.Parameters.AddWithValue("@LocaleId", localeId);
-                        ci.Parameters.AddWithValue("@Value", value);
-                        ci.Parameters.AddWithValue("@SpaceId", spaceId);
-                        await ci.ExecuteNonQueryAsync();
+                        string localeId = loc.LocaleId;
+                        string value = loc.Value;
+
+                        await using var cu = new MySqlCommand(updI18n, conn, tx);
+
+                        cu.Parameters.AddWithValue("@TextKey", textKey);
+                        cu.Parameters.AddWithValue("@LocaleId", localeId);
+                        cu.Parameters.AddWithValue("@Value", value);
+                        cu.Parameters.AddWithValue("@SpaceId", spaceId);
+
+                        if (await cu.ExecuteNonQueryAsync() == 0)
+                        {
+                            await using var ci = new MySqlCommand(insI18n, conn, tx);
+                            ci.Parameters.AddWithValue("@TextKey", textKey);
+                            ci.Parameters.AddWithValue("@LocaleId", localeId);
+                            ci.Parameters.AddWithValue("@Value", value);
+                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
+                            await ci.ExecuteNonQueryAsync();
+                        }
                     }
                 }
 
-
-                // Helper to upsert one media block
+                // Helper to upsert one media block using MediaLocalization list
                 async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
                 {
                     var mediaId = string.IsNullOrWhiteSpace(mDto.Id)
@@ -881,6 +982,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         cm.Parameters.AddWithValue("@PortalId", portalId);
                         cm.Parameters.AddWithValue("@SpaceId", spaceId);
                         cm.Parameters.AddWithValue("@BoothId", boothId);
+
                         if (await cm.ExecuteNonQueryAsync() == 0)
                             throw new InvalidOperationException("Portal not found");
                     }
@@ -904,19 +1006,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         cm.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
                         cm.Parameters.AddWithValue("@TextKey", mDto.TextKey);
                         cm.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
+
                         if (await cm.ExecuteNonQueryAsync() == 0)
                         {
                             await using var ci = new MySqlCommand(insMedia, conn, tx);
+
                             ci.Parameters.AddWithValue("@MediaId", mediaId);
                             ci.Parameters.AddWithValue("@SpaceId", spaceId);
                             ci.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
                             ci.Parameters.AddWithValue("@TextKey", mDto.TextKey);
                             ci.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
+
                             await ci.ExecuteNonQueryAsync();
                         }
                     }
 
-                    // Upsert localizations
+                    // Upsert localizations using MediaLocalization list
                     const string updLoc = @"
                         UPDATE media_localization
                         SET media_link=@MediaLink
@@ -928,20 +1033,25 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         VALUES(@Id,@MediaId,@LocaleId,@MediaLink);
                     ";
 
-                    foreach (var loc in mDto.LinkLocalizations)
+                    if (mDto.LinkLocalizations != null)
                     {
-                        await using var cl = new MySqlCommand(updLoc, conn, tx);
-                        cl.Parameters.AddWithValue("@MediaId", mediaId);
-                        cl.Parameters.AddWithValue("@LocaleId", loc.Key);
-                        cl.Parameters.AddWithValue("@MediaLink", loc.Value);
-                        if (await cl.ExecuteNonQueryAsync() == 0)
+                        foreach (var loc in mDto.LinkLocalizations)
                         {
-                            await using var ci = new MySqlCommand(insLoc, conn, tx);
-                            ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
-                            ci.Parameters.AddWithValue("@MediaId", mediaId);
-                            ci.Parameters.AddWithValue("@LocaleId", loc.Key);
-                            ci.Parameters.AddWithValue("@MediaLink", loc.Value);
-                            await ci.ExecuteNonQueryAsync();
+                            await using var cl = new MySqlCommand(updLoc, conn, tx);
+
+                            cl.Parameters.AddWithValue("@MediaId", mediaId);
+                            cl.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                            cl.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+
+                            if (await cl.ExecuteNonQueryAsync() == 0)
+                            {
+                                await using var ci = new MySqlCommand(insLoc, conn, tx);
+                                ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
+                                ci.Parameters.AddWithValue("@MediaId", mediaId);
+                                ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                                ci.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                                await ci.ExecuteNonQueryAsync();
+                            }
                         }
                     }
                 }
@@ -963,6 +1073,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
         }
 
+        #endregion
+
+        #region DELETE
+
         /// <summary>
         /// Deletes a portal by its ID and space, including all dependent localizations and media records.
         /// </summary>
@@ -972,7 +1086,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<bool> DeletePortalAsync(int spaceId, int portalId)
         {
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var tx = await conn.BeginTransactionAsync();
 
             try
@@ -993,12 +1109,15 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     fetchCmd.Parameters.AddWithValue("@PortalId", portalId);
                     fetchCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+
                     await using var reader = await fetchCmd.ExecuteReaderAsync();
+
                     if (!await reader.ReadAsync())
                     {
                         await tx.RollbackAsync();
                         return false; // Not found
                     }
+
                     textKey = reader.GetString("text_field_key");
                     corrId = reader.IsDBNull("corresponding_media_id") ? null : reader.GetString("corresponding_media_id");
                     thumbId = reader.IsDBNull("thumbnail_media_id") ? null : reader.GetString("thumbnail_media_id");
@@ -1015,6 +1134,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     cmdI18n.Parameters.AddWithValue("@TextKey", textKey);
                     cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
+
                     await cmdI18n.ExecuteNonQueryAsync();
                 }
 
@@ -1029,6 +1149,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     cmdPortal.Parameters.AddWithValue("@PortalId", portalId);
                     cmdPortal.Parameters.AddWithValue("@SpaceId", spaceId);
+
                     await cmdPortal.ExecuteNonQueryAsync();
                 }
 
@@ -1043,6 +1164,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     await using (var cmdLoc = new MySqlCommand(delLoc1, conn, tx))
                     {
                         cmdLoc.Parameters.AddWithValue("@MediaId", corrId);
+
                         await cmdLoc.ExecuteNonQueryAsync();
                     }
 
@@ -1054,6 +1176,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     await using (var cmdMed = new MySqlCommand(delMed1, conn, tx))
                     {
                         cmdMed.Parameters.AddWithValue("@MediaId", corrId);
+
                         await cmdMed.ExecuteNonQueryAsync();
                     }
                 }
@@ -1069,6 +1192,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     await using (var cmdLoc = new MySqlCommand(delLoc2, conn, tx))
                     {
                         cmdLoc.Parameters.AddWithValue("@MediaId", thumbId);
+
                         await cmdLoc.ExecuteNonQueryAsync();
                     }
 
@@ -1078,7 +1202,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     ";
 
                     await using var cmdMed = new MySqlCommand(delMed2, conn, tx);
+
                     cmdMed.Parameters.AddWithValue("@MediaId", thumbId);
+
                     await cmdMed.ExecuteNonQueryAsync();
                 }
 
@@ -1102,19 +1228,21 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<bool> DeletePortalAsync(int spaceId, int boothId, int portalId)
         {
             await using var conn = new MySqlConnection(_connectionString);
+
             await conn.OpenAsync();
+
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
                 // 1. Fetch portal row to get keys and media IDs, and confirm booth match
                 const string fetchSql = @"
-            SELECT text_field_key, corresponding_media_id, thumbnail_media_id
-            FROM portal
-            WHERE id = @PortalId
-              AND space_id = @SpaceId
-              AND booth_id = @BoothId;
-        ";
+                    SELECT text_field_key, corresponding_media_id, thumbnail_media_id
+                    FROM portal
+                    WHERE id = @PortalId
+                      AND space_id = @SpaceId
+                      AND booth_id = @BoothId;
+                ";
 
                 string textKey;
                 string? corrId;
@@ -1125,12 +1253,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     fetchCmd.Parameters.AddWithValue("@PortalId", portalId);
                     fetchCmd.Parameters.AddWithValue("@SpaceId", spaceId);
                     fetchCmd.Parameters.AddWithValue("@BoothId", boothId);
+
                     await using var reader = await fetchCmd.ExecuteReaderAsync();
+
                     if (!await reader.ReadAsync())
                     {
                         await tx.RollbackAsync();
+
                         return false; // Not found or booth mismatch
                     }
+
                     textKey = reader.GetString("text_field_key");
                     corrId = reader.IsDBNull("corresponding_media_id") ? null : reader.GetString("corresponding_media_id");
                     thumbId = reader.IsDBNull("thumbnail_media_id") ? null : reader.GetString("thumbnail_media_id");
@@ -1138,31 +1270,33 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // 2. Delete i18n rows for this portal’s key
                 const string delI18n = @"
-            DELETE FROM i18n
-            WHERE `key` = @TextKey
-              AND space_id = @SpaceId;
-        ";
+                    DELETE FROM i18n
+                    WHERE `key` = @TextKey
+                      AND space_id = @SpaceId;
+                ";
 
                 await using (var cmdI18n = new MySqlCommand(delI18n, conn, tx))
                 {
                     cmdI18n.Parameters.AddWithValue("@TextKey", textKey);
                     cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
+
                     await cmdI18n.ExecuteNonQueryAsync();
                 }
 
                 // 3. Delete portal row itself
                 const string delPortal = @"
-            DELETE FROM portal
-            WHERE id = @PortalId
-              AND space_id = @SpaceId
-              AND booth_id = @BoothId;
-        ";
+                    DELETE FROM portal
+                    WHERE id = @PortalId
+                      AND space_id = @SpaceId
+                      AND booth_id = @BoothId;
+                ";
 
                 await using (var cmdPortal = new MySqlCommand(delPortal, conn, tx))
                 {
                     cmdPortal.Parameters.AddWithValue("@PortalId", portalId);
                     cmdPortal.Parameters.AddWithValue("@SpaceId", spaceId);
                     cmdPortal.Parameters.AddWithValue("@BoothId", boothId);
+
                     await cmdPortal.ExecuteNonQueryAsync();
                 }
 
@@ -1170,21 +1304,26 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 if (!string.IsNullOrEmpty(corrId))
                 {
                     const string delLoc1 = @"
-                DELETE FROM media_localization
-                WHERE media_id = @MediaId;
-            ";
+                        DELETE FROM media_localization
+                        WHERE media_id = @MediaId;
+                    ";
+
                     await using (var cmdLoc = new MySqlCommand(delLoc1, conn, tx))
                     {
                         cmdLoc.Parameters.AddWithValue("@MediaId", corrId);
+
                         await cmdLoc.ExecuteNonQueryAsync();
                     }
+
                     const string delMed1 = @"
-                DELETE FROM media
-                WHERE id = @MediaId;
-            ";
+                        DELETE FROM media
+                        WHERE id = @MediaId;
+                    ";
+
                     await using (var cmdMed = new MySqlCommand(delMed1, conn, tx))
                     {
                         cmdMed.Parameters.AddWithValue("@MediaId", corrId);
+
                         await cmdMed.ExecuteNonQueryAsync();
                     }
                 }
@@ -1193,23 +1332,27 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 if (!string.IsNullOrEmpty(thumbId))
                 {
                     const string delLoc2 = @"
-                DELETE FROM media_localization
-                WHERE media_id = @MediaId;
-            ";
+                        DELETE FROM media_localization
+                        WHERE media_id = @MediaId;
+                    ";
+
                     await using (var cmdLoc = new MySqlCommand(delLoc2, conn, tx))
                     {
                         cmdLoc.Parameters.AddWithValue("@MediaId", thumbId);
+
                         await cmdLoc.ExecuteNonQueryAsync();
                     }
+
                     const string delMed2 = @"
-                DELETE FROM media
-                WHERE id = @MediaId;
-            ";
-                    await using (var cmdMed = new MySqlCommand(delMed2, conn, tx))
-                    {
-                        cmdMed.Parameters.AddWithValue("@MediaId", thumbId);
-                        await cmdMed.ExecuteNonQueryAsync();
-                    }
+                        DELETE FROM media
+                        WHERE id = @MediaId;
+                    ";
+
+                    await using var cmdMed = new MySqlCommand(delMed2, conn, tx);
+
+                    cmdMed.Parameters.AddWithValue("@MediaId", thumbId);
+
+                    await cmdMed.ExecuteNonQueryAsync();
                 }
 
                 await tx.CommitAsync();
@@ -1222,7 +1365,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
         }
 
-        #region HELPER_FUNCTIONS
+        #endregion
+
+        #region HELPER_METHODS
 
         /// <summary>
         /// Inserts a new media record into the database, including its type, keys, localized text and description entries, and localized media links.
@@ -1236,12 +1381,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             MySqlConnection conn,
             MySqlTransaction tx,
             int spaceId,
-            MediaCreateDto dto)
+            MediaCreateDto dto
+        )
         {
             // 1. Get UUID for new media row
             string mediaId;
             {
                 await using var uuidCmd = new MySqlCommand("SELECT UUID()", conn, tx);
+
                 mediaId = (await uuidCmd.ExecuteScalarAsync())!.ToString()!;
             }
 
@@ -1258,13 +1405,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 cmd.Parameters.AddWithValue("@MediaTypeId", dto.MediaTypeId);
                 cmd.Parameters.AddWithValue("@TextKey", (object?)dto.TextKey ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value);
+
                 await cmd.ExecuteNonQueryAsync();
             }
 
-            // 3. Insert i18n text values
+            // 3. Insert i18n text values (TextLocalizations is a List<LocalizedValue>)
             if (dto.TextKey != null && dto.TextLocalizations != null)
             {
-                foreach (var kvp in dto.TextLocalizations)
+                foreach (var loc in dto.TextLocalizations)
                 {
                     const string insI18n = @"
                         INSERT INTO i18n (`key`, locale_id, value)
@@ -1272,17 +1420,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     ";
 
                     await using var cmdI = new MySqlCommand(insI18n, conn, tx);
+
                     cmdI.Parameters.AddWithValue("@Key", dto.TextKey);
-                    cmdI.Parameters.AddWithValue("@LocaleId", kvp.Key);
-                    cmdI.Parameters.AddWithValue("@Value", kvp.Value);
+                    cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmdI.Parameters.AddWithValue("@Value", loc.Value);
+
                     await cmdI.ExecuteNonQueryAsync();
                 }
             }
 
-            // 4. Insert i18n description values
+            // 4. Insert i18n description values (DescriptionLocalizations is a List<LocalizedValue>)
             if (dto.DescriptionKey != null && dto.DescriptionLocalizations != null)
             {
-                foreach (var kvp in dto.DescriptionLocalizations)
+                foreach (var loc in dto.DescriptionLocalizations)
                 {
                     const string insI18n = @"
                         INSERT INTO i18n (`key`, locale_id, value)
@@ -1290,30 +1440,38 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     ";
 
                     await using var cmdI = new MySqlCommand(insI18n, conn, tx);
+
                     cmdI.Parameters.AddWithValue("@Key", dto.DescriptionKey);
-                    cmdI.Parameters.AddWithValue("@LocaleId", kvp.Key);
-                    cmdI.Parameters.AddWithValue("@Value", kvp.Value);
+                    cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmdI.Parameters.AddWithValue("@Value", loc.Value);
+
                     await cmdI.ExecuteNonQueryAsync();
                 }
             }
 
-            // 5. Insert media links (media_localization)
-            foreach (var kvp in dto.LinkLocalizations)
+            // 5. Insert media links (media_localization, using List<MediaLocalization>)
+            if (dto.LinkLocalizations != null)
             {
-                const string insLoc = @"
-                    INSERT INTO media_localization (media_id, locale_id, media_link)
-                    VALUES (@MediaId, @LocaleId, @MediaLink);
-                ";
+                foreach (var loc in dto.LinkLocalizations)
+                {
+                    const string insLoc = @"
+                        INSERT INTO media_localization (media_id, locale_id, media_link)
+                        VALUES (@MediaId, @LocaleId, @MediaLink);
+                    ";
 
-                await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
-                cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
-                cmdLoc.Parameters.AddWithValue("@LocaleId", kvp.Key);
-                cmdLoc.Parameters.AddWithValue("@MediaLink", kvp.Value);
-                await cmdLoc.ExecuteNonQueryAsync();
+                    await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
+
+                    cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
+                    cmdLoc.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                    cmdLoc.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+
+                    await cmdLoc.ExecuteNonQueryAsync();
+                }
             }
 
             return mediaId;
         }
+
 
         /// <summary>
         /// Filters the given media DTO’s localizations to only those supported by the space, and inserts the media if any localizations remain.
@@ -1325,37 +1483,47 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="supportedLocales">A set of supported locale IDs for the space.</param>
         /// <param name="insertFunc">A delegate to the actual insert function for the media.</param>
         /// <returns>The ID of the inserted media if inserted, or null if there were no localizations to insert.</returns>
-        private async Task<string?> FilterAndInsertMediaAsync(
-        MySqlConnection conn,
-        MySqlTransaction tx,
-        int spaceId,
-        MediaCreateDto? mediaDto,
-        HashSet<string> supportedLocales,
-        Func<MySqlConnection,
-        MySqlTransaction,
-        int, MediaCreateDto,
-        Task<string>> insertFunc)
+        private static async Task<string?> FilterAndInsertMediaAsync(
+            MySqlConnection conn,
+            MySqlTransaction tx,
+            int spaceId,
+            MediaCreateDto? mediaDto,
+            HashSet<string> supportedLocales,
+            Func<MySqlConnection,
+            MySqlTransaction,
+            int, MediaCreateDto,
+            Task<string>> insertFunc
+        )
         {
             if (mediaDto == null)
                 return null;
 
-            // Filter all relevant dictionaries in-place
-            mediaDto.LinkLocalizations = mediaDto.LinkLocalizations
-                .Where(x => supportedLocales.Contains(x.Key))
-                .ToDictionary(x => x.Key, x => x.Value);
+            // Filter LinkLocalizations (List<MediaLocalization>)
+            if (mediaDto.LinkLocalizations != null)
+            {
+                mediaDto.LinkLocalizations = [.. mediaDto.LinkLocalizations.Where(
+                    x => supportedLocales.Contains(x.LocaleId)
+                )];
+            }
 
+            // Filter TextLocalizations (List<LocalizedValue>)
             if (mediaDto.TextLocalizations != null)
-                mediaDto.TextLocalizations = mediaDto.TextLocalizations
-                    .Where(x => supportedLocales.Contains(x.Key))
-                    .ToDictionary(x => x.Key, x => x.Value);
+            {
+                mediaDto.TextLocalizations = [.. mediaDto.TextLocalizations.Where(
+                    x => supportedLocales.Contains(x.LocaleId)
+                )];
+            }
 
+            // Filter DescriptionLocalizations (List<LocalizedValue>)
             if (mediaDto.DescriptionLocalizations != null)
-                mediaDto.DescriptionLocalizations = mediaDto.DescriptionLocalizations
-                    .Where(x => supportedLocales.Contains(x.Key))
-                    .ToDictionary(x => x.Key, x => x.Value);
+            {
+                mediaDto.DescriptionLocalizations = [.. mediaDto.DescriptionLocalizations.Where(
+                    x => supportedLocales.Contains(x.LocaleId)
+                )];
+            }
 
-            // Only insert if there are any localizations (links)
-            if (mediaDto.LinkLocalizations.Count > 0)
+            // Only insert if there are any link localizations
+            if (mediaDto.LinkLocalizations != null && mediaDto.LinkLocalizations.Count > 0)
                 return await insertFunc(conn, tx, spaceId, mediaDto);
 
             return null;

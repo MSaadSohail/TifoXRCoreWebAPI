@@ -5,18 +5,17 @@
 // <date>07/09/2025</date>
 // <summary>Data for teleport table</summary>
 
+using GMS.TifoXRCoreWebAPI.Models.Common;
+
 namespace GMS.TifoXRCoreWebAPI.Models
 {
-    /// <summary>
-    /// The data returned for each teleport table.
-    /// </summary>
     public class TeleportTableData
     {
         public int Id { get; set; }
         public int SpaceId { get; set; }
         public string? NameKey { get; set; }
         public bool IsActive { get; set; }
-        public Dictionary<string,string>? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public List<ButtonData>? Buttons { get; set; }
     }
 
@@ -24,51 +23,55 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int Id { get; set; }
         public string NameKey { get; set; }
-        public int BoothToVisit { get; set; }
-        public Dictionary<string, string> LocalizedName { get; set; }
+        public bool IsActive { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
+        public MapSpotData MapSpot { get; set; } = default!;
     }
 
-    /// <summary>
-    /// DTO used to create a new teleport table.
-    /// </summary>
     public class TeleportTableCreateDto
     {
-        public int SpaceId { get; set; } // Required for table creation
-        public string? NameKey { get; set; } // i18n key for the table's name (optional if handled by i18n service)
+        public int SpaceId { get; set; }
+        public string? NameKey { get; set; }
         public bool IsActive { get; set; }
-        public Dictionary<string, string>? LocalizedName { get; set; } // Localized name values (optional, can be ignored if service-side i18n)
-        public List<ButtonCreateDto>? Buttons { get; set; } // Buttons to create with the table
+        public LocalizedPairs? LocalizedPairs { get; set; }
+        public List<ButtonCreateDto>? Buttons { get; set; }
     }
 
     public class TeleportTableUpdateDto
     {
         public bool IsActive { get; set; }
         public string? NameKey { get; set; }
-        public Dictionary<string, string>? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public List<ButtonUpdateDto>? Buttons { get; set; }
     }
 
     public class ButtonCreateDto
     {
-        public string NameKey { get; set; } // i18n key for the button's name
-        public Dictionary<string, string>? LocalizedName { get; set; } // Localized name values (optional)
-        public int BoothToVisit { get; set; } // FK to booth to teleport to
+        public string NameKey { get; set; } = default!;
+        public MapSpotData MapSpot { get; set; } = default!;
+        public LocalizedPairs? LocalizedPairs { get; set; }
+        public bool IsActive { get; set; }
     }
 
     public class ButtonUpdateDto
     {
         public int? Id { get; set; }
-        public string NameKey { get; set; } // i18n key for the button's name
-        public Dictionary<string, string>? LocalizedName { get; set; }
-        public int BoothToVisit { get; set; }
+        public string NameKey { get; set; } = default!;
+        public MapSpotData MapSpot { get; set; } = default!;
+        public LocalizedPairs? LocalizedPairs { get; set; }
+        public bool IsActive { get; set; }
     }
 
-    /// <summary>
-    /// Wrapper for create/update responses.
-    /// </summary>
     public class TeleportTableResponse
     {
-        public TeleportTableData TeleportTable { get; set; }
+        public TeleportTableData TeleportTable { get; set; } = default!;
     }
 
+    public class MapSpotData
+    {
+        public int Id { get; set; }
+        public decimal X { get; set; }
+        public decimal Y { get; set; }
+        public decimal Z { get; set; }
+    }
 }

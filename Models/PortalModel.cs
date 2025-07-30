@@ -14,11 +14,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalUpdateDto
     {
-        /// <summary>
-        /// The resource key and its localized values (locale → value).
-        /// </summary>
-        public required LocalizedResource LocalizedName { get; set; }
         public int? EventId { get; set; }
+        public required LocalizedPairs LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
         public MediaUpdateDto? CorrespondingMedia { get; set; }
         public MediaUpdateDto? ThumbnailMedia { get; set; }
@@ -40,10 +37,10 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int PortalId { get; set; }
         public required int SpaceId { get; set; }
         public int? BoothId { get; set; }
-        public required int? PortalTypeId { get; set; }
+        public int? PortalTypeId { get; set; }
         public int? EventId { get; set; }
-        public required LocalizedResource? LocalizedName { get; set; }
-        public required string? ExternalLink { get; set; }
+        public required LocalizedPairs LocalizedPairs { get; set; }
+        public string? ExternalLink { get; set; }
         public required MediaData CorrespondingMedia { get; set; }
         public required MediaData ThumbnailMedia { get; set; }
     }
@@ -56,7 +53,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? BoothId { get; set; }
         public int? PortalTypeId { get; set; }
         public int? EventId { get; set; }
-        public LocalizedResource? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
         public MediaCreateDto? CorrespondingMedia { get; set; }
         public MediaCreateDto? ThumbnailMedia { get; set; }
