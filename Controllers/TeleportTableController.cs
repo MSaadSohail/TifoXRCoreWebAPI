@@ -21,6 +21,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             _teleportRepository = teleportRepository;
         }
 
+        #region GET
+
         /// <summary>
         /// GET /api/space/{spaceId}/teleport_tables
         /// Returns all teleport tables in a space, with their localized names and buttons.
@@ -44,6 +46,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        #endregion
+
+        #region POST
 
         /// <summary>
         /// POST /api/space/{spaceId}/teleport_table
@@ -73,6 +79,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        #endregion
+
+        #region PUT
 
         /// <summary>
         /// PUT /api/space/{spaceId}/teleport_table/{tableId}
@@ -106,6 +116,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        #endregion
+
+        #region DELETE
 
         [HttpDelete("{spaceId}/teleport_table/{tableId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -165,5 +179,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
     }
 }

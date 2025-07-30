@@ -20,6 +20,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         #region GET
 
+        /// <summary>
+        /// Retrieves the teleport table for the specified space, including all its buttons and localizations.
+        /// </summary>
+        /// <param name="spaceId">The space ID to fetch the teleport table for.</param>
+        /// <returns>The teleport table with button and localization data, or null if not found.</returns>
         public async Task<TeleportTableData?> GetTeleportTableBySpaceAsync(int spaceId)
         {
             AppLogger.Info("GetTeleportTableBySpaceAsync called!");
@@ -151,6 +156,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         #region POST
 
+        /// <summary>
+        /// Creates a new teleport table in the given space, including its localized name and any initial buttons.
+        /// </summary>
+        /// <param name="spaceId">The space in which to create the table.</param>
+        /// <param name="dto">The creation DTO containing table data and initial buttons.</param>
+        /// <returns>The created teleport table, including all created buttons and localizations.</returns>
         public async Task<TeleportTableData> CreateTeleportTableAsync(int spaceId, TeleportTableCreateDto dto)
         {
             await using var conn = new MySqlConnection(_connStr);
@@ -230,116 +241,17 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
         }
 
-        public async Task<ButtonData> CreateTeleportTableButtonAsync(
-            int spaceId,
-            int tableId,
-            ButtonCreateDto btnDto,
-            MySqlConnection? externalConn = null,
-            MySqlTransaction? externalTx = null
-        )
-        {
-            bool useExternal = externalConn != null && externalTx != null;
-
-            await using var conn = useExternal ? null : new MySqlConnection(_connStr);
-
-            if (!useExternal)
-                await conn.OpenAsync();
-            var tx = useExternal ? externalTx : await conn!.BeginTransactionAsync();
-
-            try
-            {
-                // 1. Insert map_spot
-                int mapSpotId;
-
-                if (btnDto.MapSpot.Id > 0)
-                {
-                    mapSpotId = btnDto.MapSpot.Id;
-                }
-                else
-                {
-                    const string insMapSpot = @"
-                        INSERT INTO map_spot (x, y, z)
-                        VALUES (@X, @Y, @Z);";
-
-                    await using var cmdMap = new MySqlCommand(insMapSpot, useExternal ? externalConn : conn, tx);
-
-                    cmdMap.Parameters.AddWithValue("@X", btnDto.MapSpot.X);
-                    cmdMap.Parameters.AddWithValue("@Y", btnDto.MapSpot.Y);
-                    cmdMap.Parameters.AddWithValue("@Z", btnDto.MapSpot.Z);
-
-                    await cmdMap.ExecuteNonQueryAsync();
-
-                    mapSpotId = Convert.ToInt32(cmdMap.LastInsertedId);
-                }
-
-                // 2. Insert button
-                const string insBtn = @"
-                    INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
-                    VALUES (@TableId, @NameKey, @MapSpotId, @IsActive);";
-
-                int buttonId;
-
-                await using (var cmdBtn = new MySqlCommand(insBtn, useExternal ? externalConn : conn, tx))
-                {
-                    cmdBtn.Parameters.AddWithValue("@TableId", tableId);
-                    cmdBtn.Parameters.AddWithValue("@NameKey", btnDto.NameKey);
-                    cmdBtn.Parameters.AddWithValue("@MapSpotId", mapSpotId);
-                    cmdBtn.Parameters.AddWithValue("@IsActive", btnDto.IsActive);
-
-                    await cmdBtn.ExecuteNonQueryAsync();
-
-                    buttonId = Convert.ToInt32(cmdBtn.LastInsertedId);
-                }
-
-                // 3. Insert i18n for button name
-                if (btnDto.LocalizedName?.Values != null && !string.IsNullOrEmpty(btnDto.LocalizedName.Key))
-                {
-                    foreach (var loc in btnDto.LocalizedName.Values)
-                    {
-                        const string insI18n = @"
-                            INSERT INTO i18n (`key`, locale_id, value, space_id)
-                            VALUES (@Key, @LocaleId, @Value, @SpaceId);";
-
-                        await using var cmdI18n = new MySqlCommand(insI18n, useExternal ? externalConn : conn, tx);
-
-                        cmdI18n.Parameters.AddWithValue("@Key", btnDto.LocalizedName.Key);
-                        cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cmdI18n.Parameters.AddWithValue("@Value", loc.Value);
-                        cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                        await cmdI18n.ExecuteNonQueryAsync();
-                    }
-                }
-
-                if (!useExternal)
-                    await tx!.CommitAsync();
-
-                return new ButtonData
-                {
-                    Id = buttonId,
-                    NameKey = btnDto.NameKey,
-                    IsActive = btnDto.IsActive,
-                    LocalizedName = btnDto.LocalizedName,
-                    MapSpot = new MapSpotData
-                    {
-                        Id = mapSpotId,
-                        X = btnDto.MapSpot.X,
-                        Y = btnDto.MapSpot.Y,
-                        Z = btnDto.MapSpot.Z
-                    }
-                };
-            }
-            catch
-            {
-                if (!useExternal && tx != null)
-                    await tx.RollbackAsync();
-                throw;
-            }
-        }
-
         #endregion
 
         #region PUT
+
+        /// <summary>
+        /// Updates an existing teleport table and its buttons, including all localizations.
+        /// </summary>
+        /// <param name="spaceId">The space ID containing the table.</param>
+        /// <param name="tableId">The table ID to update.</param>
+        /// <param name="dto">The DTO with new values and button data.</param>
+        /// <returns>The updated teleport table, or null if not found.</returns>
         public async Task<TeleportTableData?> UpdateTeleportTableAsync(
             int spaceId,
             int tableId,
@@ -573,6 +485,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         #region DELETE
 
+        /// <summary>
+        /// Deletes a teleport table and all associated buttons and localizations, within a transaction.
+        /// </summary>
+        /// <param name="spaceId">The space containing the table.</param>
+        /// <param name="tableId">The table ID to delete.</param>
+        /// <returns>True if deleted, false if not found.</returns>
         public async Task<bool> DeleteTeleportTableAsync(int spaceId, int tableId)
         {
             await using var conn = new MySqlConnection(_connStr);
@@ -673,6 +591,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
         }
 
+        /// <summary>
+        /// Deletes all teleport tables in a given space, including all related data.
+        /// </summary>
+        /// <param name="spaceId">The space whose tables are to be deleted.</param>
+        /// <returns>The number of tables deleted.</returns>
         public async Task<int> DeleteTeleportTablesBySpaceAsync(int spaceId)
         {
             var tableIds = new List<int>();
@@ -702,6 +625,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return count;
         }
 
+        /// <summary>
+        /// Deletes a single button from a teleport table, including its i18n localizations.
+        /// </summary>
+        /// <param name="buttonId">The button ID to delete.</param>
+        /// <param nameId="tableId">The table ID the button belongs to.</param>
+        /// <returns>True if deleted, false otherwise.</returns>
         public async Task<bool> DeleteTeleportTableButtonAsync(int buttonId, int tableId)
         {
             await using var conn = new MySqlConnection(_connStr);
@@ -764,6 +693,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         #region HELPER_METHODS
 
+        /// <summary>
+        /// Loads a teleport table by ID, including all buttons and localizations.
+        /// Used internally after create/update for fetching latest DB state.
+        /// </summary>
+        /// <param name="conn">An open MySQL connection.</param>
+        /// <param name="spaceId">The space ID for the table.</param>
+        /// <param name="tableId">The table ID to fetch.</param>
+        /// <returns>The loaded teleport table with full button and localization info, or null if not found.</returns>
         private static async Task<TeleportTableData?> LoadTeleportTableById(
             MySqlConnection conn,
             int spaceId,
@@ -914,6 +851,122 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return table;
         }
 
+        /// <summary>
+        /// Creates a new button for a teleport table, including its map spot and localized name.
+        /// Used internally during table creation or for standalone button creation.
+        /// </summary>
+        /// <param name="spaceId">The space ID for the button.</param>
+        /// <param name="tableId">The teleport table ID to attach the button to.</param>
+        /// <param name="btnDto">The button creation DTO.</param>
+        /// <param name="externalConn">Optional open MySQL connection for transactional use.</param>
+        /// <param name="externalTx">Optional open MySQL transaction for transactional use.</param>
+        /// <returns>The created button, including its map spot and localizations.</returns>
+        public async Task<ButtonData> CreateTeleportTableButtonAsync(
+            int spaceId,
+            int tableId,
+            ButtonCreateDto btnDto,
+            MySqlConnection? externalConn = null,
+            MySqlTransaction? externalTx = null
+        )
+        {
+            bool useExternal = externalConn != null && externalTx != null;
+
+            await using var conn = useExternal ? null : new MySqlConnection(_connStr);
+
+            if (!useExternal)
+                await conn.OpenAsync();
+            var tx = useExternal ? externalTx : await conn!.BeginTransactionAsync();
+
+            try
+            {
+                // 1. Insert map_spot
+                int mapSpotId;
+
+                if (btnDto.MapSpot.Id > 0)
+                {
+                    mapSpotId = btnDto.MapSpot.Id;
+                }
+                else
+                {
+                    const string insMapSpot = @"
+                        INSERT INTO map_spot (x, y, z)
+                        VALUES (@X, @Y, @Z);";
+
+                    await using var cmdMap = new MySqlCommand(insMapSpot, useExternal ? externalConn : conn, tx);
+
+                    cmdMap.Parameters.AddWithValue("@X", btnDto.MapSpot.X);
+                    cmdMap.Parameters.AddWithValue("@Y", btnDto.MapSpot.Y);
+                    cmdMap.Parameters.AddWithValue("@Z", btnDto.MapSpot.Z);
+
+                    await cmdMap.ExecuteNonQueryAsync();
+
+                    mapSpotId = Convert.ToInt32(cmdMap.LastInsertedId);
+                }
+
+                // 2. Insert button
+                const string insBtn = @"
+                    INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
+                    VALUES (@TableId, @NameKey, @MapSpotId, @IsActive);";
+
+                int buttonId;
+
+                await using (var cmdBtn = new MySqlCommand(insBtn, useExternal ? externalConn : conn, tx))
+                {
+                    cmdBtn.Parameters.AddWithValue("@TableId", tableId);
+                    cmdBtn.Parameters.AddWithValue("@NameKey", btnDto.NameKey);
+                    cmdBtn.Parameters.AddWithValue("@MapSpotId", mapSpotId);
+                    cmdBtn.Parameters.AddWithValue("@IsActive", btnDto.IsActive);
+
+                    await cmdBtn.ExecuteNonQueryAsync();
+
+                    buttonId = Convert.ToInt32(cmdBtn.LastInsertedId);
+                }
+
+                // 3. Insert i18n for button name
+                if (btnDto.LocalizedName?.Values != null && !string.IsNullOrEmpty(btnDto.LocalizedName.Key))
+                {
+                    foreach (var loc in btnDto.LocalizedName.Values)
+                    {
+                        const string insI18n = @"
+                            INSERT INTO i18n (`key`, locale_id, value, space_id)
+                            VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+                        await using var cmdI18n = new MySqlCommand(insI18n, useExternal ? externalConn : conn, tx);
+
+                        cmdI18n.Parameters.AddWithValue("@Key", btnDto.LocalizedName.Key);
+                        cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                        cmdI18n.Parameters.AddWithValue("@Value", loc.Value);
+                        cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
+
+                        await cmdI18n.ExecuteNonQueryAsync();
+                    }
+                }
+
+                if (!useExternal)
+                    await tx!.CommitAsync();
+
+                return new ButtonData
+                {
+                    Id = buttonId,
+                    NameKey = btnDto.NameKey,
+                    IsActive = btnDto.IsActive,
+                    LocalizedName = btnDto.LocalizedName,
+                    MapSpot = new MapSpotData
+                    {
+                        Id = mapSpotId,
+                        X = btnDto.MapSpot.X,
+                        Y = btnDto.MapSpot.Y,
+                        Z = btnDto.MapSpot.Z
+                    }
+                };
+            }
+            catch
+            {
+                if (!useExternal && tx != null)
+                    await tx.RollbackAsync();
+                throw;
+            }
+        }
         #endregion
     }
 }
