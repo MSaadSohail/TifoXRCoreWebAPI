@@ -14,8 +14,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int EntityTypeId { get; set; }
         public int? ParentEntityId { get; set; }
 
-        public LocalizedName LocalizedName { get; set; }
-        public LocalizedName LocalizedDescription { get; set; }
+        public LocalizedPair LocalizedPair { get; set; }
+        public LocalizedPair LocalizedDescription { get; set; }
 
         public DateTime CreationTime { get; set; }
         public DateTime ModifiedTime { get; set; }
@@ -28,8 +28,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int EntityTypeId { get; set; }
         public int? ParentEntityId { get; set; }
 
-        public LocalizedName LocalizedName { get; set; }
-        public LocalizedName LocalizedDescription { get; set; }
+        public LocalizedPair LocalizedPair { get; set; }
+        public LocalizedPair LocalizedDescription { get; set; }
     }
 
 

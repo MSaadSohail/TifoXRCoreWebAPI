@@ -10,7 +10,7 @@ namespace GMS.TifoXRCoreWebAPI.Models.Common
     /// <summary>
     /// Holds a resource key plus all its localized values.
     /// </summary>
-    public class LocalizedName
+    public class LocalizedPair
     {
         /// <summary>
         /// The i18n key (e.g. "bth_nm_101").

@@ -108,7 +108,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         ExternalLink = reader.IsDBNull("external_link") ? null :
                         reader.GetString("external_link"),
 
-                        LocalizedName = new LocalizedName
+                        LocalizedPair = new LocalizedPair
                         {
                             Key = reader.GetString("text_key"),
                             Values = new List<LocalizedValue>()
@@ -143,9 +143,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                     // -- Localized Name --
                     var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    if (textValue != null && !portal.LocalizedName.Values.Any(v => v.LocaleId == locale))
+                    if (textValue != null && !portal.LocalizedPair.Values.Any(v => v.LocaleId == locale))
                     {
-                        portal.LocalizedName.Values.Add(new LocalizedValue
+                        portal.LocalizedPair.Values.Add(new LocalizedValue
                         {
                             LocaleId = locale,
                             Value = textValue
@@ -275,7 +275,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                         ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                        LocalizedName = new LocalizedName
+                        LocalizedPair = new LocalizedPair
                         {
                             Key = reader.GetString("text_key"),
                             Values = []
@@ -313,9 +313,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     var textValue = reader.IsDBNull("localized_text_value") ? null :
                         reader.GetString("localized_text_value");
 
-                    if (textValue != null && !portal.LocalizedName.Values.Any(v => v.LocaleId == locale))
+                    if (textValue != null && !portal.LocalizedPair.Values.Any(v => v.LocaleId == locale))
                     {
-                        portal.LocalizedName.Values.Add(new LocalizedValue
+                        portal.LocalizedPair.Values.Add(new LocalizedValue
                         {
                             LocaleId = locale,
                             Value = textValue
@@ -447,7 +447,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
                     ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
 
-                    LocalizedName = new LocalizedName
+                    LocalizedPair = new LocalizedPair
                     {
                         Key = reader.GetString("text_key"),
                         Values = new List<LocalizedValue>()
@@ -478,9 +478,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                     // --- Portal Text Localizations ---
                     var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    if (textValue != null && !portal.LocalizedName.Values.Any(v => v.LocaleId == locale))
+                    if (textValue != null && !portal.LocalizedPair.Values.Any(v => v.LocaleId == locale))
                     {
-                        portal.LocalizedName.Values.Add(new LocalizedValue
+                        portal.LocalizedPair.Values.Add(new LocalizedValue
                         {
                             LocaleId = locale,
                             Value = textValue
@@ -607,7 +607,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmd.Parameters.AddWithValue("@EventId", portalDto.EventId);
                     cmd.Parameters.AddWithValue("@CorrId", corrMediaId);
                     cmd.Parameters.AddWithValue("@ThumbId", thumbMediaId);
-                    cmd.Parameters.AddWithValue("@TextKey", portalDto.LocalizedName?.Key != null ? portalDto.LocalizedName.Key : (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@TextKey", portalDto.LocalizedPair?.Key != null ? portalDto.LocalizedPair.Key : (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@ExternalLink", portalDto.ExternalLink ?? (object)DBNull.Value);
 
                     await cmd.ExecuteNonQueryAsync();
@@ -622,13 +622,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
                 ";
 
-                if (portalDto.LocalizedName != null && portalDto.LocalizedName.Values != null)
+                if (portalDto.LocalizedPair != null && portalDto.LocalizedPair.Values != null)
                 {
-                    foreach (var loc in portalDto.LocalizedName.Values.Where(x => supportedLocales.Contains(x.LocaleId)))
+                    foreach (var loc in portalDto.LocalizedPair.Values.Where(x => supportedLocales.Contains(x.LocaleId)))
                     {
                         await using var cmdI = new MySqlCommand(insertI18n, conn, tx);
 
-                        cmdI.Parameters.AddWithValue("@TextKey", portalDto.LocalizedName.Key);
+                        cmdI.Parameters.AddWithValue("@TextKey", portalDto.LocalizedPair.Key);
                         cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                         cmdI.Parameters.AddWithValue("@Value", loc.Value);
                         cmdI.Parameters.AddWithValue("@SpaceId", spaceId);

@@ -53,7 +53,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<EntityData>> Create([FromBody] Entity dto)
         {
-            if (dto?.LocalizedName == null)
+            if (dto?.LocalizedPair == null)
                 return BadRequest();
 
             try
@@ -77,7 +77,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<EntityData>> Update(int id, [FromBody] Entity dto)
         {
-            if (dto?.LocalizedName == null)
+            if (dto?.LocalizedPair == null)
                 return BadRequest();
 
             try

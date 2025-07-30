@@ -84,7 +84,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     SpaceId = reader.GetInt32("space_id"),
                     IsActive = reader.GetBoolean("is_active"),
                     NameKey = reader.GetString("table_name_key"),
-                    LocalizedName = new LocalizedName
+                    LocalizedPair = new LocalizedPair
                     {
                         Key = reader.GetString("table_name_key"),
                         Values = tableLocals
@@ -114,7 +114,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Id = buttonId,
                             NameKey = reader.GetString("button_name_key"),
                             IsActive = reader.GetBoolean("button_is_active"),
-                            LocalizedName = new LocalizedName
+                            LocalizedPair = new LocalizedPair   
                             {
                                 Key = reader.GetString("button_name_key"),
                                 Values = []
@@ -129,7 +129,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         };
 
                         buttonMap[buttonId] = btn;
-                        buttonLocals[buttonId] = btn.LocalizedName.Values;
+                        buttonLocals[buttonId] = btn.LocalizedPair.Values;
                     }
 
                     // Button i18n
@@ -190,9 +190,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 // 2. Insert table name localizations
-                if (dto.LocalizedName?.Values != null && !string.IsNullOrEmpty(dto.LocalizedName.Key))
+                if (dto.LocalizedPair?.Values != null && !string.IsNullOrEmpty(dto.LocalizedPair.Key))
                 {
-                    foreach (var loc in dto.LocalizedName.Values)
+                    foreach (var loc in dto.LocalizedPair.Values)
                     {
                         const string insI18n = @"
                             INSERT INTO i18n (`key`, locale_id, value, space_id)
@@ -200,7 +200,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                         await using var cmdI18n = new MySqlCommand(insI18n, conn, tx);
 
-                        cmdI18n.Parameters.AddWithValue("@Key", dto.LocalizedName.Key);
+                        cmdI18n.Parameters.AddWithValue("@Key", dto.LocalizedPair.Key);
                         cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                         cmdI18n.Parameters.AddWithValue("@Value", loc.Value);
                         cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -230,7 +230,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     SpaceId = spaceId,
                     NameKey = dto.NameKey,
                     IsActive = dto.IsActive,
-                    LocalizedName = dto.LocalizedName,
+                    LocalizedPair = dto.LocalizedPair,
                     Buttons = createdButtons
                 };
             }
@@ -346,9 +346,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     VALUES (@NameKey, @LocaleId, @Value, @SpaceId);
                 ";
 
-                if (dto.LocalizedName != null && dto.LocalizedName.Values != null)
+                if (dto.LocalizedPair != null && dto.LocalizedPair.Values != null)
                 {
-                    foreach (var loc in dto.LocalizedName.Values)
+                    foreach (var loc in dto.LocalizedPair.Values)
                     {
                         if (!supportedLocales.Contains(loc.LocaleId))
                             continue;
@@ -441,9 +441,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         }
 
                         // --- Upsert localizations for this button ---
-                        if (btn.LocalizedName != null && btn.LocalizedName.Values != null)
+                        if (btn.LocalizedPair != null && btn.LocalizedPair.Values != null)
                         {
-                            foreach (var loc in btn.LocalizedName.Values)
+                            foreach (var loc in btn.LocalizedPair.Values)
                             {
                                 if (!supportedLocales.Contains(loc.LocaleId))
                                     continue;
@@ -746,7 +746,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                         IsActive = reader.GetBoolean("is_active"),
 
-                        LocalizedName = new LocalizedName
+                        LocalizedPair = new LocalizedPair
                         {
                             Key = reader.IsDBNull("name_key") ? "" : reader.GetString("name_key"),
                             Values = []
@@ -756,7 +756,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                     if (!reader.IsDBNull("locale_id") && !reader.IsDBNull("value"))
                     {
-                        table.LocalizedName.Values.Add(new LocalizedValue
+                        table.LocalizedPair.Values.Add(new LocalizedValue
                         {
                             LocaleId = reader.GetString("locale_id"),
                             Value = reader.GetString("value")
@@ -810,7 +810,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             NameKey = btnReader.IsDBNull("button_name_key") ? "" :
                             btnReader.GetString("button_name_key"),
                             IsActive = btnReader.GetBoolean("is_active"),
-                            LocalizedName = new LocalizedName
+                            LocalizedPair = new LocalizedPair
                             {
                                 Key = btnReader.IsDBNull("button_name_key") ? "" :
                                 btnReader.GetString("button_name_key"),
@@ -835,9 +835,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         string value = btnReader.GetString("value");
 
                         // Avoid duplicates if your SQL returns multiple rows per locale (e.g., due to joins)
-                        if (!btn.LocalizedName.Values.Any(lv => lv.LocaleId == localeId))
+                        if (!btn.LocalizedPair.Values.Any(lv => lv.LocaleId == localeId))
                         {
-                            btn.LocalizedName.Values.Add(new LocalizedValue
+                            btn.LocalizedPair.Values.Add(new LocalizedValue
                             {
                                 LocaleId = localeId,
                                 Value = value
@@ -923,9 +923,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 // 3. Insert i18n for button name
-                if (btnDto.LocalizedName?.Values != null && !string.IsNullOrEmpty(btnDto.LocalizedName.Key))
+                if (btnDto.LocalizedPair?.Values != null && !string.IsNullOrEmpty(btnDto.LocalizedPair.Key))
                 {
-                    foreach (var loc in btnDto.LocalizedName.Values)
+                    foreach (var loc in btnDto.LocalizedPair.Values)
                     {
                         const string insI18n = @"
                             INSERT INTO i18n (`key`, locale_id, value, space_id)
@@ -933,7 +933,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                         await using var cmdI18n = new MySqlCommand(insI18n, useExternal ? externalConn : conn, tx);
 
-                        cmdI18n.Parameters.AddWithValue("@Key", btnDto.LocalizedName.Key);
+                        cmdI18n.Parameters.AddWithValue("@Key", btnDto.LocalizedPair.Key);
                         cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                         cmdI18n.Parameters.AddWithValue("@Value", loc.Value);
                         cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -950,7 +950,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     Id = buttonId,
                     NameKey = btnDto.NameKey,
                     IsActive = btnDto.IsActive,
-                    LocalizedName = btnDto.LocalizedName,
+                    LocalizedPair = btnDto.LocalizedPair,
                     MapSpot = new MapSpotData
                     {
                         Id = mapSpotId,
