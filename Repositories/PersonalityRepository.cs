@@ -64,7 +64,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             PersonalityData? personality = null;
             var countryValues = new List<LocalizedValue>();
             var bioValues = new List<LocalizedValue>();
-            Dictionary<string, string> mediaLocalizations = new ();
+            var mediaLocalizations = new List<MediaLocalization>();
 
             while (await reader.ReadAsync())
             {
@@ -121,7 +121,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                     if (!reader.IsDBNull("media_link"))
                     {
-                        mediaLocalizations.Add(locale, reader.GetString("media_link"));
+                        if (!mediaLocalizations.Any(x => x.LocaleId == locale))
+                        {
+                            mediaLocalizations.Add(new MediaLocalization
+                            {
+                                LocaleId = locale,
+                                MediaLink = reader.GetString("media_link")
+                            });
+                        }
                     }
                 }
             }
@@ -263,8 +270,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             {
                 await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
                 cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
-                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.Key);
-                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.Value);
+                cmdLoc.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
+                cmdLoc.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
                 await cmdLoc.ExecuteNonQueryAsync();
             }
 
