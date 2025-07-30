@@ -66,7 +66,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         CreationTime = reader.GetDateTime("creation_time"),
                         ModifiedTime = reader.GetDateTime("modified_time"),
                         ModifiedBy = reader.GetString("modified_by"),
-                        LocalizedDescription = new LocalizedPair
+                        LocalizedDescription = new LocalizedPairs
                         {
                             Key = reader.GetString("description_key"),
                             Values = descs

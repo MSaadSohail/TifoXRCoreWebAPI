@@ -24,8 +24,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public DateTime? ActualEnd { get; set; }
         public decimal? Rating { get; set; }
 
-        public LocalizedPair LocalizedPair { get; set; }
-        public LocalizedPair LocalizedDescription { get; set; }
+        public LocalizedPairs LocalizedPairs { get; set; }
+        public LocalizedPairs LocalizedDescription { get; set; }
     }
 
 
@@ -45,8 +45,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public DateTime? ActualEnd { get; set; }
         public decimal? Rating { get; set; }
 
-        public LocalizedPair LocalizedPair { get; set; }
-        public LocalizedPair LocalizedDescription { get; set; }
+        public LocalizedPairs LocalizedPairs { get; set; }
+        public LocalizedPairs LocalizedDescription { get; set; }
     }
 
 }

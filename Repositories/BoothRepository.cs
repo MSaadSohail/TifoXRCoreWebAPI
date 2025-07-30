@@ -67,7 +67,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Y = reader.GetDecimal("y"),
                             Z = reader.GetDecimal("z")
                         },
-                        LocalizedPair = new LocalizedPair
+                        LocalizedPairs = new LocalizedPairs
                         {
                             Key = reader.GetString("name_key"),
                             Values = new List<LocalizedValue>()
@@ -76,7 +76,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     dict[id] = booth;
                 }
 
-                booth.LocalizedPair.Values.Add(new LocalizedValue
+                booth.LocalizedPairs.Values.Add(new LocalizedValue
                 {
                     LocaleId = reader.GetString("locale_id"),
                     Value = reader.GetString("value")
@@ -103,7 +103,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                    AND space_id = @SpaceId;";
                 await using (var cmd = new MySqlCommand(updBooth, conn, tx))
                 {
-                    cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedPair.Key);
+                    cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
                     cmd.Parameters.AddWithValue("@BoothId", boothId);
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
                     if (await cmd.ExecuteNonQueryAsync() == 0)
@@ -143,7 +143,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 SELECT locale_id FROM supported_languages 
                 WHERE locale_id IN ({0}) AND space_id = @SpaceId;";
 
-                var allLocales = dto.LocalizedPair.Values.Select(v => v.LocaleId).Distinct().ToList();
+                var allLocales = dto.LocalizedPairs.Values.Select(v => v.LocaleId).Distinct().ToList();
                 var parameterNames = allLocales.Select((l, i) => $"@loc{i}").ToList();
                 var localeParamMap = allLocales.Zip(parameterNames, (val, param) => new { val, param }).ToList();
 
@@ -178,10 +178,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 INSERT INTO i18n (`key`, locale_id, value, space_id)
                 VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
-                foreach (var loc in dto.LocalizedPair.Values)
+                foreach (var loc in dto.LocalizedPairs.Values)
                 {
                     await using var cmdUp = new MySqlCommand(updI18n, conn, tx);
-                    cmdUp.Parameters.AddWithValue("@NameKey", dto.LocalizedPair.Key);
+                    cmdUp.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
                     cmdUp.Parameters.AddWithValue("@LocaleId", loc.LocaleId);   
                     cmdUp.Parameters.AddWithValue("@Value", loc.Value);
                     cmdUp.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -189,7 +189,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     if (await cmdUp.ExecuteNonQueryAsync() == 0)
                     {
                         await using var cmdIn = new MySqlCommand(insI18n, conn, tx);
-                        cmdIn.Parameters.AddWithValue("@NameKey", dto.LocalizedPair.Key);
+                        cmdIn.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
                         cmdIn.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                         cmdIn.Parameters.AddWithValue("@Value", loc.Value);
                         cmdIn.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -256,7 +256,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Y = reader.GetDecimal("y"),
                             Z = reader.GetDecimal("z")
                         },
-                        LocalizedPair = new LocalizedPair
+                        LocalizedPairs = new LocalizedPairs
                         {
                             Key = reader.GetString("name_key"),
                             Values = new List<LocalizedValue>()
@@ -266,7 +266,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 if (!reader.IsDBNull("locale_id") && !reader.IsDBNull("value"))
                 {
-                    booth.LocalizedPair.Values.Add(new LocalizedValue
+                    booth.LocalizedPairs.Values.Add(new LocalizedValue
                     {
                         LocaleId = reader.GetString("locale_id"),
                         Value = reader.GetString("value")
@@ -313,7 +313,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 await using (var cmd = new MySqlCommand(insertBoothSql, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                    cmd.Parameters.AddWithValue("@NameKey", boothDto.LocalizedPair.Key);
+                    cmd.Parameters.AddWithValue("@NameKey", boothDto.LocalizedPairs.Key);
                     cmd.Parameters.AddWithValue("@MapSpotId", mapSpotId);
                     await cmd.ExecuteNonQueryAsync();
                     newBoothId = Convert.ToInt32(cmd.LastInsertedId);
@@ -332,7 +332,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 var insertedValues = new List<LocalizedValue>();
 
-                foreach (var val in boothDto.LocalizedPair.Values)
+                foreach (var val in boothDto.LocalizedPairs.Values)
                 {
                     bool isSupported = false;
 
@@ -348,7 +348,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         continue;
 
                     await using var cmdI18n = new MySqlCommand(insertI18nSql, conn, tx);
-                    cmdI18n.Parameters.AddWithValue("@NameKey", boothDto.LocalizedPair.Key);
+                    cmdI18n.Parameters.AddWithValue("@NameKey", boothDto.LocalizedPairs.Key);
                     cmdI18n.Parameters.AddWithValue("@LocaleId", val.LocaleId);
                     cmdI18n.Parameters.AddWithValue("@Value", val.Value);
                     cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -365,9 +365,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     SpaceId = spaceId,
                     MapSpotId = mapSpotId,
                     MapSpot = boothDto.MapSpot,
-                    LocalizedPair = new LocalizedPair
+                    LocalizedPairs = new LocalizedPairs
                     {
-                        Key = boothDto.LocalizedPair.Key,
+                        Key = boothDto.LocalizedPairs.Key,
                         Values = insertedValues
                     }
                 };

@@ -11,7 +11,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public class BoothCreateDto
     {
         public int SpaceId { get; set; }
-        public LocalizedPair LocalizedPair { get; set; }
+        public LocalizedPairs LocalizedPairs { get; set; }
         public MapSpotModel MapSpot { get; set; }
     }
 
@@ -26,7 +26,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; set; }
         public int MapSpotId { get; set; }
         public MapSpotModel? MapSpot { get; set; }
-        public LocalizedPair LocalizedPair { get; set; }
+        public LocalizedPairs LocalizedPairs { get; set; }
     }
     public class MapSpotModel
     {
@@ -38,7 +38,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public class BoothUpdateDto
     {
-        public LocalizedPair LocalizedPair { get; set; }
+        public LocalizedPairs LocalizedPairs { get; set; }
         public MapSpotModel MapSpot { get; set; }
     }
 

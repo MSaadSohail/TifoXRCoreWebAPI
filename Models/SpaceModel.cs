@@ -21,7 +21,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public DateTime ModifiedTime { get; set; }
         public string ModifiedBy { get; set; }
 
-        public LocalizedPair LocalizedDescription { get; set; }
+        public LocalizedPairs LocalizedDescription { get; set; }
     }
 
     public class Space
@@ -35,7 +35,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string ModifiedBy { get; set; }
         public int SpaceId { get; set; } // Used for i18n
 
-        public LocalizedPair LocalizedDescription { get; set; }
+        public LocalizedPairs LocalizedDescription { get; set; }
     }
 
 
