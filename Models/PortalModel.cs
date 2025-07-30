@@ -15,7 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public class PortalUpdateDto
     {
         public int? EventId { get; set; }
-        public required LocalizedName LocalizedName { get; set; }
+        public required LocalizedPairs LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
         public MediaUpdateDto? CorrespondingMedia { get; set; }
         public MediaUpdateDto? ThumbnailMedia { get; set; }
@@ -39,7 +39,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? BoothId { get; set; }
         public int? PortalTypeId { get; set; }
         public int? EventId { get; set; }
-        public required LocalizedName LocalizedName { get; set; }
+        public required LocalizedPairs LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
         public required MediaData CorrespondingMedia { get; set; }
         public required MediaData ThumbnailMedia { get; set; }
@@ -53,7 +53,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? BoothId { get; set; }
         public int? PortalTypeId { get; set; }
         public int? EventId { get; set; }
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
         public MediaCreateDto? CorrespondingMedia { get; set; }
         public MediaCreateDto? ThumbnailMedia { get; set; }

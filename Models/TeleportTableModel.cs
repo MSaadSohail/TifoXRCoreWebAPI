@@ -15,7 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; set; }
         public string? NameKey { get; set; }
         public bool IsActive { get; set; }
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public List<ButtonData>? Buttons { get; set; }
     }
 
@@ -24,7 +24,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int Id { get; set; }
         public string NameKey { get; set; }
         public bool IsActive { get; set; }
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public MapSpotData MapSpot { get; set; } = default!;
     }
 
@@ -33,7 +33,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; set; }
         public string? NameKey { get; set; }
         public bool IsActive { get; set; }
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public List<ButtonCreateDto>? Buttons { get; set; }
     }
 
@@ -41,7 +41,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public bool IsActive { get; set; }
         public string? NameKey { get; set; }
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public List<ButtonUpdateDto>? Buttons { get; set; }
     }
 
@@ -49,7 +49,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public string NameKey { get; set; } = default!;
         public MapSpotData MapSpot { get; set; } = default!;
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public bool IsActive { get; set; }
     }
 
@@ -58,7 +58,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? Id { get; set; }
         public string NameKey { get; set; } = default!;
         public MapSpotData MapSpot { get; set; } = default!;
-        public LocalizedName? LocalizedName { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
         public bool IsActive { get; set; }
     }
 

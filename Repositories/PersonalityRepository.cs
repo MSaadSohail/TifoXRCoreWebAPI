@@ -79,12 +79,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         CreationTime = reader.GetDateTime("creation_time"),
                         ModifiedTime = reader.GetDateTime("modified_time"),
                         ModifiedBy = reader.GetString("modified_by"),
-                        LocalizedCountry = new LocalizedName
+                        LocalizedCountry = new LocalizedPairs
                         {
                             Key = reader.IsDBNull("country_name_key") ? null : reader.GetString("country_name_key"),
                             Values = countryValues
                         },
-                        LocalizedBio = new LocalizedName
+                        LocalizedBio = new LocalizedPairs
                         {
                             Key = reader.IsDBNull("bio_data_key") ? null : reader.GetString("bio_data_key"),
                             Values = bioValues

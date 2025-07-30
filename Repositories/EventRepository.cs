@@ -112,13 +112,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             if (evt == null) return null;
 
-            evt.LocalizedName = new LocalizedName
+            evt.LocalizedPairs = new LocalizedPairs
             {
                 Key = nameKey,
                 Values = nameValues
             };
 
-            evt.LocalizedDescription = new LocalizedName
+            evt.LocalizedDescription = new LocalizedPairs
             {
                 Key = descKey,
                 Values = descValues
@@ -158,7 +158,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmd.Parameters.AddWithValue("@PlatformTypeId", eventDto.PlatformTypeId);
                     cmd.Parameters.AddWithValue("@EventTypeId", eventDto.EventTypeId);
                     cmd.Parameters.AddWithValue("@PersonalityId", (object?)eventDto.PersonalityId ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@NameKey", eventDto.LocalizedName.Key);
+                    cmd.Parameters.AddWithValue("@NameKey", eventDto.LocalizedPairs.Key);
                     cmd.Parameters.AddWithValue("@EventUrl", (object?)eventDto.EventUrl ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@IsLive", eventDto.IsLive);
                     cmd.Parameters.AddWithValue("@SubtitleEnabled", eventDto.SubtitleEnabled);
@@ -179,10 +179,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             VALUES (@Key, @LocaleId, @Value, @SpaceId);
         ";
 
-                foreach (var loc in eventDto.LocalizedName.Values.Concat(eventDto.LocalizedDescription.Values))
+                foreach (var loc in eventDto.LocalizedPairs.Values.Concat(eventDto.LocalizedDescription.Values))
                 {
-                    var key = eventDto.LocalizedName.Values.Contains(loc)
-                              ? eventDto.LocalizedName.Key
+                    var key = eventDto.LocalizedPairs.Values.Contains(loc)
+                              ? eventDto.LocalizedPairs.Key
                               : eventDto.LocalizedDescription.Key;
 
                     await using var i18nCmd = new MySqlCommand(insertI18nSql, conn, tx);
@@ -239,7 +239,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     updateCmd.Parameters.AddWithValue("@PlatformTypeId", dto.PlatformTypeId);
                     updateCmd.Parameters.AddWithValue("@EventTypeId", dto.EventTypeId);
                     updateCmd.Parameters.AddWithValue("@PersonalityId", (object?)dto.PersonalityId ?? DBNull.Value);
-                    updateCmd.Parameters.AddWithValue("@LocalizedNameKey", dto.LocalizedName.Key);
+                    updateCmd.Parameters.AddWithValue("@LocalizedNameKey", dto.LocalizedPairs.Key);
                     updateCmd.Parameters.AddWithValue("@EventUrl", (object?)dto.EventUrl ?? DBNull.Value);
                     updateCmd.Parameters.AddWithValue("@IsLive", dto.IsLive);
                     updateCmd.Parameters.AddWithValue("@SubtitleEnabled", dto.SubtitleEnabled);
@@ -267,10 +267,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         ";
 
                 // Name i18n
-                foreach (var loc in dto.LocalizedName.Values)
+                foreach (var loc in dto.LocalizedPairs.Values)
                 {
                     await using var uCmd = new MySqlCommand(updI18n, conn, tx);
-                    uCmd.Parameters.AddWithValue("@Key", dto.LocalizedName.Key);
+                    uCmd.Parameters.AddWithValue("@Key", dto.LocalizedPairs.Key);
                     uCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                     uCmd.Parameters.AddWithValue("@Value", loc.Value);
                     uCmd.Parameters.AddWithValue("@SpaceId", spaceId);
@@ -278,7 +278,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     if (await uCmd.ExecuteNonQueryAsync() == 0)
                     {
                         await using var iCmd = new MySqlCommand(insI18n, conn, tx);
-                        iCmd.Parameters.AddWithValue("@Key", dto.LocalizedName.Key);
+                        iCmd.Parameters.AddWithValue("@Key", dto.LocalizedPairs.Key);
                         iCmd.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                         iCmd.Parameters.AddWithValue("@Value", loc.Value);
                         iCmd.Parameters.AddWithValue("@SpaceId", spaceId);

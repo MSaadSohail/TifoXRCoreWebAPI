@@ -18,8 +18,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? SportId { get; set; }
         public int? EntityId { get; set; }
 
-        public LocalizedName LocalizedCountry { get; set; }
-        public LocalizedName LocalizedBio { get; set; }
+        public LocalizedPairs LocalizedCountry { get; set; }
+        public LocalizedPairs LocalizedBio { get; set; }
 
         public MediaData Media { get; set; }
 
@@ -36,8 +36,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; set; } // Required for media
         public string? ModifiedBy { get; set; }
 
-        public LocalizedName LocalizedCountry { get; set; } = new();
-        public LocalizedName LocalizedBio { get; set; } = new();
+        public LocalizedPairs LocalizedCountry { get; set; } = new();
+        public LocalizedPairs LocalizedBio { get; set; } = new();
         public MediaUpdateDto? Media { get; set; }
     }
 
@@ -49,8 +49,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; set; } // Needed for media and i18n
         public string? ModifiedBy { get; set; }
 
-        public LocalizedName LocalizedCountry { get; set; } = new();
-        public LocalizedName LocalizedBio { get; set; } = new();
+        public LocalizedPairs LocalizedCountry { get; set; } = new();
+        public LocalizedPairs LocalizedBio { get; set; } = new();
 
         public MediaUpdateDto? Media { get; set; }
     }
