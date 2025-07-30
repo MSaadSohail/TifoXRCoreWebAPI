@@ -41,7 +41,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -72,7 +75,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -100,7 +106,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -121,8 +130,15 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         {
             try
             {
-                if (portalDto == null) return BadRequest();
-                
+                if (portalDto == null ||
+                    portalDto.LocalizedName == null ||
+                    string.IsNullOrWhiteSpace(portalDto.LocalizedName.Key) ||
+                    portalDto.LocalizedName.Localizations == null ||
+                    !portalDto.LocalizedName.Localizations.Any())
+                {
+                    return BadRequest();
+                }
+
                 var created = await _portalRepository.CreatePortalAsync(spaceId, portalDto);
                 
                 return CreatedAtAction(nameof(GetPortalById),
@@ -130,7 +146,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -153,8 +172,15 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         {
             try
             {
-                if (portalDto == null) return BadRequest();
-                
+                if (portalDto == null ||
+                    portalDto.LocalizedName == null ||
+                    string.IsNullOrWhiteSpace(portalDto.LocalizedName.Key) ||
+                    portalDto.LocalizedName.Localizations == null ||
+                    !portalDto.LocalizedName.Localizations.Any())
+                {
+                    return BadRequest();
+                }
+
                 var updated = await _portalRepository.UpdatePortalAsync(spaceId, portalId, portalDto);
                 
                 if (updated == null) return NotFound();
@@ -163,7 +189,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -200,7 +229,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -229,7 +261,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                     StatusCodes.Status500InternalServerError,
+                     new { error = ex.Message }
+                 );
             }
         }
 
@@ -262,7 +297,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
     }
