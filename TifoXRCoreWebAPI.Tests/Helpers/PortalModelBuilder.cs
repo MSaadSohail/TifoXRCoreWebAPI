@@ -13,7 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace TifoXRCoreWebAPI.Tests.Helpers
+namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Fluent builder for PortalModel to reduce repetition and improve clarity in unit tests.
@@ -21,49 +21,46 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
     /// </summary>
     public class PortalModelBuilder
     {
-        private readonly PortalModel _model = new()
+        private int _portalId = 1;
+        private int _spaceId = 100;
+        private int? _boothId = 200;
+        private int? _portalTypeId = 1;
+        private int? _eventId = 10;
+        private string _externalLink = "https://example.com";
+
+        private LocalizedPairs _localizedPairs = new LocalizedPairs
         {
-            PortalId = 1,
-            SpaceId = 100,
-            BoothId = 200,
-            PortalTypeId = 1,
-            EventId = 10,
-            ExternalLink = "https://example.com",
-            LocalizedName = new LocalizedResource
+            Key = "portal.name",
+            Values = new List<LocalizedValue>
             {
-                Key = "portal.name",
-                Localizations = new Dictionary<string, string> { ["en_us"] = "Test Portal" }
-            },
-            CorrespondingMedia = new MediaData
-            {
-                Id = "m1",
-                MediaTypeId = 1,
-                LinkLocalizations = new Dictionary<string, string>()
-            },
-            ThumbnailMedia = new MediaData
-            {
-                Id = "m2",
-                MediaTypeId = 2,
-                LinkLocalizations = new Dictionary<string, string>()
+                new LocalizedValue { LocaleId = "en_us", Value = "Test Portal" }
             }
         };
+
+        private string _corrMediaId = "m1";
+        private int _corrMediaTypeId = 1;
+        private List<MediaLocalization> _corrMediaLinks = new List<MediaLocalization>();
+
+        private string _thumbMediaId = "m2";
+        private int _thumbMediaTypeId = 2;
+        private List<MediaLocalization> _thumbMediaLinks = new List<MediaLocalization>();
 
         /// <summary>
         /// Sets the PortalId field.
         /// </summary>
         public PortalModelBuilder WithId(int id) 
-        { 
-            _model.PortalId = id; 
-            return this; 
+        {
+            _portalId = id;
+            return this;
         }
 
         /// <summary>
         /// Sets the SpaceId field.
         /// </summary>
         public PortalModelBuilder WithSpaceId(int spaceId) 
-        { 
-            _model.SpaceId = spaceId; 
-            return this; 
+        {
+            _spaceId = spaceId;
+            return this;
         }
 
         /// <summary>
@@ -71,49 +68,48 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         /// </summary>
         public PortalModelBuilder WithBoothId(int boothId) 
         {
-            _model.BoothId = boothId; 
-            return this; 
+            _boothId = boothId;
+            return this;
         }
 
         /// <summary>
         /// Sets the EventId field.
         /// </summary>
         public PortalModelBuilder WithEventId(int eventId) 
-        { 
-            _model.EventId = eventId; 
-            return this; 
+        {
+            _eventId = eventId;
+            return this;
         }
 
         /// <summary>
         /// Sets the PortalTypeId field.
         /// </summary>
         public PortalModelBuilder WithPortalTypeId(int portalTypeId) 
-        { 
-            _model.PortalTypeId = portalTypeId; 
-            return this; 
+        {
+            _portalTypeId = portalTypeId;
+            return this;
         }
 
         /// <summary>
         /// Sets the ExternalLink field.
         /// </summary>
         public PortalModelBuilder WithExternalLink(string link) 
-        { 
-            _model.ExternalLink = link; 
-            return this; 
+        {
+            _externalLink = link;
+            return this;
         }
 
         /// <summary>
         /// Sets the LocalizedName with a key and localized value.
         /// </summary>
-        public PortalModelBuilder WithLocalizedName(string key, string value)
+        public PortalModelBuilder WithLocalizedPairs(string key, Dictionary<string, string> values)
         {
-            _model.LocalizedName = new LocalizedResource 
-            { 
-                Key = key, 
-                Localizations = new Dictionary<string, string> 
-                { 
-                    { "en_us", value } 
-                } 
+            _localizedPairs = new LocalizedPairs
+            {
+                Key = key,
+                Values = values
+                    .Select(kv => new LocalizedValue { LocaleId = kv.Key, Value = kv.Value })
+                    .ToList()
             };
             return this;
         }
@@ -121,6 +117,30 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         /// <summary>
         /// Finalizes and returns the constructed PortalModel.
         /// </summary>
-        public PortalModel Build() => _model;
+        public PortalModel Build()
+        {
+            return new PortalModel
+            {
+                PortalId = _portalId,
+                SpaceId = _spaceId,
+                BoothId = _boothId,
+                PortalTypeId = _portalTypeId,
+                EventId = _eventId,
+                LocalizedPairs = _localizedPairs,
+                ExternalLink = _externalLink,
+                CorrespondingMedia = new MediaData
+                {
+                    Id = _corrMediaId,
+                    MediaTypeId = _corrMediaTypeId,
+                    LinkLocalizations = new List<MediaLocalization>(_corrMediaLinks)
+                },
+                ThumbnailMedia = new MediaData
+                {
+                    Id = _thumbMediaId,
+                    MediaTypeId = _thumbMediaTypeId,
+                    LinkLocalizations = new List<MediaLocalization>(_thumbMediaLinks)
+                }
+            };
+        }
     }
 }

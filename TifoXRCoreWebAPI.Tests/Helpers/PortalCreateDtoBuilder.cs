@@ -11,7 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace TifoXRCoreWebAPI.Tests.Helpers
+namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Fluent builder for PortalCreateDto to simplify and standardize DTO creation in unit tests.
@@ -19,23 +19,46 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
     /// </summary>
     public class PortalCreateDtoBuilder
     {
-        private readonly PortalCreateDto _dto = new()
+        private int? _boothId;
+        private int? _portalTypeId = 1;
+        private int? _eventId;
+        private string _externalLink = "https://example.com";
+        private LocalizedPairs _localizedPairs = new LocalizedPairs
         {
-            PortalTypeId = 1,
-            ExternalLink = "https://example.com",
-            LocalizedName = new LocalizedResource
+            Key = "portal.name",
+            Values = new List<LocalizedValue>
             {
-                Key = "portal.name",
-                Localizations = new Dictionary<string, string> { ["en_us"] = "Test Portal" }
+                new LocalizedValue { LocaleId = "en_us", Value = "Test Portal" }
             }
         };
+        private MediaCreateDto? _corrMedia;
+        private MediaCreateDto? _thumbMedia;
+
+        /// <summary>
+        /// Sets the BoothId for the DTO.
+        /// </summary>
+        public PortalCreateDtoBuilder WithBoothId(int boothId)
+        {
+            _boothId = boothId;
+            return this;
+        }
 
         /// <summary>
         /// Sets the PortalTypeId for the DTO.
         /// </summary>
-        public PortalCreateDtoBuilder WithPortalTypeId(int id) 
-        { 
-            _dto.PortalTypeId = id; return this; 
+        public PortalCreateDtoBuilder WithPortalTypeId(int id)
+        {
+            _portalTypeId = id;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the EventId for the DTO.
+        /// </summary>
+        public PortalCreateDtoBuilder WithEventId(int eventId)
+        {
+            _eventId = eventId;
+            return this;
         }
 
         /// <summary>
@@ -43,31 +66,38 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         /// </summary>
         public PortalCreateDtoBuilder WithLink(string link)
         {
-            _dto.ExternalLink = link;
+            _externalLink = link;
             return this;
         }
 
         /// <summary>
-        /// Sets the localized name for the \"en_us\" locale.
+        /// Sets the LocalizedPairs (i18n) for the DTO.
         /// </summary>
-        public PortalCreateDtoBuilder WithName(string name)
+        public PortalCreateDtoBuilder WithLocalizedPairs(string key, Dictionary<string, string> values)
         {
-            _dto.LocalizedName.Localizations["en_us"] = name;
+            _localizedPairs = new LocalizedPairs
+            {
+                Key = key,
+                Values = values
+                    .Select(kv => new LocalizedValue { LocaleId = kv.Key, Value = kv.Value })
+                    .ToList()
+            };
             return this;
         }
 
         /// <summary>
-        /// Sets the entire LocalizedName object for edge case or custom setup.
+        /// Builds and returns the configured PortalCreateDto.
         /// </summary>
-        public PortalCreateDtoBuilder WithLocalizedName(LocalizedResource? localizedName)
-        {
-            _dto.LocalizedName = localizedName;
-            return this;
-        }
-
-        /// <summary>
-        /// Finalizes and returns the configured PortalCreateDto instance.
-        /// </summary>
-        public PortalCreateDto Build() => _dto;
+        public PortalCreateDto Build() =>
+            new PortalCreateDto
+            {
+                BoothId = _boothId,
+                PortalTypeId = _portalTypeId,
+                EventId = _eventId,
+                LocalizedPairs = _localizedPairs,
+                ExternalLink = _externalLink,
+                CorrespondingMedia = _corrMedia,
+                ThumbnailMedia = _thumbMedia
+            };
     }
 }

@@ -16,7 +16,7 @@ using Moq;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using TifoXRCoreWebAPI.Tests.Helpers;
+using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -254,61 +254,75 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Verifies that CreatePortal returns 400 BadRequest when LocalizedName is null.
+        /// Verifies that CreatePortal returns 400 BadRequest when LocalizedPairs is null.
         /// </summary>
         [Fact]
-        public async Task createPortalReturnsBadRequestIfLocalizedNameIsNull()
+        public async Task createPortalReturnsBadRequestIfLocalizedPairsIsNull()
         {
-            var invalidDto = new PortalCreateDtoBuilder()
-                .WithLocalizedName(null)
-                .Build();
+            // Arrange
+            var invalidDto = new PortalCreateDto
+            {
+                LocalizedPairs = null
+            };
 
+            // Act
             var result = await sut.CreatePortal(100, invalidDto);
 
+            //Assert
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 
         /// <summary>
-        /// Verifies that CreatePortal returns 400 BadRequest when LocalizedName.Key is null or empty.
+        /// Verifies that CreatePortal returns 400 BadRequest when LocalizedPairs.Key is null or empty.
         /// </summary>
         [Theory]
         [InlineData(null)]
         [InlineData("")]
-        public async Task createPortalReturnsBadRequestIfLocalizedNameKeyIsNullOrEmpty(string? key)
+        public async Task createPortalReturnsBadRequestIfLocalizedPairKeyIsNullOrEmpty(string? key)
         {
+            // Assert
             var invalidDto = new PortalCreateDtoBuilder()
-                .WithLocalizedName(new LocalizedResource
-                {
-                    Key = key!,
-                    Localizations = new Dictionary<string, string> { { "en_us", "Test" } }
-                })
+                .WithLocalizedPairs(key!, new Dictionary<string, string> { { "en_us", "Test" } })
                 .Build();
 
+            // Act
             var result = await sut.CreatePortal(100, invalidDto);
 
+            // Assert
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 
         /// <summary>
-        /// Verifies that CreatePortal returns 400 BadRequest when LocalizedName.Localizations is null or empty.
+        /// Verifies that CreatePortal returns 400 BadRequest when LocalizedPairs.Values is null or empty.
         /// </summary>
         [Theory]
         [InlineData(true)] // null
         [InlineData(false)] // empty
         public async Task createPortalReturnsBadRequestIfLocalizedNameLocalizationsIsNullOrEmpty(bool isNull)
         {
-            var localizations = isNull ? null : new Dictionary<string, string>();
-
-            var invalidDto = new PortalCreateDtoBuilder()
-                .WithLocalizedName(new LocalizedResource
+            // Arrange
+            var invalidDto = isNull
+                ? new PortalCreateDto
                 {
-                    Key = "portal.name",
-                    Localizations = localizations!
-                })
-                .Build();
+                    LocalizedPairs = new LocalizedPairs
+                    {
+                        Key = "portal.name",
+                        Values = null
+                    }
+                }
+                : new PortalCreateDto
+                {
+                    LocalizedPairs = new LocalizedPairs
+                    {
+                        Key = "portal.name",
+                        Values = new List<LocalizedValue>()
+                    }
+                };
 
+            // Act
             var result = await sut.CreatePortal(100, invalidDto);
 
+            // Assert
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 
@@ -351,61 +365,75 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Verifies that UpdatePortal returns 400 BadRequest when LocalizedName is null.
+        /// Verifies that UpdatePortal returns 400 BadRequest when LocalizedPairs is null.
         /// </summary>
         [Fact]
-        public async Task updatePortalReturnsBadRequestIfLocalizedNameIsNull()
+        public async Task updatePortalReturnsBadRequestIfLocalizedPairsIsNull()
         {
-            var invalidDto = new PortalUpdateDtoBuilder()
-                .WithLocalizedName(null)
-                .Build();
+            // Arrange
+            var invalidDto = new PortalUpdateDto
+            {
+                // 'required' is compile-time; assigning null here triggers a warning, which is fine for this negative test.
+                LocalizedPairs = null!,
+                ExternalLink = null
+            };
 
+            // Act
             var result = await sut.UpdatePortal(100, 1, invalidDto);
 
+            // Assert
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 
         /// <summary>
-        /// Verifies that UpdatePortal returns 400 BadRequest when LocalizedName.Key is null or empty.
+        /// Verifies that UpdatePortal returns 400 BadRequest when LocalizedPairs.Key is null or empty.
         /// </summary>
         [Theory]
         [InlineData(null)]
         [InlineData("")]
         public async Task updatePortalReturnsBadRequestIfLocalizedNameKeyIsNullOrEmpty(string? key)
         {
+            // Arrange
+            var invalidPairs = new LocalizedPairs
+            {
+                Key = key!,
+                Values = new List<LocalizedValue> { new LocalizedValue { LocaleId = "en_us", Value = "Test" } }
+            };
+
             var invalidDto = new PortalUpdateDtoBuilder()
-                .WithLocalizedName(new LocalizedResource
-                {
-                    Key = key!,
-                    Localizations = new Dictionary<string, string> { { "en_us", "Test" } }
-                })
+                .WithLocalizedPairs(invalidPairs)
                 .Build();
 
+            // Act
             var result = await sut.UpdatePortal(100, 1, invalidDto);
 
+            // Assert
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 
         /// <summary>
-        /// Verifies that UpdatePortal returns 400 BadRequest when LocalizedName.Localizations is null or empty.
+        /// Verifies that UpdatePortal returns 400 BadRequest when LocalizedPairs.Values is null or empty.
         /// </summary>
         [Theory]
         [InlineData(true)] // null
         [InlineData(false)] // empty
         public async Task updatePortalReturnsBadRequestIfLocalizedNameLocalizationsIsNullOrEmpty(bool isNull)
         {
-            var localizations = isNull ? null : new Dictionary<string, string>();
+            // Arrange
+            var pairs = new LocalizedPairs
+            {
+                Key = "portal.name",
+                Values = isNull ? null : new List<LocalizedValue>()
+            };
 
             var invalidDto = new PortalUpdateDtoBuilder()
-                .WithLocalizedName(new LocalizedResource
-                {
-                    Key = "portal.name",
-                    Localizations = localizations!
-                })
+                .WithLocalizedPairs(pairs)
                 .Build();
 
+            // Act
             var result = await sut.UpdatePortal(100, 1, invalidDto);
 
+            //Assert
             result.Result.Should().BeOfType<BadRequestResult>();
         }
 

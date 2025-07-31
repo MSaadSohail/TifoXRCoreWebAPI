@@ -11,7 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace TifoXRCoreWebAPI.Tests.Helpers
+namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Fluent builder for PortalUpdateDto to simplify and standardize DTO creation in unit tests.
@@ -19,46 +19,57 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
     /// </summary>
     public class PortalUpdateDtoBuilder
     {
-        private readonly PortalUpdateDto _dto = new()
+        private string _externalLink = "https://example.com";
+        private LocalizedPairs _localizedPairs = new LocalizedPairs
         {
-            ExternalLink = "https://example.com",
-            LocalizedName = new LocalizedResource
+            Key = "portal.name",
+            Values = new List<LocalizedValue>
             {
-                Key = "portal.name",
-                Localizations = new Dictionary<string, string> { ["en_us"] = "Updated Portal" }
+                new LocalizedValue { LocaleId = "en_us", Value = "Updated Portal" }
             }
         };
+        private MediaUpdateDto? _corrMedia;
+        private MediaUpdateDto? _thumbMedia;
 
         /// <summary>
         /// Sets the ExternalLink for the DTO.
         /// </summary>
         public PortalUpdateDtoBuilder WithLink(string link)
         {
-            _dto.ExternalLink = link;
+            _externalLink = link;
             return this;
         }
 
         /// <summary>
-        /// Sets the localized name for the \"en_us\" locale.
+        /// Sets a single localization for the specified locale.
         /// </summary>
-        public PortalUpdateDtoBuilder WithName(string name)
+        public PortalUpdateDtoBuilder WithLocalization(string locale, string text)
         {
-            _dto.LocalizedName.Localizations["en_us"] = name;
+            // replace entire list for this locale
+            _localizedPairs.Values.RemoveAll(v => v.LocaleId == locale);
+            _localizedPairs.Values.Add(new LocalizedValue { LocaleId = locale, Value = text });
             return this;
         }
 
         /// <summary>
-        /// Sets the entire LocalizedName object for edge-case or custom setup.
+        /// Sets the entire LocalizedPairs object for custom scenarios.
         /// </summary>
-        public PortalUpdateDtoBuilder WithLocalizedName(LocalizedResource? localizedName)
+        public PortalUpdateDtoBuilder WithLocalizedPairs(LocalizedPairs pairs)
         {
-            _dto.LocalizedName = localizedName;
+            _localizedPairs = pairs;
             return this;
         }
 
         /// <summary>
-        /// Finalizes and returns the configured PortalUpdateDto instance.
+        /// Builds and returns the configured PortalUpdateDto.
         /// </summary>
-        public PortalUpdateDto Build() => _dto;
+        public PortalUpdateDto Build() =>
+            new PortalUpdateDto
+            {
+                ExternalLink = _externalLink,
+                LocalizedPairs = _localizedPairs,
+                CorrespondingMedia = _corrMedia,
+                ThumbnailMedia = _thumbMedia
+            };
     }
 }

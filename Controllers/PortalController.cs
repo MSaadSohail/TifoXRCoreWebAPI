@@ -141,10 +141,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             try
             {
                 if (portalDto == null ||
-                    portalDto.LocalizedName == null ||
-                    string.IsNullOrWhiteSpace(portalDto.LocalizedName.Key) ||
-                    portalDto.LocalizedName.Localizations == null ||
-                    !portalDto.LocalizedName.Localizations.Any())
+                    portalDto.LocalizedPairs == null ||
+                    string.IsNullOrWhiteSpace(portalDto.LocalizedPairs.Key) ||
+                    portalDto.LocalizedPairs.Values == null ||
+                    !portalDto.LocalizedPairs.Values.Any())
                 {
                     return BadRequest();
                 }
@@ -188,10 +188,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             try
             {
                 if (portalDto == null ||
-                    portalDto.LocalizedName == null ||
-                    string.IsNullOrWhiteSpace(portalDto.LocalizedName.Key) ||
-                    portalDto.LocalizedName.Localizations == null ||
-                    !portalDto.LocalizedName.Localizations.Any())
+                    portalDto.LocalizedPairs == null ||
+                    string.IsNullOrWhiteSpace(portalDto.LocalizedPairs.Key) ||
+                    portalDto.LocalizedPairs.Values == null ||
+                    !portalDto.LocalizedPairs.Values.Any())
                 {
                     return BadRequest();
                 }
