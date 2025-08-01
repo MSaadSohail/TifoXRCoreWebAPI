@@ -1,4 +1,11 @@
-﻿using GMS.TifoXRCoreWebAPI.Models.Common;
+﻿// <copyright file="LocalizationController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/31/2025</date>
+// <summary>Controller to handle localization routes</summary>
+
+using GMS.TifoXRCoreWebAPI.Models.Common;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -13,6 +20,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             _localizationRepo = localizationRepo;
         }
 
+        #region GET
         /// <summary>
         /// GET /api/localization/space/{spaceId}
         /// Returns all i18n keys and their locale-value pairs for the space.
@@ -50,6 +58,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
+
+        #region POST
+
         /// <summary>
         /// POST /api/space/{spaceId}/localizations
         /// Creates a new localization key with multiple locale values.
@@ -75,6 +87,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        #endregion
+
+        #region PUT
 
         /// <summary>
         /// PUT /api/space/{spaceId}/localizations/{key}
@@ -106,6 +122,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
+
+        #region DELETE
+
         /// <summary>
         /// DELETE /api/space/{spaceId}/localizations/{key}
         /// Deletes all localizations for a key in a space.
@@ -129,5 +149,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        #endregion
     }
 }

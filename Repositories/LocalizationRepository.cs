@@ -1,4 +1,11 @@
-﻿using GMS.TifoXRCoreWebAPI.Models.Common;
+﻿// <copyright file="LocalizationRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/31/2025</date>
+// <summary>Class to handle localization SQL side</summary>
+
+using GMS.TifoXRCoreWebAPI.Models.Common;
 using MySqlConnector;
 using System.Data;
 
@@ -10,6 +17,8 @@ public class LocalizationRepository : ILocalizationRepository
     {
         _connectionString = cfg.GetConnectionString("DefaultConnection");
     }
+
+    #region GET
 
     /// <summary>
     /// Gets all i18n keys and their localizations for a given space.
@@ -81,6 +90,9 @@ public class LocalizationRepository : ILocalizationRepository
         return values.Count == 0 ? null : new LocalizedPairs { Key = key, Values = values };
     }
 
+    #endregion
+
+    #region POST
     /// <summary>
     /// Inserts a new localization key with values for all given locales (bulk insert).
     /// </summary>
@@ -118,6 +130,10 @@ public class LocalizationRepository : ILocalizationRepository
             throw;
         }
     }
+
+    #endregion
+
+    #region PUT
 
     /// <summary>
     /// Updates all localizations for a key. Upserts all values (updates if exists, inserts if not).
@@ -172,6 +188,10 @@ public class LocalizationRepository : ILocalizationRepository
         }
     }
 
+    #endregion
+
+    #region DELETE
+
     /// <summary>
     /// Deletes all localizations for a key in the space.
     /// </summary>
@@ -188,4 +208,6 @@ public class LocalizationRepository : ILocalizationRepository
         var affected = await cmd.ExecuteNonQueryAsync();
         return affected > 0;
     }
+
+    #endregion
 }

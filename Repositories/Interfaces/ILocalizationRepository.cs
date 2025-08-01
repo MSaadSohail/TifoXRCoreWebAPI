@@ -1,4 +1,11 @@
-﻿using GMS.TifoXRCoreWebAPI.Models.Common;
+﻿// <copyright file="ILocalizationRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>07/31/2025</date>
+// <summary>Interface to handle localization repository pattern</summary>
+
+using GMS.TifoXRCoreWebAPI.Models.Common;
 
 public interface ILocalizationRepository
 {
