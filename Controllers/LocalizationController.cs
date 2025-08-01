@@ -7,6 +7,7 @@
 
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using Microsoft.AspNetCore.Mvc;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
