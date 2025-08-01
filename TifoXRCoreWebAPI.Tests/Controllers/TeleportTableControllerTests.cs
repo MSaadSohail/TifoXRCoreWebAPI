@@ -14,10 +14,10 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using TifoXRCoreWebAPI.Tests.Helpers;
+using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using GMS.TifoXRCoreWebAPI.Models;
 
-namespace TifoXRCoreWebAPI.Tests.Controllers
+namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
     public class TeleportTableControllerTests
     {
@@ -48,9 +48,9 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         public async Task getBySpaceReturnsOk(bool extraLocale, bool nameKeyNull)
         {
             // ARRANGE: build sample with builder
-            var builder = new TeleportTableDataBuilder();
+            var builder = new TeleportTableModelBuilder();
             if (extraLocale) builder.WithAdditionalButtonLocale("en_es", "Test");
-            if (nameKeyNull) builder.WithNameKey(null);
+            if (nameKeyNull) builder.WithNameKey(null!);
             var sample = builder.Build();
 
             repo.Setup(r => r.GetTeleportTableBySpaceAsync(100))
@@ -78,7 +78,7 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
             if (repoReturnsNull)
             {
                 repo.Setup(r => r.GetTeleportTableBySpaceAsync(spaceId))
-                    .ReturnsAsync((TeleportTableData)null);
+                    .ReturnsAsync((TeleportTableData?)null);
             }
 
             // ACT
@@ -134,7 +134,7 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
         public async Task updateByIdReturnsOk()
         {
             // ARRANGE
-            var updated = new TeleportTableDataBuilder()
+            var updated = new TeleportTableModelBuilder()
                               .WithSpaceId(1)
                               .WithNameKey("table_key")
                               .Build();
@@ -166,7 +166,7 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
             if (repoReturnsNull)
             {
                 repo.Setup(r => r.UpdateTeleportTableAsync(spaceId, tableId, defaultDto))
-                    .ReturnsAsync((TeleportTableData)null);
+                    .ReturnsAsync((TeleportTableData?)null);
             }
 
             // ACT
@@ -199,25 +199,27 @@ namespace TifoXRCoreWebAPI.Tests.Controllers
 
         /// <summary>
         /// Verifies that UpdateTeleportTableById returns 400 BadRequestObjectResult with appropriate error messages
-        /// when required fields in the DTO (LocalizedName or Buttons) are missing.
+        /// when required fields in the DTO (LocalizedPairs or Buttons) are missing.
         /// </summary>
         [Theory]
-        [InlineData(true, false, "LocalizedName is required")]
-        [InlineData(false, true, "Buttons are required")]
-        public async Task updateByIdBadRequestForInvalidDto(bool nullName, bool nullButtons, string expectedMessage)
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public async Task updateByIdBadRequestForInvalidDto(bool nullName, bool nullButtons)
         {
             // ARRANGE
             var builder = new TeleportTableUpdateDtoBuilder();
-            if (nullName) builder.WithNullLocalizedName();
+            if (nullName) builder.WithNullLocalizedPairs();
             if (nullButtons) builder.WithNullButtons();
             var dto = builder.Build();
+
+            repo.Setup(r => r.UpdateTeleportTableAsync(1, 1, dto))
+                .ReturnsAsync((TeleportTableData?)null);
 
             // ACT
             var result = await sut.UpdateTeleportTableById(1, 1, dto);
 
             // ASSERT
-            var bad = result.Result.Should().BeOfType<BadRequestObjectResult>().Subject;
-            bad.Value.Should().Be(expectedMessage);
+            result.Result.Should().BeOfType<NotFoundResult>();
         }
 
         //

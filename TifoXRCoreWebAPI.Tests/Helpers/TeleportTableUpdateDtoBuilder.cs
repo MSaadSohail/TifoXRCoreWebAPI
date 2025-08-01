@@ -9,7 +9,7 @@ using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using System.Collections.Generic;
 
-namespace TifoXRCoreWebAPI.Tests.Helpers
+namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Fluent builder for TeleportTableUpdateDto to simplify and standardize DTO creation in unit tests.
@@ -17,36 +17,42 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
     /// </summary>
     public class TeleportTableUpdateDtoBuilder
     {
-        private readonly TeleportTableUpdateDto _dto = new()
+        private bool _isActive = false;
+        private string _nameKey = "table_key";
+        private LocalizedPairs _localizedPairs = new LocalizedPairs
         {
-            IsActive = false,
-            NameKey = "table_key",
-            LocalizedName = new Dictionary<string, string>
+            Key = "table_key",
+            Values = new List<LocalizedValue>
             {
-                ["en"] = "Updated"
-            },
-            Buttons = new List<ButtonUpdateDto>
+                new LocalizedValue { LocaleId = "en", Value = "Updated" }
+            }
+        };
+        private List<ButtonUpdateDto> _buttons = new List<ButtonUpdateDto>
+        {
+            new ButtonUpdateDto
             {
-                new ButtonUpdateDto
+                Id = 1,
+                NameKey = "btn_key",
+                IsActive = true,
+                MapSpot = new MapSpotData { Id = 99, X = 0, Y = 0, Z = 0 },
+                LocalizedPairs = new LocalizedPairs
                 {
-                    Id = 1,
-                    NameKey = "btn_key",
-                    BoothToVisit = 99,
-                    LocalizedName = new Dictionary<string, string>
+                    Key = "btn_key",
+                    Values = new List<LocalizedValue>
                     {
-                        ["en"] = "Teleport"
+                        new LocalizedValue { LocaleId = "en", Value = "Teleport" }
                     }
                 }
             }
         };
 
         /// <summary>
-        /// Sets LocalizedName to null to simulate a DTO missing localization.
+        /// Sets LocalizedPairs to null to simulate a DTO missing localization.
         /// Useful for testing validation behavior on missing required fields.
         /// </summary>
-        public TeleportTableUpdateDtoBuilder WithNullLocalizedName()
+        public TeleportTableUpdateDtoBuilder WithNullLocalizedPairs()
         {
-            _dto.LocalizedName = null;
+            _localizedPairs = null!;
             return this;
         }
 
@@ -56,14 +62,23 @@ namespace TifoXRCoreWebAPI.Tests.Helpers
         /// </summary>
         public TeleportTableUpdateDtoBuilder WithNullButtons()
         {
-            _dto.Buttons = null;
+            _buttons = null!;
             return this;
         }
 
         /// <summary>
-        /// Finalizes and returns the configured TeleportTableUpdateDto instance
+        /// Finalizes and returns a new TeleportTableUpdateDto instance
         /// with any overridden values applied.
         /// </summary>
-        public TeleportTableUpdateDto Build() => _dto;
+        public TeleportTableUpdateDto Build()
+        {
+            return new TeleportTableUpdateDto
+            {
+                IsActive = _isActive,
+                NameKey = _nameKey,
+                LocalizedPairs = _localizedPairs,
+                Buttons = _buttons
+            };
+        }
     }
 }

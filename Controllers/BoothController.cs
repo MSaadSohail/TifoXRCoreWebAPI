@@ -33,11 +33,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [HttpGet("{spaceId}/booths")]
         public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace([FromRoute] int spaceId)
         {
-            var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
-            if (booths == null || booths.Count == 0)
-                return NotFound();
-
-            return Ok(booths);
+            try
+            {
+                var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
+                if (booths == null || booths.Count == 0)
+                    return NotFound();
+                return Ok(booths);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
+            }
         }
 
 
@@ -62,7 +71,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -91,9 +103,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     new BoothWrapper { booth = createdBooth }
                 );
             }
-            catch (MySqlException ex)
+            catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
 
@@ -119,16 +134,13 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 var success = await _boothRepository.DeleteBoothCascadeAsync(spaceId, boothId);
                 return success ? NoContent() : NotFound();
             }
-            catch (MySqlException ex)
+            catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new { error = ex.Message }
+                );
             }
         }
-
-
-
-
-
-
     }
 }
