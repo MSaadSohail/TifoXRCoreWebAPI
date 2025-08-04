@@ -1,4 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿// <copyright file="GlobalException.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>08/04/2025</date>
+// <summary>Middleware Class to global exception handling</summary>
+
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.Json;
 using GMS.TifoXRCoreWebAPI.Errors;

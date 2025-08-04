@@ -1,4 +1,10 @@
-﻿
+﻿// <copyright file="ErrorCodes.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>08/04/2025</date>
+// <summary>Enum of error codes</summary>
+
 namespace TifoXRCoreWebAPI.Errors
 {
     public enum ErrorCodes
