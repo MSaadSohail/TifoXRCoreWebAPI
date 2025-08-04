@@ -2,6 +2,7 @@
 using System.Net;
 using System.Text.Json;
 using GMS.TifoXRCoreWebAPI.Errors;
+using TifoXRCoreWebAPI.Errors;
 
 namespace TifoXRCoreWebAPI.Middleware
 {
@@ -10,6 +11,12 @@ namespace TifoXRCoreWebAPI.Middleware
         private readonly RequestDelegate _next = next;
         private readonly ILogger<GlobalException> _logger = logger;
 
+        /// <summary>
+        /// Middleware entry point. Invoked automatically by the ASP.NET Core pipeline for every HTTP request.
+        /// Executes the next middleware/component, and catches any unhandled exceptions.
+        /// If an exception occurs, handles it via HandleExceptionAsync and returns a standardized error response.
+        /// Do not call this method manually; it is called by the framework when the middleware is registered (e.g., with app.UseMiddleware&lt;GlobalException&gt;()).
+        /// </summary>
         public async Task InvokeAsync(HttpContext context)
         {
             try

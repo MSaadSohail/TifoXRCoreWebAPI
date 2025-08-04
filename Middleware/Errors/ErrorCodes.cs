@@ -1,44 +1,50 @@
-﻿namespace GMS.TifoXRCoreWebAPI.Errors
+﻿
+namespace TifoXRCoreWebAPI.Errors
 {
     public enum ErrorCodes
     {
-        // 1xxx: Auth/AuthZ
-        Unauthorized = 1000,
-        InvalidCredentials = 1001,
-        TokenExpired = 1002,
-        TokenInvalid = 1003,
-        AccessDenied = 1004,
+        // 400: Bad Request and validation
+        BadRequest = 400,
+        MissingParameter = 400,
+        InvalidParameter = 400,
+        InvalidFormat = 400,
+        ValidationFailed = 422,        // 422: Unprocessable Entity
 
-        // 2xxx: Request/Validation
-        BadRequest = 2000,
-        MissingParameter = 2001,
-        InvalidParameter = 2002,
-        InvalidFormat = 2003,
-        ValidationFailed = 2004,
-        PayloadTooLarge = 2005,
-        UnsupportedMediaType = 2006,
+        PayloadTooLarge = 413,
+        UnsupportedMediaType = 415,
 
-        // 3xxx: Resource/Domain
-        NotFound = 3000,
-        UserNotFound = 3001,
-        ItemNotFound = 3002,
-        RouteNotFound = 3003,
-        MethodNotAllowed = 3004,
+        // 401: Unauthorized
+        Unauthorized = 401,
+        InvalidCredentials = 401,
+        TokenExpired = 401,
+        TokenInvalid = 401,
 
-        // 4xxx: Conflict/State
-        Conflict = 4000,
-        AlreadyExists = 4001,
-        ResourceLocked = 4002,
-        TooManyRequests = 4003,
-        PreconditionFailed = 4004,
-        StateNotPermitted = 4005,
+        // 403: Forbidden
+        AccessDenied = 403,
 
-        // 5xxx: System/Internal
-        InternalServerError = 5000,
-        DatabaseError = 5001,
-        ServiceUnavailable = 5002,
-        Timeout = 5003,
-        NotImplemented = 5004,
-        DependencyFailure = 5005
+        // 404: Not Found
+        NotFound = 404,
+        UserNotFound = 404,
+        ItemNotFound = 404,
+        RouteNotFound = 404,
+
+        // 405: Method Not Allowed
+        MethodNotAllowed = 405,
+
+        // 409: Conflict
+        Conflict = 409,
+        AlreadyExists = 409,
+        ResourceLocked = 423,          // 423: Locked
+        TooManyRequests = 429,         // 429: Too Many Requests
+        PreconditionFailed = 412,      // 412: Precondition Failed
+        StateNotPermitted = 409,
+
+        // 500: Server errors
+        InternalServerError = 500,
+        DatabaseError = 500,
+        ServiceUnavailable = 503,
+        Timeout = 504,                 // 504: Gateway Timeout
+        NotImplemented = 501,          // 501: Not Implemented
+        DependencyFailure = 502        // 502: Bad Gateway
     }
 }
