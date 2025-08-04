@@ -13,13 +13,9 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [Route("api/space")]
     [ApiController]
-    public class TeleportTableController : ControllerBase
+    public class TeleportTableController(ITeleportTableRepository teleportRepository) : ControllerBase
     {
-        private readonly ITeleportTableRepository _teleportRepository;
-        public TeleportTableController(ITeleportTableRepository teleportRepository)
-        {
-            _teleportRepository = teleportRepository;
-        }
+        private readonly ITeleportTableRepository _teleportRepository = teleportRepository;
 
         #region GET
 
@@ -30,22 +26,26 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [HttpGet("{spaceId}/teleport_tables")]
         [ProducesResponseType(typeof(TeleportTableData), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status423Locked)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<TeleportTableData>> GetTeleportTablesBySpace(
-            [FromRoute] int spaceId)
+        public async Task<ActionResult<TeleportTableData>> GetTeleportTablesBySpace([FromRoute] int spaceId)
         {
-            try
-            {
-                var table = await _teleportRepository.GetTeleportTableBySpaceAsync(spaceId);
-                if (table == null)
-                    return NotFound();
-                return Ok(table);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+            // Argument validation (Bad Request)
+            if (spaceId <= 0)
+                throw new ArgumentException("spaceId must be a positive integer.");
+
+            var table = await _teleportRepository.GetTeleportTableBySpaceAsync(spaceId);
+
+            // Not found (404)
+            return table == null 
+                ? throw new KeyNotFoundException("Teleport table not found for the given spaceId.") 
+                : (ActionResult<TeleportTableData>)Ok(table);
         }
+
 
         #endregion
 
@@ -63,21 +63,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromRoute] int spaceId,
             [FromBody] TeleportTableCreateDto dto)
         {
-            if (dto == null)
-                return BadRequest();
+            if (spaceId <= 0)
+                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
 
-            try
-            {
-                var created = await _teleportRepository.CreateTeleportTableAsync(spaceId, dto);
-                if (created == null)
-                    return StatusCode(500, new { error = "Creation failed." });
+            ArgumentNullException.ThrowIfNull(dto);
 
-                return Created($"/api/space/{spaceId}/teleport_table/{created.Id}", created);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+            var created = await _teleportRepository.CreateTeleportTableAsync(spaceId, dto);
+
+            return created == null
+                ? throw new InvalidOperationException("Creation failed.")
+                : (ActionResult<TeleportTableData>)CreatedAtAction(
+                    nameof(GetTeleportTablesBySpace),               // Name of your GET action
+                    new { spaceId, tableId = created.Id },          // Route parameters for GET action
+                    created                                         // The response body
+                );
         }
 
         #endregion
@@ -94,89 +93,100 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<TeleportTableData>> UpdateTeleportTableById(
-           [FromRoute] int spaceId,
-           [FromRoute] int tableId,
-           [FromBody] TeleportTableUpdateDto dto)
+            [FromRoute] int spaceId,
+            [FromRoute] int tableId,
+            [FromBody] TeleportTableUpdateDto dto)
         {
-            Console.WriteLine($"spaceId: {spaceId}, tableId: {tableId}");
-
+            if (spaceId <= 0)
+                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+            if (tableId <= 0)
+                throw new ArgumentException("tableId must be a positive integer.", nameof(tableId));
             if (dto == null)
-                return BadRequest();
+                throw new ArgumentNullException(nameof(dto));
+            if (dto.Buttons == null || 
+                !dto.Buttons.Any())
+                throw new ArgumentException("Buttons cannot be empty.", nameof(dto.Buttons));
+            if (dto.Buttons.Any(b => !b.Id.HasValue || b.Id <= 0))
+                throw new ArgumentException("Each button must have a valid (positive) Id.", nameof(dto.Buttons));
+            if (dto.LocalizedPairs == null || 
+                dto.LocalizedPairs.Values == null || 
+                !dto.LocalizedPairs.Values.Any())
+                throw new ArgumentException("LocalizedPairs.Values cannot be empty.", nameof(dto.LocalizedPairs.Values));
 
-            try
-            {
-                var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
-                if (updated == null)
-                    return NotFound();
+            var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
-                return Ok(updated);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+            return updated == null 
+                ? throw new KeyNotFoundException("Teleport table not found.") 
+                : (ActionResult<TeleportTableData>)Ok(updated);
         }
 
         #endregion
 
         #region DELETE
 
+        /// <summary>
+        /// Deletes a specific teleport table by spaceId and tableId.
+        /// </summary>
         [HttpDelete("{spaceId}/teleport_table/{tableId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteTeleportTable(
-            [FromRoute] int spaceId,
-            [FromRoute] int tableId)
+        public async Task<IActionResult> DeleteTeleportTable(int spaceId, int tableId)
         {
-            try
-            {
-                var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
-                if (!ok) return NotFound();
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+            if (spaceId <= 0)
+                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+            if (tableId <= 0)
+                throw new ArgumentException("tableId must be a positive integer.", nameof(tableId));
+
+            var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
+
+            if (!ok)
+                throw new KeyNotFoundException("Teleport table not found.");
+
+            return NoContent();
         }
 
+        /// <summary>
+        /// Deletes all teleport tables in the specified space.
+        /// </summary>
         [HttpDelete("{spaceId}/teleport_tables")]
-        [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteTeleportTablesBySpace(
-            [FromRoute] int spaceId)
+        public async Task<IActionResult> DeleteTeleportTablesBySpace(int spaceId)
         {
-            try
-            {
-                var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
-                return Ok(new { deleted = count });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+            if (spaceId <= 0)
+                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+
+            var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
+            
+            return Ok(new { deleted = count });
         }
 
+        /// <summary>
+        /// Deletes a specific button from a teleport table by spaceId, tableId, and buttonId.
+        /// </summary>
         [HttpDelete("{spaceId}/teleport_table/{tableId}/button/{buttonId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> DeleteTeleportTableButton(
-            [FromRoute] int spaceId,
-            [FromRoute] int tableId,
-            [FromRoute] int buttonId)
+        public async Task<IActionResult> DeleteTeleportTableButton(int spaceId, int tableId, int buttonId)
         {
-            try
-            {
-                var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
-                if (!ok) return NotFound();
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+            if (spaceId <= 0)
+                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+            if (tableId <= 0)
+                throw new ArgumentException("tableId must be a positive integer.", nameof(tableId));
+            if (buttonId <= 0)
+                throw new ArgumentException("buttonId must be a positive integer.", nameof(buttonId));
+
+            var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
+            
+            if (!ok)
+                throw new KeyNotFoundException("Teleport table button not found.");
+            
+            return NoContent();
         }
 
         #endregion

@@ -45,6 +45,8 @@ foreach (var type in typesWithInterfaces)
 
 var app = builder.Build();
 
+app.UseMiddleware<TifoXRCoreWebAPI.Middleware.GlobalException>();
+
 app.UseCors(policy =>
     policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
