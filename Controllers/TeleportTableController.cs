@@ -14,10 +14,9 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [Route("api/space")]
     [ApiController]
-    public class TeleportTableController(ITeleportTableRepository teleportRepository, IHostEnvironment env) : ControllerBase
+    public class TeleportTableController(ITeleportTableRepository teleportRepository) : ControllerBase
     {
         private readonly ITeleportTableRepository _teleportRepository = teleportRepository;
-        private readonly IHostEnvironment _env = env;
 
         #region GET
 
