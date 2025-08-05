@@ -48,6 +48,5 @@ namespace GMS.TifoXRCoreWebAPI.Errors
             [503] = "The service is temporarily unavailable.",
             [504] = "The request timed out.",
         };
-
     }
 }

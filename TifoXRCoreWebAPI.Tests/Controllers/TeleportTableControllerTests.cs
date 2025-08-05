@@ -13,6 +13,7 @@ using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using System.Data;
 
@@ -23,12 +24,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         private readonly Mock<ITeleportTableRepository> repo;
         private readonly TeleportTableController sut;
         private readonly TeleportTableUpdateDto defaultDto;
+        private readonly IHostEnvironment env;
 
         public TeleportTableControllerTests()
         {
             // Initialize mock repository and controller under test
             repo = new Mock<ITeleportTableRepository>();
-            sut = new TeleportTableController(repo.Object);
+            sut = new TeleportTableController(repo.Object, env);
             defaultDto = new TeleportTableUpdateDtoBuilder().Build();
         }
 
