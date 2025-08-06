@@ -142,9 +142,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             {
                 if (portalDto == null ||
                     portalDto.LocalizedPairs == null ||
-                    string.IsNullOrWhiteSpace(portalDto.LocalizedPairs.Key) ||
                     portalDto.LocalizedPairs.Values == null ||
-                    !portalDto.LocalizedPairs.Values.Any())
+                    portalDto.LocalizedPairs.Values.Count == 0)
                 {
                     return BadRequest();
                 }

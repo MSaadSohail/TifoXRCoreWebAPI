@@ -15,7 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Models.Common
         /// <summary>
         /// The i18n key (e.g. "bth_nm_101").
         /// </summary>
-        public string Key { get; set; }
+        public string? Key { get; set; }
 
         /// <summary>
         /// All the localized text for that key.
