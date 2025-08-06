@@ -4,6 +4,7 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Initializes and configures the ASP.NET Core Web API application</summary>
+
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using GMS.TifoXRCoreWebAPI.Data;
@@ -44,6 +45,8 @@ foreach (var type in typesWithInterfaces)
 
 
 var app = builder.Build();
+
+app.UseMiddleware<TifoXRCoreWebAPI.Middleware.GlobalException>();
 
 app.UseCors(policy =>
     policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
