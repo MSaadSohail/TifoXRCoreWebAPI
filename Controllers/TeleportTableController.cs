@@ -109,22 +109,57 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] TeleportTableUpdateDto dto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException($"spaceId: {spaceId} must be a positive integer.", nameof(spaceId));
+                throw new ArgumentException(GlobalException.FormatExceptionMessage(
+                    "spaceId must be a positive integer.",
+                    nameof(UpdateTeleportTableById),
+                    new { spaceId, tableId }
+                ));
+
             if (tableId <= 0)
-                throw new ArgumentException("tableId must be a positive integer.", nameof(tableId));
+                throw new ArgumentException(GlobalException.FormatExceptionMessage(
+                    "tableId must be a positive integer.",
+                    nameof(UpdateTeleportTableById),
+                    new { spaceId, tableId }
+                ));
+
             if (dto == null)
-                throw new ArgumentNullException(nameof(dto));
+                throw new ArgumentNullException(nameof(dto),
+                    GlobalException.FormatExceptionMessage(
+                        "DTO cannot be null.",
+                        nameof(UpdateTeleportTableById),
+                        new { spaceId, tableId }
+                    )
+                );
+
             if (dto.Buttons == null || !dto.Buttons.Any())
-                throw new ArgumentException("Buttons cannot be empty.", nameof(dto.Buttons));
+                throw new ArgumentException(GlobalException.FormatExceptionMessage(
+                    "Buttons cannot be empty.",
+                    nameof(UpdateTeleportTableById),
+                    new { spaceId, tableId }
+                ), nameof(dto.Buttons));
+
             if (dto.Buttons.Any(b => !b.Id.HasValue || b.Id <= 0))
-                throw new ArgumentException("Each button must have a valid (positive) Id.", nameof(dto.Buttons));
+                throw new ArgumentException(GlobalException.FormatExceptionMessage(
+                    "Each button must have a valid (positive) Id.",
+                    nameof(UpdateTeleportTableById),
+                    new { spaceId, tableId, buttons = dto.Buttons.Select(b => b.Id) }
+                ), nameof(dto.Buttons));
+
             if (dto.LocalizedPairs == null || dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
-                throw new ArgumentException("LocalizedPairs.Values cannot be empty.", nameof(dto.LocalizedPairs.Values));
+                throw new ArgumentException(GlobalException.FormatExceptionMessage(
+                    "LocalizedPairs.Values cannot be empty.",
+                    nameof(UpdateTeleportTableById),
+                    new { spaceId, tableId }
+                ), nameof(dto.LocalizedPairs));
 
             var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
-            return updated == null 
-                ? throw new KeyNotFoundException("Teleport table not found.") 
+            return updated == null
+                ? throw new KeyNotFoundException(GlobalException.FormatExceptionMessage(
+                    "Teleport table not found.",
+                    nameof(UpdateTeleportTableById),
+                    new { spaceId, tableId }
+                ))
                 : (ActionResult<TeleportTableData>)Ok(updated);
         }
 
@@ -143,14 +178,36 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTable(int spaceId, int tableId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(DeleteTeleportTable),
+                        new { spaceId, tableId }
+                    ),
+                    nameof(spaceId)
+                );
+
             if (tableId <= 0)
-                throw new ArgumentException("tableId must be a positive integer.", nameof(tableId));
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "tableId must be a positive integer.",
+                        nameof(DeleteTeleportTable),
+                        new { spaceId, tableId }
+                    ),
+                    nameof(tableId)
+                );
 
             var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
 
             if (!ok)
-                throw new KeyNotFoundException("Teleport table not found.");
+                throw new KeyNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "Teleport table not found.",
+                        nameof(DeleteTeleportTable),
+                        new { spaceId, tableId }
+                    )
+                );
+
 
             return NoContent();
         }
@@ -165,11 +222,19 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTablesBySpace(int spaceId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(DeleteTeleportTablesBySpace),
+                        new { spaceId }
+                    ),
+                    nameof(spaceId)
+                );
 
             var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
-            
+
             return Ok(new { deleted = count });
+
         }
 
         /// <summary>
@@ -183,17 +248,46 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTableButton(int spaceId, int tableId, int buttonId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException("spaceId must be a positive integer.", nameof(spaceId));
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(DeleteTeleportTableButton),
+                        new { spaceId, tableId, buttonId }
+                    ),
+                    nameof(spaceId)
+                );
+
             if (tableId <= 0)
-                throw new ArgumentException("tableId must be a positive integer.", nameof(tableId));
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "tableId must be a positive integer.",
+                        nameof(DeleteTeleportTableButton),
+                        new { spaceId, tableId, buttonId }
+                    ),
+                    nameof(tableId)
+                );
+
             if (buttonId <= 0)
-                throw new ArgumentException("buttonId must be a positive integer.", nameof(buttonId));
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "buttonId must be a positive integer.",
+                        nameof(DeleteTeleportTableButton),
+                        new { spaceId, tableId, buttonId }
+                    ),
+                    nameof(buttonId)
+                );
 
             var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
-            
+
             if (!ok)
-                throw new KeyNotFoundException("Teleport table button not found.");
-            
+                throw new KeyNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "Teleport table button not found.",
+                        nameof(DeleteTeleportTableButton),
+                        new { spaceId, tableId, buttonId }
+                    )
+                );
+
             return NoContent();
         }
 
