@@ -8,6 +8,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.Json;
+using System.Data;
 using GMS.TifoXRCoreWebAPI.Errors;
 using TifoXRCoreWebAPI.Errors;
 
@@ -126,11 +127,11 @@ namespace TifoXRCoreWebAPI.Middleware
                     code = (int)ErrorCodes.Timeout;
                     status = StatusCodes.Status504GatewayTimeout;
                     break;
-                case System.Data.DBConcurrencyException:
+                case DBConcurrencyException:
                     code = (int)ErrorCodes.Conflict;
                     status = StatusCodes.Status409Conflict;
                     break;
-                case System.Data.DataException:
+                case DataException:
                     code = (int)ErrorCodes.DatabaseError;
                     status = StatusCodes.Status500InternalServerError;
                     break;

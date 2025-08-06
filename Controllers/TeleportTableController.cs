@@ -208,7 +208,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     )
                 );
 
-
             return NoContent();
         }
 
@@ -234,7 +233,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
 
             return Ok(new { deleted = count });
-
         }
 
         /// <summary>

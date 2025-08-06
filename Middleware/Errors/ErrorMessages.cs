@@ -9,6 +9,8 @@ namespace GMS.TifoXRCoreWebAPI.Errors
 {
     public static class ErrorMessages
     {
+        //FIX ME: Fetch all codes from a file hoster on server
+        //Ref: ADO 406
         public static readonly Dictionary<int, string> Messages = new()
         {
             // 400 Bad Request & validation
