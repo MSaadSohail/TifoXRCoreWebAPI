@@ -12,7 +12,9 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int SpaceId { get; set; }
         public LocalizedPairs LocalizedPairs { get; set; }
-        public MapSpotModel MapSpot { get; set; }
+        public int MapSpotId { get; set; }
+        //public MapSpotModel MapSpot { get; set; }
+
     }
 
     public class BoothWrapper
@@ -39,7 +41,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public class BoothUpdateDto
     {
         public LocalizedPairs LocalizedPairs { get; set; }
-        public MapSpotModel MapSpot { get; set; }
+        public int MapSpotId { get; set; }
+
     }
 
     public class Response
