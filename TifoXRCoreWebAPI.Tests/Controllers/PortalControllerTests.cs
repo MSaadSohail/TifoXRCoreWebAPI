@@ -53,7 +53,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                         new() { LocaleId = "en_us", Value = "Portal EN" }
                     }
                 },
-                // Fix CS9035: satisfy 'required' members for tests
+
                 CorrespondingMedia = null!,
                 ThumbnailMedia = null!
             };
