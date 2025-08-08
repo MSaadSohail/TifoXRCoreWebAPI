@@ -5,10 +5,11 @@
 // <date>07/23/2025</date>
 // <summary>Controller to handle teleportable routes</summary>
 
+using Microsoft.AspNetCore.Mvc;
+
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using Microsoft.AspNetCore.Mvc;
-using TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -208,7 +209,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     )
                 );
 
-            return NoContent();
+            return Ok(new { message = "Teleport Table deleted successfully." });
         }
 
         /// <summary>
@@ -232,7 +233,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
 
-            return Ok(new { deleted = count });
+            return Ok(new
+            {
+                message = $"Teleport Tables Records Deleted: {count}."
+            });
         }
 
         /// <summary>
@@ -286,7 +290,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     )
                 );
 
-            return NoContent();
+            return Ok(new { message = "Teleport Table deleted successfully." });
         }
 
         #endregion

@@ -9,10 +9,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.Json;
 using System.Data;
-using GMS.TifoXRCoreWebAPI.Errors;
-using TifoXRCoreWebAPI.Errors;
 
-namespace TifoXRCoreWebAPI.Middleware
+using GMS.TifoXRCoreWebAPI.Errors;
+
+namespace GMS.TifoXRCoreWebAPI.Middleware
 {
     public class GlobalException(RequestDelegate next, ILogger<GlobalException> logger, IHostEnvironment env)
     {

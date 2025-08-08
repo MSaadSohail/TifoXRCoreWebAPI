@@ -581,11 +581,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 // 4) Insert portal record, let DB set text_field_key
                 const string insertPortal = @"
                     INSERT INTO portal
-                      (space_id, portal_type_id, event_id,
+                      (space_id, booth_id, portal_type_id, event_id,
                        corresponding_media_id, thumbnail_media_id,
                        external_link)
                     VALUES
-                      (@SpaceId, @PortalTypeId, @EventId,
+                      (@SpaceId, @boothId, @PortalTypeId, @EventId,
                        @CorrId, @ThumbId, @ExternalLink);
                 ";
 
@@ -593,6 +593,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 await using (var cmd = new MySqlCommand(insertPortal, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Parameters.AddWithValue("@boothId", portalDto.BoothId);
                     cmd.Parameters.AddWithValue("@PortalTypeId", portalDto.PortalTypeId);
                     cmd.Parameters.AddWithValue("@EventId", portalDto.EventId);
                     cmd.Parameters.AddWithValue("@CorrId", corrMediaId);

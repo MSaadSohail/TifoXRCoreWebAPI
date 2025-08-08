@@ -6,11 +6,8 @@
 // <summary>Controller to handle booth routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
-using MySqlConnector;
-using System.Data;
+
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -19,16 +16,9 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
     [ApiController]
 
     //For Booths
-    public class BoothController : ControllerBase
+    public class BoothController(IBoothRepository boothRepository) : ControllerBase
     {
-        private readonly string _connectionString;
-
-        private readonly IBoothRepository _boothRepository;
-
-        public BoothController(IBoothRepository boothRepository)
-        {
-            _boothRepository = boothRepository;
-        }
+        private readonly IBoothRepository _boothRepository = boothRepository;
 
         [HttpGet("{spaceId}/booths")]
         public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace([FromRoute] int spaceId)
@@ -48,7 +38,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 );
             }
         }
-
 
         [HttpPut("{spaceId}/booth/{boothId}")]
         [ProducesResponseType(typeof(Response), StatusCodes.Status200OK)]
