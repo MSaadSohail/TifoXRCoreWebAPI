@@ -2,89 +2,98 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/30/2025</date>
-// <summary>Fluent builder for BoothModel to simplify and standardize setup in unit tests.</summary>
+// <date>08/08/2025</date>
+// <summary>Builder for BoothModel in tests.</summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Fluent builder for BoothModel. Supports custom setup of Id, SpaceId, MapSpot, and LocalizedName.
+    /// Builder for BoothModel with sensible defaults.
+    /// Defaults:
+    ///   Id = 1, SpaceId = 1, MapSpotId = 10
+    ///   MapSpot = (0,0,0)
+    ///   LocalizedPairs = { Key="booth_main", Values=[("en_us","Main Booth")] }
     /// </summary>
     public class BoothModelBuilder
     {
         private int _id = 1;
-        private int _spaceId = 100;
-        private int _mapSpotId = 0;
-        private MapSpotModel _mapSpot = new MapSpotModel { X = 0, Y = 0, Z = 0 };
-        private LocalizedPairs _localizedPairs = new LocalizedPairs
+        private int _spaceId = 1;
+        private int _mapSpotId = 10;
+        private MapSpotModel? _mapSpot = new() { X = 0, Y = 0, Z = 0 };
+        private LocalizedPairs _localizedPairs = new()
         {
-            Key = "booth.name",
+            Key = "booth_main",
             Values = new List<LocalizedValue>
             {
-                new LocalizedValue { LocaleId = "en", Value = "Booth Name" }
+                new() { LocaleId = "en_us", Value = "Main Booth" }
             }
         };
 
-        /// <summary>
-        /// Sets the Id of the booth.
-        /// </summary>
         public BoothModelBuilder WithId(int id)
         {
             _id = id;
             return this;
         }
 
-        /// <summary>
-        /// Sets the SpaceId of the booth.
-        /// </summary>
         public BoothModelBuilder WithSpaceId(int spaceId)
         {
             _spaceId = spaceId;
             return this;
         }
 
-        /// <summary>
-        /// Sets the MapSpotId and coordinates of the booth.
-        /// </summary>
-        public BoothModelBuilder WithMapSpot(int mapSpotId, decimal x, decimal y, decimal z)
+        public BoothModelBuilder WithMapSpotId(int mapSpotId)
         {
             _mapSpotId = mapSpotId;
+            return this;
+        }
+
+        public BoothModelBuilder WithMapSpot(decimal x, decimal y, decimal z)
+        {
             _mapSpot = new MapSpotModel { X = x, Y = y, Z = z };
             return this;
         }
 
-        /// <summary>
-        /// Sets the LocalizedPairs with specified key and locale–value pairs.
-        /// </summary>
-        public BoothModelBuilder WithLocalizedPairs(string key, Dictionary<string, string> values)
+        public BoothModelBuilder WithoutMapSpot()
+        {
+            _mapSpot = null;
+            return this;
+        }
+
+        public BoothModelBuilder WithLocalizedPairs(string key, IDictionary<string, string> valuesByLocale)
         {
             _localizedPairs = new LocalizedPairs
             {
                 Key = key,
-                Values = values
-                    .Select(kv => new LocalizedValue { LocaleId = kv.Key, Value = kv.Value })
-                    .ToList()
+                Values = valuesByLocale.Select(kv => new LocalizedValue
+                {
+                    LocaleId = kv.Key,
+                    Value = kv.Value
+                }).ToList()
             };
             return this;
         }
 
-
-        /// <summary>
-        /// Sets the LocalizedPairs to null.
-        /// </summary>
-        public BoothModelBuilder WithNullLocalizedPairs()
+        public BoothModelBuilder WithLocalizedPairsKey(string key)
         {
-            _localizedPairs = null!;
+            _localizedPairs.Key = key;
             return this;
         }
 
-        /// <summary>
-        /// Builds and returns the configured BoothModel.
-        /// </summary>
+        public BoothModelBuilder AddLocale(string localeId, string value)
+        {
+            _localizedPairs.Values.Add(new LocalizedValue { LocaleId = localeId, Value = value });
+            return this;
+        }
+
+        public BoothModelBuilder ClearLocales()
+        {
+            _localizedPairs.Values.Clear();
+            return this;
+        }
+
         public BoothModel Build()
         {
             return new BoothModel
@@ -93,7 +102,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
                 SpaceId = _spaceId,
                 MapSpotId = _mapSpotId,
                 MapSpot = _mapSpot,
-                LocalizedPairs = _localizedPairs
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = _localizedPairs.Key,
+                    Values = _localizedPairs.Values.ToList()
+                }
             };
         }
     }
