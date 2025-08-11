@@ -190,8 +190,8 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
         public static string FormatExceptionMessage(
             string issue,
             string methodName,
-            object parameters = null,
-            string extra = null)
+            object? parameters = null,
+            string? extra = null)
         {
             var paramStr = parameters == null 
                 ? "" 
