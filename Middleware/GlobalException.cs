@@ -144,11 +144,11 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
                     code = (int)ErrorCodes.DependencyFailure;
                     status = StatusCodes.Status502BadGateway;
                     break;
-                case ResourceNotFoundException rnfx:
+                case ResourceNotFoundException:
                     code = (int)ErrorCodes.NotFound;
                     status = StatusCodes.Status404NotFound;
                     break;
-                case ConflictException cfx:
+                case ConflictException:
                     code = (int)ErrorCodes.Conflict;
                     status = StatusCodes.Status409Conflict;
                     break;
