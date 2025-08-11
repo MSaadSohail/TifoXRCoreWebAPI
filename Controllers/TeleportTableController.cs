@@ -5,10 +5,12 @@
 // <date>07/23/2025</date>
 // <summary>Controller to handle teleportable routes</summary>
 
+using Microsoft.AspNetCore.Mvc;
+
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using Microsoft.AspNetCore.Mvc;
-using TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -43,7 +45,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             // Not found (404)
             return table == null
-                ? throw new KeyNotFoundException(GlobalException.FormatExceptionMessage(
+                ? throw new ResourceNotFoundException(GlobalException.FormatExceptionMessage(
                     $"Teleport table not found.",
                     nameof(GetTeleportTablesBySpace),
                     new { spaceId }))
@@ -155,7 +157,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
             return updated == null
-                ? throw new KeyNotFoundException(GlobalException.FormatExceptionMessage(
+                ? throw new ResourceNotFoundException(GlobalException.FormatExceptionMessage(
                     "Teleport table not found.",
                     nameof(UpdateTeleportTableById),
                     new { spaceId, tableId }
@@ -200,7 +202,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
 
             if (!ok)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Teleport table not found.",
                         nameof(DeleteTeleportTable),
@@ -208,7 +210,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     )
                 );
 
-            return NoContent();
+            return Ok(new { message = "Teleport Table deleted successfully." });
         }
 
         /// <summary>
@@ -232,7 +234,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
 
-            return Ok(new { deleted = count });
+            return Ok(new
+            {
+                message = $"Teleport Tables Records Deleted: {count}."
+            });
         }
 
         /// <summary>
@@ -278,7 +283,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
 
             if (!ok)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Teleport table button not found.",
                         nameof(DeleteTeleportTableButton),
@@ -286,7 +291,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     )
                 );
 
-            return NoContent();
+            return Ok(new { message = "Teleport Table deleted successfully." });
         }
 
         #endregion

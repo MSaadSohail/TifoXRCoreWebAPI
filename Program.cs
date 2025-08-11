@@ -43,10 +43,9 @@ foreach (var type in typesWithInterfaces)
     services.AddScoped(type.Interface, type.Implementation);
 }
 
-
 var app = builder.Build();
 
-app.UseMiddleware<TifoXRCoreWebAPI.Middleware.GlobalException>();
+app.UseMiddleware<GMS.TifoXRCoreWebAPI.Middleware.GlobalException>();
 
 app.UseCors(policy =>
     policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
