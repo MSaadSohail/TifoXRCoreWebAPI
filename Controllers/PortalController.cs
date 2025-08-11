@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -48,7 +49,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             // Not found (404) – same pattern used in TeleportTableController
             if (portals == null || portals.Count == 0)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portals not found.",
                         nameof(GetPortalsBySpace),
@@ -99,7 +100,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var portals = await _portalRepository.GetPortalsByBoothAsync(spaceId, boothId);
 
             if (portals == null || portals.Count == 0)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portals not found for the specified booth.",
                         nameof(GetPortalsByBooth),
@@ -150,7 +151,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var portal = await _portalRepository.GetPortalByIdAsync(spaceId, portalId);
 
             return portal == null
-                ? throw new KeyNotFoundException(
+                ? throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portal not found.",
                         nameof(GetPortalById),
@@ -189,7 +190,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             ArgumentNullException.ThrowIfNull(portalDto);
 
-            if (portalDto.LocalizedPairs == null || portalDto.LocalizedPairs.Values == null || !portalDto.LocalizedPairs.Values.Any())
+            if (portalDto.LocalizedPairs == null || portalDto.LocalizedPairs.Values == null || portalDto.LocalizedPairs.Values.Count == 0)
                 throw new ArgumentException(GlobalException.FormatExceptionMessage(
                     "LocalizedPairs.Values cannot be empty.",
                     nameof(CreatePortal),
@@ -288,7 +289,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _portalRepository.UpdatePortalAsync(spaceId, portalId, portalDto);
 
             if (updated == null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portal not found.",
                         nameof(UpdatePortal),
@@ -385,7 +386,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _portalRepository.UpdatePortalAsync(spaceId, boothId, portalId, dto);
 
             if (updated == null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portal not found for the specified booth.",
                         nameof(UpdatePortalData),
@@ -439,7 +440,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var deleted = await _portalRepository.DeletePortalAsync(spaceId, portalId);
 
             if (!deleted)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portal not found.",
                         nameof(DeletePortal),
@@ -502,7 +503,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var deleted = await _portalRepository.DeletePortalAsync(spaceId, boothId, portalId);
 
             if (!deleted)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Portal not found for the specified booth.",
                         nameof(DeletePortalForBooth),

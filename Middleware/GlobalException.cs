@@ -5,12 +5,13 @@
 // <date>08/04/2025</date>
 // <summary>Middleware Class to global exception handling</summary>
 
-using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Net;
 using System.Text.Json;
-using System.Data;
+using System.ComponentModel.DataAnnotations;
 
 using GMS.TifoXRCoreWebAPI.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Middleware
 {
@@ -142,6 +143,14 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
                 case HttpRequestException:
                     code = (int)ErrorCodes.DependencyFailure;
                     status = StatusCodes.Status502BadGateway;
+                    break;
+                case ResourceNotFoundException rnfx:
+                    code = (int)ErrorCodes.NotFound;
+                    status = StatusCodes.Status404NotFound;
+                    break;
+                case ConflictException cfx:
+                    code = (int)ErrorCodes.Conflict;
+                    status = StatusCodes.Status409Conflict;
                     break;
             }
 

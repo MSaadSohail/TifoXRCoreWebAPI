@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -44,7 +45,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             // Not found (404)
             return table == null
-                ? throw new KeyNotFoundException(GlobalException.FormatExceptionMessage(
+                ? throw new ResourceNotFoundException(GlobalException.FormatExceptionMessage(
                     $"Teleport table not found.",
                     nameof(GetTeleportTablesBySpace),
                     new { spaceId }))
@@ -156,7 +157,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
             return updated == null
-                ? throw new KeyNotFoundException(GlobalException.FormatExceptionMessage(
+                ? throw new ResourceNotFoundException(GlobalException.FormatExceptionMessage(
                     "Teleport table not found.",
                     nameof(UpdateTeleportTableById),
                     new { spaceId, tableId }
@@ -201,7 +202,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
 
             if (!ok)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Teleport table not found.",
                         nameof(DeleteTeleportTable),
@@ -282,7 +283,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
 
             if (!ok)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Teleport table button not found.",
                         nameof(DeleteTeleportTableButton),
