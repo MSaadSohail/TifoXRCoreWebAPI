@@ -96,9 +96,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task GetBySpace_PropagatesRepoEx()
         {
             mockRepo.Setup(r => r.GetPortalsBySpaceAsync(It.IsAny<int>()))
-                    .ThrowsAsync(new Exception("boom"));
+                    .ThrowsAsync(new Exception("Unable to find portal."));
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.GetPortalsBySpace(1));
-            ex.Message.Should().Be("boom");
+            ex.Message.Should().Be("Unable to find portal.");
         }
 
         #endregion
