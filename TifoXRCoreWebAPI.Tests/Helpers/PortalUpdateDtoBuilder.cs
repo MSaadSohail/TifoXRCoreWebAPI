@@ -7,9 +7,6 @@
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {

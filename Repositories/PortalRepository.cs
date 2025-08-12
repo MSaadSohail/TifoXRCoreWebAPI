@@ -535,7 +535,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             ArgumentNullException.ThrowIfNull(portalDto);
 
             await using var conn = new MySqlConnection(_connectionString);
-
             await conn.OpenAsync();
 
             await using var tx = await conn.BeginTransactionAsync();
@@ -544,25 +543,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             {
                 // 1) Load supported locales for this space
                 var supportedLocales = new HashSet<string>();
-
                 const string fetchLocales = @"
-                    SELECT locale_id
-                      FROM supported_languages
-                     WHERE space_id = @SpaceId;";
-
+                    SELECT locale_id FROM supported_languages WHERE space_id = @SpaceId;";
+                
                 await using (var cmd = new MySqlCommand(fetchLocales, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-
                     await using var rdr = await cmd.ExecuteReaderAsync();
-
                     while (await rdr.ReadAsync())
                         supportedLocales.Add(rdr.GetString("locale_id"));
                 }
 
                 // 2) Optionally insert corresponding media first
                 string? corrMediaId = null;
-
                 if (portalDto.CorrespondingMedia != null)
                 {
                     corrMediaId = await FilterAndInsertMediaAsync(
@@ -575,7 +568,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // 3) Optionally insert thumbnail media
                 string? thumbMediaId = null;
-
                 if (portalDto.ThumbnailMedia != null)
                 {
                     thumbMediaId = await FilterAndInsertMediaAsync(
@@ -586,60 +578,65 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     );
                 }
 
-                // 4) Insert portal record
+                // 4) Insert portal record, let DB set text_field_key
                 const string insertPortal = @"
                     INSERT INTO portal
-                      (space_id, portal_type_id, event_id,
+                      (space_id, booth_id, portal_type_id, event_id,
                        corresponding_media_id, thumbnail_media_id,
-                       text_field_key, external_link)
+                       external_link)
                     VALUES
-                      (@SpaceId, @PortalTypeId, @EventId,
-                       @CorrId,   @ThumbId,
-                       @TextKey,  @ExternalLink);
+                      (@SpaceId, @boothId, @PortalTypeId, @EventId,
+                       @CorrId, @ThumbId, @ExternalLink);
                 ";
 
                 int newPortalId;
-
                 await using (var cmd = new MySqlCommand(insertPortal, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Parameters.AddWithValue("@boothId", portalDto.BoothId);
                     cmd.Parameters.AddWithValue("@PortalTypeId", portalDto.PortalTypeId);
                     cmd.Parameters.AddWithValue("@EventId", portalDto.EventId);
                     cmd.Parameters.AddWithValue("@CorrId", corrMediaId);
                     cmd.Parameters.AddWithValue("@ThumbId", thumbMediaId);
-                    cmd.Parameters.AddWithValue("@TextKey", portalDto.LocalizedPairs?.Key != null ? portalDto.LocalizedPairs.Key : (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@ExternalLink", portalDto.ExternalLink ?? (object)DBNull.Value);
 
                     await cmd.ExecuteNonQueryAsync();
-
                     newPortalId = Convert.ToInt32(cmd.LastInsertedId);
                 }
 
+                // 5) Fetch the generated text_field_key from portal table
+                string textFieldKey;
+                const string fetchTextFieldKey = @"
+                    SELECT text_field_key FROM portal WHERE id = @PortalId;";
+                
+                await using (var cmd = new MySqlCommand(fetchTextFieldKey, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@PortalId", newPortalId);
+                    textFieldKey = (string)await cmd.ExecuteScalarAsync();
+                }
 
-                // 5) Insert i18n entries for the portal’s text_key, for supported locales only
+                // 6) Insert i18n entries for the portal’s text_field_key, for supported locales only
                 const string insertI18n = @"
                     INSERT INTO i18n (`key`, locale_id, value, space_id)
                     VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
                 ";
 
-                if (portalDto.LocalizedPairs != null && portalDto.LocalizedPairs.Values != null)
+                if (portalDto.LocalizedPairs?.Values != null)
                 {
                     foreach (var loc in portalDto.LocalizedPairs.Values.Where(x => supportedLocales.Contains(x.LocaleId)))
                     {
                         await using var cmdI = new MySqlCommand(insertI18n, conn, tx);
-
-                        cmdI.Parameters.AddWithValue("@TextKey", portalDto.LocalizedPairs.Key);
+                        cmdI.Parameters.AddWithValue("@TextKey", textFieldKey);
                         cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                         cmdI.Parameters.AddWithValue("@Value", loc.Value);
                         cmdI.Parameters.AddWithValue("@SpaceId", spaceId);
-
                         await cmdI.ExecuteNonQueryAsync();
                     }
                 }
 
                 await tx.CommitAsync();
 
-                // 6) Reload full portal and return
+                // 7) Reload full portal and return
                 return await GetPortalByIdAsync(spaceId, newPortalId);
             }
             catch
@@ -648,6 +645,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
         #endregion
 

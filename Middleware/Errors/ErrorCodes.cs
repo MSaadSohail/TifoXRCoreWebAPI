@@ -5,7 +5,7 @@
 // <date>08/04/2025</date>
 // <summary>Enum of error codes</summary>
 
-namespace TifoXRCoreWebAPI.Errors
+namespace GMS.TifoXRCoreWebAPI.Errors
 {
     public enum ErrorCodes
     {
