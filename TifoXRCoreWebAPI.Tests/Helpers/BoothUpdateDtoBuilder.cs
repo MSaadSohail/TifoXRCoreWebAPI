@@ -2,8 +2,8 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>08/08/2025</date>
-// <summary>Builder for BoothUpdateDto in tests.</summary>
+// <date>08/11/2025</date>
+// <summary>Fluent builder for BoothUpdateDto used in tests to simplify setup of valid and edge-case DTOs.</summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
@@ -11,55 +11,54 @@ using GMS.TifoXRCoreWebAPI.Models.Common;
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Builder for BoothUpdateDto with sensible defaults.
-    /// Defaults:
-    ///   LocalizedPairs = { Key="booth_updated", Values=[("en_us","Updated Booth")] }
-    ///   MapSpot = (1,2,3)
+    /// Fluent builder for BoothUpdateDto to reduce repetition in test setup and to model invalid DTO states cleanly.
+    /// Mirrors the approach used by TeleportTableUpdateDtoBuilder.
     /// </summary>
     public class BoothUpdateDtoBuilder
     {
-        private LocalizedPairs? _localizedPairs = new()
+        private string _key = "booth_key";
+        private List<LocalizedValue>? _values = new()
         {
-            Key = "booth_updated",
-            Values = new List<LocalizedValue>
-            {
-                new() { LocaleId = "en_us", Value = "Updated Booth" }
-            }
+            new LocalizedValue { LocaleId = "en_us", Value = "Booth Name" }
         };
-        private MapSpotModel _mapSpot = new() { X = 1, Y = 2, Z = 3 };
+        private MapSpotModel? _mapSpot = new() { X = 1.0m, Y = 2.0m, Z = 3.0m };
 
-        public BoothUpdateDtoBuilder WithLocalizedPairs(string key, IDictionary<string, string> valuesByLocale)
-        {
-            _localizedPairs = new LocalizedPairs
-            {
-                Key = key,
-                Values = valuesByLocale.Select(kv => new LocalizedValue
-                {
-                    LocaleId = kv.Key,
-                    Value = kv.Value
-                }).ToList()
-            };
-            return this;
-        }
+        private bool _nullLocalizedPairs = false;
+        private bool _nullMapSpot = false;
 
+        /// <summary>
+        /// Explicitly nulls the LocalizedPairs object to model invalid input scenarios.
+        /// </summary>
         public BoothUpdateDtoBuilder WithNullLocalizedPairs()
         {
-            _localizedPairs = null;
+            _nullLocalizedPairs = true;
             return this;
         }
 
-        public BoothUpdateDtoBuilder WithMapSpot(decimal x, decimal y, decimal z)
+        /// <summary>
+        /// Explicitly nulls the MapSpot object to model invalid input scenarios.
+        /// </summary>
+        public BoothUpdateDtoBuilder WithNullMapSpot()
         {
-            _mapSpot = new MapSpotModel { X = x, Y = y, Z = z };
+            _nullMapSpot = true;
             return this;
         }
 
+        /// <summary>
+        /// Builds a BoothUpdateDto instance with the configured values and null toggles applied.
+        /// </summary>
         public BoothUpdateDto Build()
         {
             return new BoothUpdateDto
             {
-                LocalizedPairs = _localizedPairs!,
-                MapSpot = _mapSpot
+                LocalizedPairs = _nullLocalizedPairs
+                    ? null!
+                    : new LocalizedPairs
+                    {
+                        Key = _key,
+                        Values = _values ?? new List<LocalizedValue>()
+                    },
+                MapSpot = _nullMapSpot ? null! : _mapSpot!
             };
         }
     }

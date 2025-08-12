@@ -2,8 +2,8 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>08/08/2025</date>
-// <summary>Builder for BoothCreateDto in tests.</summary>
+// <date>08/11/2025</date>
+// <summary>Fluent builder for BoothCreateDto used in tests for clean and reusable setup.</summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
@@ -11,63 +11,67 @@ using GMS.TifoXRCoreWebAPI.Models.Common;
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Builder for BoothCreateDto with sensible defaults.
-    /// Defaults:
-    ///   SpaceId = 1
-    ///   LocalizedPairs = { Key="booth_main", Values=[("en_us","Main Booth")] }
-    ///   MapSpot = (0,0,0)
+    /// Fluent builder for BoothCreateDto, mirroring the helper pattern used by Teleport tests.
     /// </summary>
     public class BoothCreateDtoBuilder
     {
         private int _spaceId = 1;
-        private LocalizedPairs? _localizedPairs = new()
+        private string _key = "booth_key";
+        private readonly List<LocalizedValue> _values = new()
         {
-            Key = "booth_main",
-            Values = new List<LocalizedValue>
-            {
-                new() { LocaleId = "en_us", Value = "Main Booth" }
-            }
+            new LocalizedValue { LocaleId = "en_us", Value = "Booth Name" }
         };
-        private MapSpotModel _mapSpot = new() { X = 0, Y = 0, Z = 0 };
+        private MapSpotModel _mapSpot = new() { X = 1.1m, Y = 2.2m, Z = 3.3m };
 
+        /// <summary>
+        /// Sets the SpaceId field for the DTO.
+        /// </summary>
         public BoothCreateDtoBuilder WithSpaceId(int spaceId)
         {
             _spaceId = spaceId;
             return this;
         }
 
-        public BoothCreateDtoBuilder WithLocalizedPairs(string key, IDictionary<string, string> valuesByLocale)
+        /// <summary>
+        /// Sets the i18n key for the booth's LocalizedPairs.
+        /// </summary>
+        public BoothCreateDtoBuilder WithKey(string key)
         {
-            _localizedPairs = new LocalizedPairs
-            {
-                Key = key,
-                Values = valuesByLocale.Select(kv => new LocalizedValue
-                {
-                    LocaleId = kv.Key,
-                    Value = kv.Value
-                }).ToList()
-            };
+            _key = key;
             return this;
         }
 
-        public BoothCreateDtoBuilder WithNullLocalizedPairs()
+        /// <summary>
+        /// Adds a (locale, value) entry to the LocalizedPairs.Values collection.
+        /// </summary>
+        public BoothCreateDtoBuilder WithLocalizedPair(string locale, string value)
         {
-            _localizedPairs = null;
+            _values.Add(new LocalizedValue { LocaleId = locale, Value = value });
             return this;
         }
 
+        /// <summary>
+        /// Sets the MapSpot coordinates for the new booth.
+        /// </summary>
         public BoothCreateDtoBuilder WithMapSpot(decimal x, decimal y, decimal z)
         {
             _mapSpot = new MapSpotModel { X = x, Y = y, Z = z };
             return this;
         }
 
+        /// <summary>
+        /// Builds a BoothCreateDto instance with the configured state.
+        /// </summary>
         public BoothCreateDto Build()
         {
             return new BoothCreateDto
             {
                 SpaceId = _spaceId,
-                LocalizedPairs = _localizedPairs!,
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = _key,
+                    Values = _values
+                },
                 MapSpot = _mapSpot
             };
         }
