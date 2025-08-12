@@ -5,14 +5,12 @@
 // <date>08/08/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
+
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using MySqlConnector;
-using System.Data;
-using TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -20,16 +18,9 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
     [ApiController]
 
     //For Booths
-    public class BoothController : ControllerBase
+    public class BoothController(IBoothRepository boothRepository) : ControllerBase
     {
-        private readonly string _connectionString;
-
-        private readonly IBoothRepository _boothRepository;
-
-        public BoothController(IBoothRepository boothRepository)
-        {
-            _boothRepository = boothRepository;
-        }
+        private readonly IBoothRepository _boothRepository = boothRepository;
 
         /// <summary>
         /// GET /api/space/{spaceId}/booths
@@ -56,7 +47,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
 
             if (booths == null || booths.Count == 0)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "No booths found for the specified space.",
                         nameof(GetAllBoothsBySpace),
@@ -66,7 +57,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             return Ok(booths);
         }
-
 
 
         [HttpPut("{spaceId}/booth/{boothId}")]
@@ -112,7 +102,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _boothRepository.UpdateBoothAsync(spaceId, boothId, dto);
 
             if (updated is null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Booth not found.",
                         nameof(UpdateBooth),
@@ -217,7 +207,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var success = await _boothRepository.DeleteBoothCascadeAsync(spaceId, boothId);
 
             if (!success)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Booth not found.",
                         nameof(DeleteBoothCascade),

@@ -5,12 +5,10 @@
 // <date>07/28/2025</date>
 // <summary>Controller to handle Event APIs</summary>
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using MySqlConnector;
-using System.Data;
-using TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -53,7 +51,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var evt = await _eventRepository.GetEventByIdAsync(event_id);
 
             if (evt is null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Event not found.",
                         nameof(GetEventDataByID),
@@ -128,7 +126,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _eventRepository.UpdateEventAsync(eventId, dto);
 
             if (updated is null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Event not found.",
                         nameof(UpdateEvent),

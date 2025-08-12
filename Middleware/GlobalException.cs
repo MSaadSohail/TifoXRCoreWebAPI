@@ -5,14 +5,15 @@
 // <date>08/04/2025</date>
 // <summary>Middleware Class to global exception handling</summary>
 
-using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Net;
 using System.Text.Json;
-using System.Data;
-using GMS.TifoXRCoreWebAPI.Errors;
-using TifoXRCoreWebAPI.Errors;
+using System.ComponentModel.DataAnnotations;
 
-namespace TifoXRCoreWebAPI.Middleware
+using GMS.TifoXRCoreWebAPI.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+
+namespace GMS.TifoXRCoreWebAPI.Middleware
 {
     public class GlobalException(RequestDelegate next, ILogger<GlobalException> logger, IHostEnvironment env)
     {
@@ -143,6 +144,14 @@ namespace TifoXRCoreWebAPI.Middleware
                     code = (int)ErrorCodes.DependencyFailure;
                     status = StatusCodes.Status502BadGateway;
                     break;
+                case ResourceNotFoundException:
+                    code = (int)ErrorCodes.NotFound;
+                    status = StatusCodes.Status404NotFound;
+                    break;
+                case ConflictException:
+                    code = (int)ErrorCodes.Conflict;
+                    status = StatusCodes.Status409Conflict;
+                    break;
             }
 
             message = ErrorMessages.Messages.TryGetValue(code, out var msg) 
@@ -181,8 +190,8 @@ namespace TifoXRCoreWebAPI.Middleware
         public static string FormatExceptionMessage(
             string issue,
             string methodName,
-            object parameters = null,
-            string extra = null)
+            object? parameters = null,
+            string? extra = null)
         {
             var paramStr = parameters == null 
                 ? "" 

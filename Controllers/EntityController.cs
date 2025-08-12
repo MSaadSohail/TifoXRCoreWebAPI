@@ -7,8 +7,8 @@
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using MySqlConnector;
-using TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -48,7 +48,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var entity = await _repo.GetByIdAsync(id);
 
             if (entity is null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Entity not found.",
                         nameof(Get),
@@ -143,7 +143,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _repo.UpdateAsync(id, dto);
 
             if (updated is null)
-                throw new KeyNotFoundException(
+                throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "Entity not found.",
                         nameof(Update),
