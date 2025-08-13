@@ -7,7 +7,5 @@ namespace GMS.TifoXRCoreWebAPI.Data
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-        public DbSet<User> User { get; set; }
-        public DbSet<UserSessionManagement> UserSession { get; set; }
     }
 }

@@ -4,9 +4,10 @@
 // <author>Saad Sohail</author>
 // <date>07/23/2025</date>
 // <summary>Controller to handle Metrics</summary>
-using Microsoft.AspNetCore.Mvc;
+using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -30,21 +31,32 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<List<BoothActivity>>> AddUserBoothActivities(
-            [FromBody] List<BoothActivity> boothActivityList
-        )
+        [FromBody] List<BoothActivity> boothActivityList)
         {
-            if (boothActivityList == null || boothActivityList.Count == 0)
-                return BadRequest();
+            if (boothActivityList is null || boothActivityList.Count == 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "boothActivityList cannot be null or empty.",
+                        nameof(AddUserBoothActivities),
+                        new { count = boothActivityList?.Count }
+                    ),
+                    nameof(boothActivityList)
+                );
 
-            try
-            {
-                var createdRecords = await _boothActivityRepository.AddUserBoothActivitiesAsync(boothActivityList);
-                return Ok(createdRecords);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { error = ex.Message });
-            }
+
+            var createdRecords = await _boothActivityRepository.AddUserBoothActivitiesAsync(boothActivityList);
+
+            if (createdRecords is null)
+                throw new InvalidOperationException(
+                    GlobalException.FormatExceptionMessage(
+                        "Creation failed.",
+                        nameof(AddUserBoothActivities),
+                        new { requested = boothActivityList.Count }
+                    )
+                );
+
+            return Ok(createdRecords);
         }
+
     }
 }
