@@ -261,7 +261,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             if (repoReturnsNull)
             {
-                await Assert.ThrowsAsync<KeyNotFoundException>(
+                await Assert.ThrowsAsync<ResourceNotFoundException>(
                     () => sut.UpdateTeleportTableById(spaceId, tableId, defaultDto)
                 );
             }
@@ -500,7 +500,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             var result = await sut.DeleteTeleportTable(1, 2);
 
             // ASSERT
-            var ok = result.Should().BeOfType<NoContentResult>().Subject;
+            result.Should().BeOfType<NoContentResult>();
         }
 
         #endregion
