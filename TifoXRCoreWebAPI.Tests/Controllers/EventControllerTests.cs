@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using System.Data;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions; // for ResourceNotFoundException
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -60,6 +61,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
             ok.StatusCode.Should().Be(StatusCodes.Status200OK);
             ok.Value.Should().BeEquivalentTo(sample, opts => opts.WithStrictOrdering());
+            repo.Verify(r => r.GetEventByIdAsync(100), Times.Once);
         }
 
         /// <summary>
@@ -68,9 +70,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         /// or when an invalid event_id (e.g., non-positive) is passed.
         /// </summary>
         [Theory]
-        [InlineData(200, true)]   // repo returns null => not found
+        [InlineData(200, true)]  // repo returns null => not found
         [InlineData(0, false)]   // invalid id => argument error
-        [InlineData(-1, false)]   // invalid id => argument error
+        [InlineData(-1, false)]  // invalid id => argument error
         public async Task GetById_ThrowsNotFoundOrArg(int eventId, bool repoReturnsNull)
         {
             // ARRANGE
@@ -83,7 +85,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             if (repoReturnsNull)
             {
-                await Assert.ThrowsAsync<KeyNotFoundException>(
+                await Assert.ThrowsAsync<ResourceNotFoundException>(
                     () => sut.GetEventDataByID(eventId)
                 );
                 repo.Verify(r => r.GetEventByIdAsync(eventId), Times.Once);
@@ -93,6 +95,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 await Assert.ThrowsAsync<ArgumentException>(
                     () => sut.GetEventDataByID(eventId)
                 );
+                repo.Verify(r => r.GetEventByIdAsync(It.IsAny<int>()), Times.Never);
             }
         }
 
@@ -109,7 +112,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.GetEventDataByID(300));
-            Assert.Equal("Simulated repository exception", ex.Message);
+            ex.Message.Should().Be("Simulated repository exception");
         }
 
         #endregion
@@ -127,6 +130,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             await Assert.ThrowsAsync<ArgumentNullException>(
                 () => sut.CreateEvent(null!)
             );
+            repo.Verify(r => r.CreateEventAsync(It.IsAny<Event>()), Times.Never);
         }
 
         /// <summary>
@@ -145,6 +149,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => sut.CreateEvent(dto)
             );
+            repo.Verify(r => r.CreateEventAsync(dto), Times.Once);
         }
 
         /// <summary>
@@ -175,6 +180,23 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             repo.Verify(r => r.CreateEventAsync(dto), Times.Once);
         }
 
+        /// <summary>
+        /// Verifies that CreateEvent propagates generic repository exceptions.
+        /// </summary>
+        [Fact]
+        public async Task Create_ThrowsRepositoryEx()
+        {
+            // ARRANGE
+            var dto = dtoBuilder.Build();
+            repo.Setup(r => r.CreateEventAsync(dto))
+                .ThrowsAsync(new Exception("CreateEventAsync blew up"));
+
+            // ACT & ASSERT
+            var ex = await Assert.ThrowsAsync<Exception>(() => sut.CreateEvent(dto));
+            ex.Message.Should().Be("CreateEventAsync blew up");
+            repo.Verify(r => r.CreateEventAsync(dto), Times.Once);
+        }
+
         #endregion
 
         #region PUT
@@ -193,6 +215,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             await Assert.ThrowsAsync<ArgumentNullException>(
                 () => sut.UpdateEvent(1, null!)
             );
+            repo.Verify(r => r.UpdateEventAsync(It.IsAny<int>(), It.IsAny<Event>()), Times.Never);
         }
 
         /// <summary>
@@ -217,6 +240,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ASSERT
             var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.StatusCode.Should().Be(StatusCodes.Status200OK);
             ok.Value.Should().BeEquivalentTo(updated, opts => opts.WithStrictOrdering());
             repo.Verify(r => r.UpdateEventAsync(1, dto), Times.Once);
         }
@@ -244,15 +268,17 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             if (repoReturnsNull && eventId > 0)
             {
-                await Assert.ThrowsAsync<KeyNotFoundException>(
+                await Assert.ThrowsAsync<ResourceNotFoundException>(
                     () => sut.UpdateEvent(eventId, dto)
                 );
+                repo.Verify(r => r.UpdateEventAsync(eventId, dto), Times.Once);
             }
             else
             {
                 await Assert.ThrowsAsync<ArgumentException>(
                     () => sut.UpdateEvent(eventId, dto)
                 );
+                repo.Verify(r => r.UpdateEventAsync(It.IsAny<int>(), It.IsAny<Event>()), Times.Never);
             }
         }
 
@@ -273,7 +299,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 () => sut.UpdateEvent(3, dto)
             );
 
-            Assert.Equal("UpdateEventAsync encountered a database error", ex.Message);
+            ex.Message.Should().Be("UpdateEventAsync encountered a database error");
         }
 
         /// <summary>

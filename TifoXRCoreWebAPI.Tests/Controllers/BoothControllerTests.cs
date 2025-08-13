@@ -13,6 +13,7 @@ using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions; // <-- for ResourceNotFoundException
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -74,7 +75,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Verifies that GetAllBoothsBySpace throws KeyNotFoundException when the repository
+        /// Verifies that GetAllBoothsBySpace throws ResourceNotFoundException when the repository
         /// returns null or an empty list (resource not found).
         /// </summary>
         /// <param name="repoReturnsNull">If true, repo returns null; otherwise an empty list.</param>
@@ -90,7 +91,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 repo.Setup(r => r.GetAllBoothsBySpaceAsync(200)).ReturnsAsync(new List<BoothModel>());
 
             // ACT & ASSERT
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.GetAllBoothsBySpace(200));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetAllBoothsBySpace(200));
         }
 
         /// <summary>
@@ -280,7 +281,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Verifies that UpdateBooth throws KeyNotFoundException when the repository returns null (not found).
+        /// Verifies that UpdateBooth throws ResourceNotFoundException when the repository returns null (not found).
         /// </summary>
         [Fact]
         public async Task UpdateBooth_ThrowsNotFound_WhenRepoReturnsNull()
@@ -290,7 +291,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 .ReturnsAsync((BoothModel?)null);
 
             // ACT & ASSERT
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.UpdateBooth(1, 999, defaultUpdateDto));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.UpdateBooth(1, 999, defaultUpdateDto));
         }
 
         /// <summary>
@@ -372,7 +373,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Ensures DeleteBoothCascade throws KeyNotFoundException when repository returns false (not found).
+        /// Ensures DeleteBoothCascade throws ResourceNotFoundException when repository returns false (not found).
         /// </summary>
         [Fact]
         public async Task DeleteBoothCascade_ThrowsNotFound_WhenRepoReturnsFalse()
@@ -381,7 +382,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             repo.Setup(r => r.DeleteBoothCascadeAsync(1, 2)).ReturnsAsync(false);
 
             // ACT & ASSERT
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.DeleteBoothCascade(1, 2));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.DeleteBoothCascade(1, 2));
         }
 
         /// <summary>
@@ -398,6 +399,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ASSERT
             result.Should().BeOfType<NoContentResult>();
+            repo.Verify(r => r.DeleteBoothCascadeAsync(5, 6), Times.Once);
         }
 
         /// <summary>
