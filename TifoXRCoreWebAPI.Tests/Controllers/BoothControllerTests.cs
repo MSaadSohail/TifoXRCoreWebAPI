@@ -302,11 +302,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         {
             // ARRANGE
             repo.Setup(r => r.UpdateBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<BoothUpdateDto>()))
-                .ThrowsAsync(new Exception("DB blew up"));
+                .ThrowsAsync(new Exception("Failed to update booth record in the database"));
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.UpdateBooth(3, 4, defaultUpdateDto));
-            ex.Message.Should().Be("DB blew up");
+            ex.Message.Should().Be("Failed to update booth record in the database");
         }
 
         /// <summary>

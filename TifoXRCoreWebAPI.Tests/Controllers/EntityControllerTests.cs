@@ -111,11 +111,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         {
             // ARRANGE
             repo.Setup(r => r.GetByIdAsync(It.IsAny<int>()))
-                .ThrowsAsync(new Exception("GetByIdAsync failed"));
+                .ThrowsAsync(new Exception("Simulated repository failure during entity retrieval"));
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.Get(9));
-            ex.Message.Should().Be("GetByIdAsync failed");
+            ex.Message.Should().Be("Simulated repository failure during entity retrieval");
         }
 
         #endregion
@@ -175,11 +175,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         {
             // ARRANGE
             var dto = dtoBuilder.Build();
-            repo.Setup(r => r.CreateAsync(dto)).ThrowsAsync(new Exception("CreateAsync failed"));
+            repo.Setup(r => r.CreateAsync(dto)).ThrowsAsync(new Exception("Simulated repository failure during entity creation"));
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.Create(dto));
-            ex.Message.Should().Be("CreateAsync failed");
+            ex.Message.Should().Be("Simulated repository failure during entity creation");
             repo.Verify(r => r.CreateAsync(dto), Times.Once);
         }
 
@@ -282,11 +282,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ARRANGE
             var dto = dtoBuilder.Build();
             repo.Setup(r => r.UpdateAsync(It.IsAny<int>(), It.IsAny<Entity>()))
-                .ThrowsAsync(new Exception("UpdateAsync failed"));
+                .ThrowsAsync(new Exception("Simulated repository failure during entity update"));
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.Update(9, dto));
-            ex.Message.Should().Be("UpdateAsync failed");
+            ex.Message.Should().Be("Simulated repository failure during entity update");
         }
 
         /// <summary>
@@ -298,7 +298,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ARRANGE
             var dto = dtoBuilder.Build();
             repo.Setup(r => r.UpdateAsync(It.IsAny<int>(), It.IsAny<Entity>()))
-                .ThrowsAsync(new DBConcurrencyException("Row was modified by another process"));
+                .ThrowsAsync(new DBConcurrencyException("Simulated concurrency conflict during entity update: row was changed by another user"));
 
             // ACT & ASSERT
             await Assert.ThrowsAsync<DBConcurrencyException>(() => sut.Update(12, dto));

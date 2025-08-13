@@ -189,11 +189,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ARRANGE
             var dto = dtoBuilder.Build();
             repo.Setup(r => r.CreateEventAsync(dto))
-                .ThrowsAsync(new Exception("CreateEventAsync blew up"));
+                .ThrowsAsync(new Exception("Simulated repository failure during event creation"));
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<Exception>(() => sut.CreateEvent(dto));
-            ex.Message.Should().Be("CreateEventAsync blew up");
+            ex.Message.Should().Be("Simulated repository failure during event creation");
             repo.Verify(r => r.CreateEventAsync(dto), Times.Once);
         }
 
@@ -311,7 +311,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ARRANGE
             var dto = dtoBuilder.Build();
             repo.Setup(r => r.UpdateEventAsync(It.IsAny<int>(), It.IsAny<Event>()))
-                .ThrowsAsync(new DBConcurrencyException("Row was modified by another process"));
+                .ThrowsAsync(new DBConcurrencyException("Event update failed due to a concurrency conflict: row was changed by another user"));
 
             // ACT & ASSERT
             await Assert.ThrowsAsync<DBConcurrencyException>(
