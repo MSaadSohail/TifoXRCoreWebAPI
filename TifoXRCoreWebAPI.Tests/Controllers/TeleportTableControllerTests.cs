@@ -6,15 +6,17 @@
 // <summary>Unit tests for TeleportTableController covering endpoint behavior.</summary>
 
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+using System.Data;
+
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Moq;
-using System.Data;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -85,7 +87,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             if (repoReturnsNull)
             {
-                await Assert.ThrowsAsync<KeyNotFoundException>(
+                await Assert.ThrowsAsync<ResourceNotFoundException>(
                     () => sut.GetTeleportTablesBySpace(spaceId)
                 );
                 repo.Verify(r => r.GetTeleportTableBySpaceAsync(spaceId), Times.Once);
@@ -480,7 +482,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             repo.Setup(r => r.DeleteTeleportTableAsync(1, 2)).ReturnsAsync(false);
 
             // ACT & ASSERT
-            await Assert.ThrowsAsync<KeyNotFoundException>(
+            await Assert.ThrowsAsync<ResourceNotFoundException>(
                 () => sut.DeleteTeleportTable(1, 2)
             );
         }
@@ -498,7 +500,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             var result = await sut.DeleteTeleportTable(1, 2);
 
             // ASSERT
-            result.Should().BeOfType<NoContentResult>();
+            var ok = result.Should().BeOfType<NoContentResult>().Subject;
         }
 
         #endregion

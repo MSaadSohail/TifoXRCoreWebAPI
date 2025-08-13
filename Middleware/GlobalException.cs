@@ -17,6 +17,9 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
 {
     public class GlobalException(RequestDelegate next, ILogger<GlobalException> logger, IHostEnvironment env)
     {
+
+        const string ERROR_MESSAGE = "NULL REFERENECE for {0} in Function {1}";
+
         private readonly RequestDelegate _next = next;
         private readonly ILogger<GlobalException> _logger = logger;
         private readonly IHostEnvironment _env = env;
@@ -202,6 +205,12 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
                 : $" | Details: {extra}";
 
             return $"Method: [{methodName}]{paramStr}{extraStr} | Issue: {issue}";
+        }
+
+        public static string FormatExceptionMessage(
+            string errorMesage, params object[] args)
+        {
+            return string.Format(errorMesage, args);
         }
     }
 

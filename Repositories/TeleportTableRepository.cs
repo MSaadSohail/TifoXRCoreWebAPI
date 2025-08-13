@@ -11,11 +11,14 @@ using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Utilities;
 using MySqlConnector;
 using System.Data;
+using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class TeleportTableRepository(IConfiguration configuration) : ITeleportTableRepository
+    public class TeleportTableRepository(IConfiguration configuration, IDbProvider db) : ITeleportTableRepository
     {
+        private readonly IDbProvider _db = db;
+
         private readonly string _connStr = configuration.GetConnectionString("DefaultConnection");
 
         #region GET
@@ -59,73 +62,101 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 ORDER BY b.id, bi.locale_id;
             ";
 
-            await using var conn = new MySqlConnection(_connStr);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
 
-            await conn.OpenAsync();
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
             TeleportTableData? table = null;
-            Dictionary<int, ButtonData> buttonMap = new();
-
-            // Track LocalizedName values for table and each button
-            List<LocalizedValue> tableLocals = new();
-            Dictionary<int, List<LocalizedValue>> buttonLocals = new();
-
-            await using var cmd = new MySqlCommand(sql, conn);
-
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+            var buttonMap = new Dictionary<int, ButtonData>();
+            var tableLocals = new List<LocalizedValue>();
+            var buttonLocals = new Dictionary<int, List<LocalizedValue>>();
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
+            // Cache ordinals once for speed and to allow name-based access on DbDataReader
+            bool ordReady = false;
+            int o_table_id = -1, o_space_id = -1, o_is_active = -1, o_table_name_key = -1, o_table_locale_id = -1, o_table_localized_value = -1;
+            int o_button_id = -1, o_button_name_key = -1, o_button_is_active = -1, o_map_spot_id = -1;
+            int o_map_spot_x = -1, o_map_spot_y = -1, o_map_spot_z = -1;
+            int o_button_locale_id = -1, o_button_localized_value = -1;
+
             while (await reader.ReadAsync())
             {
+                if (!ordReady)
+                {
+                    o_table_id = reader.GetOrdinal("table_id");
+                    o_space_id = reader.GetOrdinal("space_id");
+                    o_is_active = reader.GetOrdinal("is_active");
+                    o_table_name_key = reader.GetOrdinal("table_name_key");
+                    o_table_locale_id = reader.GetOrdinal("table_locale_id");
+                    o_table_localized_value = reader.GetOrdinal("table_localized_value");
+
+                    o_button_id = reader.GetOrdinal("button_id");
+                    o_button_name_key = reader.GetOrdinal("button_name_key");
+                    o_button_is_active = reader.GetOrdinal("button_is_active");
+                    o_map_spot_id = reader.GetOrdinal("map_spot_id");
+
+                    o_map_spot_x = reader.GetOrdinal("map_spot_x");
+                    o_map_spot_y = reader.GetOrdinal("map_spot_y");
+                    o_map_spot_z = reader.GetOrdinal("map_spot_z");
+
+                    o_button_locale_id = reader.GetOrdinal("button_locale_id");
+                    o_button_localized_value = reader.GetOrdinal("button_localized_value");
+
+                    ordReady = true;
+                }
+
                 table ??= new TeleportTableData
                 {
-                    Id = reader.GetInt32("table_id"),
-                    SpaceId = reader.GetInt32("space_id"),
-                    IsActive = reader.GetBoolean("is_active"),
-                    NameKey = reader.GetString("table_name_key"),
+                    Id = reader.GetInt32(o_table_id),
+                    SpaceId = reader.GetInt32(o_space_id),
+                    IsActive = reader.GetBoolean(o_is_active),
+                    NameKey = reader.GetString(o_table_name_key),
                     LocalizedPairs = new LocalizedPairs
                     {
-                        Key = reader.GetString("table_name_key"),
+                        Key = reader.GetString(o_table_name_key),
                         Values = tableLocals
                     },
                     Buttons = []
                 };
 
                 // Table i18n
-                if (!reader.IsDBNull("table_locale_id") && !reader.IsDBNull("table_localized_value"))
+                if (!reader.IsDBNull(o_table_locale_id) && !reader.IsDBNull(o_table_localized_value))
                 {
-                    var localeId = reader.GetString("table_locale_id");
-                    var value = reader.GetString("table_localized_value");
+                    var localeId = reader.GetString(o_table_locale_id);
+                    var value = reader.GetString(o_table_localized_value);
 
                     if (!tableLocals.Any(v => v.LocaleId == localeId))
                         tableLocals.Add(new LocalizedValue { LocaleId = localeId, Value = value });
                 }
 
                 // Button (may be null if table has no buttons)
-                if (!reader.IsDBNull("button_id"))
+                if (!reader.IsDBNull(o_button_id))
                 {
-                    var buttonId = reader.GetInt32("button_id");
+                    var buttonId = reader.GetInt32(o_button_id);
 
                     if (!buttonMap.TryGetValue(buttonId, out var btn))
                     {
                         btn = new ButtonData
                         {
                             Id = buttonId,
-                            NameKey = reader.GetString("button_name_key"),
-                            IsActive = reader.GetBoolean("button_is_active"),
-                            LocalizedPairs = new LocalizedPairs   
+                            NameKey = reader.IsDBNull(o_button_name_key) ? string.Empty : reader.GetString(o_button_name_key),
+                            IsActive = !reader.IsDBNull(o_button_is_active) && reader.GetBoolean(o_button_is_active),
+                            LocalizedPairs = new LocalizedPairs
                             {
-                                Key = reader.GetString("button_name_key"),
+                                Key = reader.IsDBNull(o_button_name_key) ? string.Empty : reader.GetString(o_button_name_key),
                                 Values = []
                             },
-                            MapSpot = reader.IsDBNull("map_spot_id") ? null : new MapSpotData
-                            {
-                                Id = reader.GetInt32("map_spot_id"),
-                                X = reader.IsDBNull("map_spot_x") ? 0 : reader.GetDecimal("map_spot_x"),
-                                Y = reader.IsDBNull("map_spot_y") ? 0 : reader.GetDecimal("map_spot_y"),
-                                Z = reader.IsDBNull("map_spot_z") ? 0 : reader.GetDecimal("map_spot_z")
-                            }
+                            MapSpot = reader.IsDBNull(o_map_spot_id)
+                                ? null
+                                : new MapSpotData
+                                {
+                                    Id = reader.GetInt32(o_map_spot_id),
+                                    X = reader.IsDBNull(o_map_spot_x) ? 0 : reader.GetDecimal(o_map_spot_x),
+                                    Y = reader.IsDBNull(o_map_spot_y) ? 0 : reader.GetDecimal(o_map_spot_y),
+                                    Z = reader.IsDBNull(o_map_spot_z) ? 0 : reader.GetDecimal(o_map_spot_z)
+                                }
                         };
 
                         buttonMap[buttonId] = btn;
@@ -133,11 +164,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     }
 
                     // Button i18n
-                    if (!reader.IsDBNull("button_locale_id") &&
-                        !reader.IsDBNull("button_localized_value"))
+                    if (!reader.IsDBNull(o_button_locale_id) && !reader.IsDBNull(o_button_localized_value))
                     {
-                        var localeId = reader.GetString("button_locale_id");
-                        var value = reader.GetString("button_localized_value");
+                        var localeId = reader.GetString(o_button_locale_id);
+                        var value = reader.GetString(o_button_localized_value);
                         var values = buttonLocals[buttonId];
 
                         if (!values.Any(v => v.LocaleId == localeId))
