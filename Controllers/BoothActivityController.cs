@@ -13,11 +13,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [Route("api/metrics")]
     [ApiController]
-    public class MetricsController : ControllerBase
+    public class BoothActivityController : ControllerBase
     {
         private readonly IBoothActivityRepository _boothActivityRepository;
 
-        public MetricsController(IBoothActivityRepository boothActivityRepository)
+        public BoothActivityController(IBoothActivityRepository boothActivityRepository)
         {
             _boothActivityRepository = boothActivityRepository;
         }

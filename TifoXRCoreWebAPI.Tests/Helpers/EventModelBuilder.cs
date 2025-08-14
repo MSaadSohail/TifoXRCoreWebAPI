@@ -14,7 +14,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Fluent builder for <see cref="EventData"/> to reduce repetition and improve clarity in unit tests.
-    /// Mirrors the Teleport model builder style by allowing step-by-step customization
     /// of key EventData fields such as localization, schedule, and metadata.
     /// </summary>
     public class EventModelBuilder

@@ -3,7 +3,7 @@
 // </copyright>
 // <author>Urvashi Dhingra</author>
 // <date>08/12/2025</date>
-// <summary>Unit tests for EntityController covering endpoint behavior, mirroring Teleport tests' style and depth.</summary>
+// <summary>Unit tests for EntityController covering endpoint behavior.</summary>
 
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
@@ -138,7 +138,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
         /// <summary>
         /// Ensures Create throws ArgumentException when LocalizedPairs.Values is empty.
-        /// (Controller-level validation mirrors Teleport's style.)
         /// </summary>
         [Fact]
         public async Task Create_ThrowsArgEx_OnEmptyLocalizedPairs()

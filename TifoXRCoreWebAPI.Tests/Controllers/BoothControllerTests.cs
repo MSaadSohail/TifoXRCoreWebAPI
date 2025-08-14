@@ -3,7 +3,7 @@
 // </copyright>
 // <author>Urvashi Dhingra</author>
 // <date>08/11/2025</date>
-// <summary>Unit tests for BoothController covering endpoint behavior, mirroring TeleportTableControllerTests style and depth.</summary>
+// <summary>Unit tests for BoothController covering endpoint behavior</summary>
 
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
@@ -37,7 +37,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             repo = new Mock<IBoothRepository>();
             sut = new BoothController(repo.Object);
 
-            // Default test DTOs (builders mirror Teleport's test helpers)
             defaultUpdateDto = new BoothUpdateDtoBuilder().Build();
             defaultCreateDto = new BoothCreateDtoBuilder().Build();
         }
@@ -311,7 +310,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
         /// <summary>
         /// Verifies controller behavior when LocalizedPairs is null in the incoming DTO.
-        /// Mirrors the Teleport tests for invalid DTO state by arranging the repository to throw ArgumentException
         /// and asserting the controller propagates it.
         /// </summary>
         [Fact]
@@ -331,7 +329,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
         /// <summary>
         /// Verifies controller behavior when MapSpot is null in the incoming DTO.
-        /// The repository throws an ArgumentException and the controller propagates it, mirroring Teleport's tests.
+        /// The repository throws an ArgumentException and the controller propagates it.
         /// </summary>
         [Fact]
         public async Task UpdateBooth_ThrowsArgEx_WhenMapSpotIsNull()

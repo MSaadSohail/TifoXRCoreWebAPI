@@ -12,7 +12,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Builds EntityData objects with sensible defaults and chainable overrides.
-    /// Mirrors the pattern used by Teleport builders for predictable test data.
     /// </summary>
     public class EntityModelBuilder
     {

@@ -13,7 +13,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; set; }
         public LocalizedPairs LocalizedPairs { get; set; }
         public int MapSpotId { get; set; }
-        //public MapSpotModel MapSpot { get; set; }
+
+        public MapSpotModel MapSpot { get; set; }
 
     }
 
@@ -42,6 +43,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public LocalizedPairs LocalizedPairs { get; set; }
         public int MapSpotId { get; set; }
+
+        public MapSpotModel MapSpot { get; set; }
 
     }
 

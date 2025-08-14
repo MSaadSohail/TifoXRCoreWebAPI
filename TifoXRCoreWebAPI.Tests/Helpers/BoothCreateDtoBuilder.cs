@@ -11,7 +11,7 @@ using GMS.TifoXRCoreWebAPI.Models.Common;
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Fluent builder for BoothCreateDto, mirroring the helper pattern used by Teleport tests.
+    /// Fluent builder for BoothCreateDto.
     /// </summary>
     public class BoothCreateDtoBuilder
     {

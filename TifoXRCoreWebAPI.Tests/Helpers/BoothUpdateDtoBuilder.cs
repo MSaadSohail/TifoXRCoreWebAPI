@@ -12,7 +12,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
     /// Fluent builder for BoothUpdateDto to reduce repetition in test setup and to model invalid DTO states cleanly.
-    /// Mirrors the approach used by TeleportTableUpdateDtoBuilder.
     /// </summary>
     public class BoothUpdateDtoBuilder
     {

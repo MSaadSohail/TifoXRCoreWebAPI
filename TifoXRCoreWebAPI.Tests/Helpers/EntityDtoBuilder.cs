@@ -11,7 +11,7 @@ using GMS.TifoXRCoreWebAPI.Models.Common;
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Builds Entity DTO objects with chainable overrides (mirrors Teleport DTO builders).
+    /// Builds Entity DTO objects with chainable overrides.
     /// Provides helpers to craft invalid DTOs for negative-path tests.
     /// </summary>
     public class EntityDtoBuilder
