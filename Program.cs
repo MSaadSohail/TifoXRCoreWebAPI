@@ -2,7 +2,7 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Syed Hussain</author>
-// <date>07/28/2025</date>
+// <date>08/14/2025</date>
 // <summary>Initializes and configures the ASP.NET Core Web API application</summary>
 
 using Microsoft.EntityFrameworkCore;
@@ -22,11 +22,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection"),
         new MySqlServerVersion(new Version(8, 0, 0))));
 
+var appInsightsConnectionString = builder.Configuration
+    .GetSection("ApplicationInsights:ConnectionString")
+    .Value;
+
+
 var services = builder.Services;
 
 // Automatically register all IRepository -> Repository mappings
 var repositoryAssembly = Assembly.GetExecutingAssembly();
-AppLogger.Initialize();
+
+
+// Initialize AppLogger
+AppLogger.Initialize(appInsightsConnectionString ?? string.Empty);
 
 var typesWithInterfaces = repositoryAssembly
     .GetTypes()

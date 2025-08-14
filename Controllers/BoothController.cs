@@ -6,11 +6,12 @@
 // <summary>Controller to handle booth routes</summary>
 
 
-using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using Microsoft.AspNetCore.Mvc;
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Utilities;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -32,9 +33,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace(
-            [FromRoute] int spaceId)
+        [FromRoute] int spaceId)
         {
+            AppLogger.Info($"[GetAllBoothsBySpace] Request received for spaceId={spaceId}");
+
             if (spaceId <= 0)
+            {
                 throw new ArgumentException(
                     GlobalException.FormatExceptionMessage(
                         "spaceId must be a positive integer.",
@@ -43,10 +47,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ),
                     nameof(spaceId)
                 );
+            }
 
             var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
 
             if (booths == null || booths.Count == 0)
+            {
                 throw new ResourceNotFoundException(
                     GlobalException.FormatExceptionMessage(
                         "No booths found for the specified space.",
@@ -54,7 +60,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                         new { spaceId }
                     )
                 );
-
+            }
+            AppLogger.Info($"[GetAllBoothsBySpace] Successfully returning {booths.Count} booths for spaceId={spaceId}");
             return Ok(booths);
         }
 

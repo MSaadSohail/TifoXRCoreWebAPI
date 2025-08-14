@@ -5,13 +5,13 @@
 // <date>08/04/2025</date>
 // <summary>Middleware Class to global exception handling</summary>
 
+using GMS.TifoXRCoreWebAPI.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Utilities;
+using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Net;
 using System.Text.Json;
-using System.ComponentModel.DataAnnotations;
-
-using GMS.TifoXRCoreWebAPI.Errors;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Middleware
 {
@@ -64,6 +64,10 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
                 context.Request.QueryString,
                 requestBody
             );
+
+            AppLogger.Error(exception,
+                $"Exception caught in GlobalExceptionMiddleware. Path: {context.Request.Path}, " +
+                $"Query: {context.Request.QueryString}, Body: {requestBody}");
 
             var response = new ErrorResponse
             {

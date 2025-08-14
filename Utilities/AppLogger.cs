@@ -6,11 +6,13 @@
 // <summary>Thin Wrapper around Serilog</summary>
 using Serilog;
 using RollingInterval = Serilog.RollingInterval;
+using Microsoft.ApplicationInsights.Extensibility;
+
 namespace GMS.TifoXRCoreWebAPI.Utilities
 {
     public static class AppLogger
     {
-        public static void Initialize()
+        public static void Initialize(string appInsightsConnectionString)
         {
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
@@ -18,6 +20,9 @@ namespace GMS.TifoXRCoreWebAPI.Utilities
                 .WriteTo.File("logs/TifoXRCoreWebAPI_log.txt",
                     rollingInterval: RollingInterval.Day,
                     outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.ApplicationInsights(
+                new TelemetryConfiguration { ConnectionString = appInsightsConnectionString },
+                TelemetryConverter.Traces)
                 .CreateLogger();
         }
 
