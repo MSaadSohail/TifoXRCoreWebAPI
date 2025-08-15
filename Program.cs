@@ -17,30 +17,6 @@ using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        new MySqlServerVersion(new Version(8, 0, 0))));
-
-var appInsightsConnectionString = builder.Configuration
-    .GetSection("ApplicationInsights:ConnectionString")
-    .Value;
-
-
-var services = builder.Services;
-
-// Automatically register all IRepository -> Repository mappings
-var repositoryAssembly = Assembly.GetExecutingAssembly();
-
-
-// Initialize AppLogger
-AppLogger.Initialize(appInsightsConnectionString ?? string.Empty);
-
 // 1) Services
 ConfigureServices(builder.Services, builder.Configuration);
 
@@ -96,6 +72,15 @@ static void ConfigureServices(IServiceCollection services, IConfiguration config
         options.AddPolicy("AllowAll", policy =>
             policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
     });
+
+    // ---- Logging ----
+    var appInsightsConnectionString = config["ApplicationInsights:ConnectionString"];
+
+    // Automatically register all IRepository -> Repository mappings
+    var repositoryAssembly = Assembly.GetExecutingAssembly();
+
+    // Initialize AppLogger
+    AppLogger.Initialize(appInsightsConnectionString ?? string.Empty);
 }
 
 static void ConfigurePipeline(WebApplication app, IWebHostEnvironment env)
