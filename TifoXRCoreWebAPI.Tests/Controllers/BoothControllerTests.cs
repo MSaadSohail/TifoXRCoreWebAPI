@@ -2,8 +2,8 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/30/2025</date>
-// <summary>Unit tests for BoothController covering all endpoint behavior.</summary>
+// <date>08/11/2025</date>
+// <summary>Unit tests for BoothController covering endpoint behavior</summary>
 
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
@@ -13,283 +13,408 @@ using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions; // <-- for ResourceNotFoundException
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
+    /// <summary>
+    /// Tests the BoothController using a mocked IBoothRepository.
+    /// Follows the same organization and thoroughness as TeleportTableControllerTests.
+    /// </summary>
     public class BoothControllerTests
     {
-        private readonly Mock<IBoothRepository> mockRepo;
+        private readonly Mock<IBoothRepository> repo;
         private readonly BoothController sut;
-        private readonly BoothCreateDto defaultCreateDto;
         private readonly BoothUpdateDto defaultUpdateDto;
-        private readonly BoothModelBuilder boothBuilder;
+        private readonly BoothCreateDto defaultCreateDto;
 
+        /// <summary>
+        /// Initializes the test fixture with a mock repository, controller under test, and default DTOs.
+        /// </summary>
         public BoothControllerTests()
         {
-            mockRepo = new Mock<IBoothRepository>();
-            sut = new BoothController(mockRepo.Object);
-            defaultCreateDto = new BoothCreateDtoBuilder().Build();
+            // Initialize mock repository and controller under test
+            repo = new Mock<IBoothRepository>();
+            sut = new BoothController(repo.Object);
+
             defaultUpdateDto = new BoothUpdateDtoBuilder().Build();
-            boothBuilder = new BoothModelBuilder();
+            defaultCreateDto = new BoothCreateDtoBuilder().Build();
         }
 
+        #region GET
         //
-        // GET /space/{spaceId}/booths
+        // GET /api/space/{spaceId}/booths
         //
 
         /// <summary>
-        /// Verifies that GetAllBoothsBySpace returns 200 OK when booths exist,
-        /// and 404 NotFound when the repo returns an empty list or null.
+        /// Verifies that GetAllBoothsBySpace returns 200 OK with the correct payload
+        /// when the repository returns a non-empty list of booths.
         /// </summary>
-        [Theory]
-        [InlineData(true, false)]  // booths exist → 200
-        [InlineData(false, false)] // empty list → 404
-        [InlineData(false, true)]  // null         → 404
-        public async Task getAllBoothsBySpaceReturnsOkOrNotFoundForListVariations(bool hasBooths, bool returnNull)
+        [Fact]
+        public async Task GetAllBoothsBySpace_ReturnsOk_OnSuccess()
         {
             // ARRANGE
-            List<BoothModel>? booths = returnNull
-                ? null
-                : hasBooths
-                    ? new List<BoothModel> { boothBuilder.WithId(1).Build() }
-                    : new List<BoothModel>();
+            var list = new List<BoothModel>
+            {
+                new BoothModelBuilder().WithId(1).WithSpaceId(100).Build(),
+                new BoothModelBuilder().WithId(2).WithSpaceId(100).Build()
+            };
 
-            mockRepo.Setup(r => r.GetAllBoothsBySpaceAsync(100)).ReturnsAsync(booths);
+            repo.Setup(r => r.GetAllBoothsBySpaceAsync(100))
+                .ReturnsAsync(list);
 
             // ACT
             var result = await sut.GetAllBoothsBySpace(100);
 
             // ASSERT
-            if (hasBooths)
-            {
-                var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-                ok.StatusCode.Should().Be(StatusCodes.Status200OK);
-                ok.Value.Should().BeEquivalentTo(booths);
-            }
-            else
-            {
-                result.Result.Should().BeOfType<NotFoundResult>();
-            }
+            var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.StatusCode.Should().Be(StatusCodes.Status200OK);
+            ok.Value.Should().BeEquivalentTo(list, opts => opts.WithStrictOrdering());
+            repo.Verify(r => r.GetAllBoothsBySpaceAsync(100), Times.Once);
         }
 
         /// <summary>
-        /// Verifies that GetAllBoothsBySpace returns 500 when the repository throws.
+        /// Verifies that GetAllBoothsBySpace throws ResourceNotFoundException when the repository
+        /// returns null or an empty list (resource not found).
         /// </summary>
-        [Fact]
-        public async Task getBySpaceReturns500OnException()
+        /// <param name="repoReturnsNull">If true, repo returns null; otherwise an empty list.</param>
+        [Theory]
+        [InlineData(true)]   // repo returns null
+        [InlineData(false)]  // repo returns empty list
+        public async Task GetAllBoothsBySpace_ThrowsNotFound_WhenNullOrEmpty(bool repoReturnsNull)
         {
             // ARRANGE
-            mockRepo.Setup(r => r.GetAllBoothsBySpaceAsync(It.IsAny<int>())).ThrowsAsync(new Exception("fail"));
+            if (repoReturnsNull)
+                repo.Setup(r => r.GetAllBoothsBySpaceAsync(200)).ReturnsAsync((List<BoothModel>?)null);
+            else
+                repo.Setup(r => r.GetAllBoothsBySpaceAsync(200)).ReturnsAsync(new List<BoothModel>());
 
             // ACT & ASSERT
-            await AssertThrows500(() => sut.GetAllBoothsBySpace(100), "fail");
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetAllBoothsBySpace(200));
         }
 
+        /// <summary>
+        /// Verifies that GetAllBoothsBySpace throws ArgumentException for invalid spaceId values.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(-42)]
+        public async Task GetAllBoothsBySpace_ThrowsArgEx_OnInvalidSpaceId(int spaceId)
+        {
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.GetAllBoothsBySpace(spaceId));
+
+            // Ensure repository is not called when input is invalid
+            repo.Verify(r => r.GetAllBoothsBySpaceAsync(It.IsAny<int>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Verifies that GetAllBoothsBySpace propagates exceptions thrown by the repository,
+        /// to be handled by global exception handling middleware at runtime.
+        /// </summary>
+        [Fact]
+        public async Task GetAllBoothsBySpace_ThrowsRepositoryEx()
+        {
+            // ARRANGE
+            repo.Setup(r => r.GetAllBoothsBySpaceAsync(It.IsAny<int>()))
+                .ThrowsAsync(new Exception("Simulated repository failure"));
+
+            // ACT & ASSERT
+            var ex = await Assert.ThrowsAsync<Exception>(() => sut.GetAllBoothsBySpace(321));
+            ex.Message.Should().Be("Simulated repository failure");
+        }
+
+        #endregion
+
+        #region POST
         //
-        // POST /space/{spaceId}/booth
+        // POST /api/space/{spaceId}/booth
         //
 
         /// <summary>
-        /// Verifies CreateBooth returns 201 Created or 400 BadRequest when DTO is null.
+        /// Ensures CreateBooth throws ArgumentException for invalid spaceId values.
         /// </summary>
         [Theory]
-        [InlineData(true)]  // dto is null
-        [InlineData(false)] // valid dto
-        public async Task createBoothReturnsExpectedResult(bool isNullDto)
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(-99)]
+        public async Task CreateBooth_ThrowsArgEx_OnInvalidSpaceId(int spaceId)
         {
-            if (isNullDto)
-            {
-                // ACT
-                var result = await sut.CreateBooth(100, null!);
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.CreateBooth(spaceId, defaultCreateDto));
 
-                // ASSERT
-                result.Result.Should().BeOfType<BadRequestResult>();
-                return;
-            }
+            // Ensure repository is not called when input is invalid
+            repo.Verify(r => r.CreateBoothAsync(It.IsAny<int>(), It.IsAny<BoothCreateDto>()), Times.Never);
+        }
 
+        /// <summary>
+        /// Ensures CreateBooth throws ArgumentNullException when the input DTO is null.
+        /// </summary>
+        [Fact]
+        public async Task CreateBooth_ThrowsArgNullEx_OnNullDto()
+        {
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentNullException>(() => sut.CreateBooth(1, null!));
+
+            // Ensure repository is not called when input is invalid
+            repo.Verify(r => r.CreateBoothAsync(It.IsAny<int>(), It.IsAny<BoothCreateDto>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Verifies CreateBooth throws InvalidOperationException when the repository returns null,
+        /// simulating a failure to persist the new booth.
+        /// </summary>
+        [Fact]
+        public async Task CreateBooth_ThrowsInvalidOpEx_OnCreateFail()
+        {
             // ARRANGE
-            var booth = boothBuilder.WithId(1).Build();
-            mockRepo.Setup(r => r.CreateBoothAsync(100, defaultCreateDto)).ReturnsAsync(booth);
+            repo.Setup(r => r.CreateBoothAsync(1, It.IsAny<BoothCreateDto>()))
+                .ReturnsAsync((BoothModel?)null);
+
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<InvalidOperationException>(() => sut.CreateBooth(1, defaultCreateDto));
+        }
+
+        /// <summary>
+        /// Verifies that CreateBooth returns CreatedAtAction with a BoothWrapper payload
+        /// when creation succeeds.
+        /// </summary>
+        [Fact]
+        public async Task CreateBooth_ReturnsCreatedAt_OnSuccess()
+        {
+            // ARRANGE
+            var created = new BoothModelBuilder()
+                            .WithId(77)
+                            .WithSpaceId(5)
+                            .WithMapSpot(1.1m, 2.2m, 3.3m)
+                            .WithLocalizedPair("en_us", "Booth EN")
+                            .Build();
+
+            var dto = new BoothCreateDtoBuilder()
+                        .WithSpaceId(5)
+                        .WithMapSpot(1.1m, 2.2m, 3.3m)
+                        .WithKey("booth_key")
+                        .WithLocalizedPair("en_us", "Booth EN")
+                        .Build();
+
+            repo.Setup(r => r.CreateBoothAsync(5, dto)).ReturnsAsync(created);
 
             // ACT
-            var result2 = await sut.CreateBooth(100, defaultCreateDto);
+            var result = await sut.CreateBooth(5, dto);
 
             // ASSERT
-            var created = result2.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
-            created.RouteValues["spaceId"].Should().Be(100);
-            created.StatusCode.Should().Be(StatusCodes.Status201Created);
-            created.Value.Should().BeEquivalentTo(new BoothWrapper { booth = booth });
+            var createdAt = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
+            createdAt.ActionName.Should().Be(nameof(BoothController.GetAllBoothsBySpace));
+            createdAt.RouteValues.Should().ContainKey("spaceId").WhoseValue.Should().Be(5);
+
+            var wrapper = createdAt.Value.Should().BeOfType<BoothWrapper>().Subject;
+            wrapper.booth.Should().BeEquivalentTo(created);
         }
 
+        #endregion
+
+        #region PUT
+        //
+        // PUT /api/space/{spaceId}/booth/{boothId}
+        //
+
         /// <summary>
-        /// Verifies CreateBooth returns 500 when LocalizedPair is invalid.
+        /// Ensures UpdateBooth throws ArgumentException for invalid spaceId/boothId values.
         /// </summary>
         [Theory]
-        [InlineData(true, false, false, "null pairs")]   // LocalizedPairs null
-        [InlineData(false, true, false, "null key")]     // key null
-        [InlineData(false, false, true, "empty values")] // values empty
-        public async Task createBoothReturns500OnInvalidLocalizedName(
-            bool nullPairs,
-            bool nullKey,
-            bool emptyValues,
-            string expectedMessage)
+        [InlineData(0, 1)]
+        [InlineData(1, 0)]
+        [InlineData(-1, 2)]
+        [InlineData(2, -1)]
+        public async Task UpdateBooth_ThrowsArgEx_OnInvalidIds(int spaceId, int boothId)
         {
-            // ARRANGE
-            var builder = new BoothCreateDtoBuilder();
-            if (nullPairs)
-                builder.WithNullLocalizedPairs();
-            else if (nullKey)
-                builder.WithLocalizedPairs(null!, new Dictionary<string, string> { { "en", "Name" } });
-            else if (emptyValues)
-                builder.WithLocalizedPairs("key", new Dictionary<string, string>());
-
-            var dto = builder.Build();
-            mockRepo
-                .Setup(r => r.CreateBoothAsync(100, dto))
-                .ThrowsAsync(new Exception(expectedMessage));
-
             // ACT & ASSERT
-            await AssertThrows500<BoothWrapper>(
-                () => sut.CreateBooth(100, dto),
-                expectedMessage
-            );
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateBooth(spaceId, boothId, defaultUpdateDto));
+
+            // Ensure repository is not called when input is invalid
+            repo.Verify(r => r.UpdateBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<BoothUpdateDto>()), Times.Never);
         }
 
         /// <summary>
-        /// Verifies CreateBooth returns 500 when the repository throws.
+        /// Ensures UpdateBooth throws ArgumentNullException when the input DTO is null.
         /// </summary>
         [Fact]
-        public async Task createBoothReturns500OnException()
-        {
-            // ARRANGE
-            mockRepo.Setup(r => r.CreateBoothAsync(100, defaultCreateDto)).ThrowsAsync(new Exception("create fail"));
-
-            // ACT & ASSERT
-            await AssertThrows500(() => sut.CreateBooth(100, defaultCreateDto), "create fail");
-        }
-
-        //
-        // PUT /space/{spaceId}/booth/{boothId}
-        //
-
-        /// <summary>
-        /// Verifies UpdateBooth returns 200 OK, 400 BadRequest, or 404 NotFound.
-        /// </summary>
-        [Theory]
-        [InlineData("nullDto")]
-        [InlineData("notFound")]
-        [InlineData("success")]
-        public async Task updateBoothReturnsExpectedResult(string scenario)
+        public async Task UpdateBooth_ThrowsArgNullEx_OnNullDto()
         {
             // ACT & ASSERT
-            switch (scenario)
-            {
-                case "nullDto":
-                    // ACT
-                    var bad = await sut.UpdateBooth(100, 1, null!);
-                    // ASSERT
-                    bad.Result.Should().BeOfType<BadRequestResult>();
-                    return;
+            await Assert.ThrowsAsync<ArgumentNullException>(() => sut.UpdateBooth(1, 2, null!));
 
-                case "notFound":
-                    // ARRANGE
-                    mockRepo.Setup(r => r.UpdateBoothAsync(100, 1, defaultUpdateDto)).ReturnsAsync((BoothModel?)null);
-                    // ACT
-                    var nf = await sut.UpdateBooth(100, 1, defaultUpdateDto);
-                    // ASSERT
-                    nf.Result.Should().BeOfType<NotFoundResult>();
-                    return;
-
-                case "success":
-                    // ARRANGE
-                    var updated = boothBuilder.WithId(1).Build();
-                    mockRepo.Setup(r => r.UpdateBoothAsync(100, 1, defaultUpdateDto)).ReturnsAsync(updated);
-                    // ACT
-                    var ok = await sut.UpdateBooth(100, 1, defaultUpdateDto);
-                    // ASSERT
-                    var okRes = ok.Result.Should().BeOfType<OkObjectResult>().Subject;
-                    okRes.StatusCode.Should().Be(StatusCodes.Status200OK);
-                    okRes.Value.Should().BeEquivalentTo(new Response { Booth = updated });
-                    return;
-            }
+            // Ensure repository is not called when input is invalid
+            repo.Verify(r => r.UpdateBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<BoothUpdateDto>()), Times.Never);
         }
 
         /// <summary>
-        /// Verifies UpdateBooth returns 500 when repository throws.
+        /// Verifies that UpdateBooth returns 200 OK with a Response envelope containing the updated BoothModel.
         /// </summary>
         [Fact]
-        public async Task updateBoothReturns500OnException()
+        public async Task UpdateBooth_ReturnsOk_OnSuccess()
         {
             // ARRANGE
-            mockRepo.Setup(r => r.UpdateBoothAsync(100, 1, defaultUpdateDto)).ThrowsAsync(new Exception("update fail"));
+            var updated = new BoothModelBuilder()
+                            .WithId(10)
+                            .WithSpaceId(1)
+                            .WithKey("updated_key")
+                            .WithMapSpot(9.9m, 8.8m, 7.7m)
+                            .WithLocalizedPair("en_us", "Updated Name")
+                            .Build();
 
-            // ACT & ASSERT
-            await AssertThrows500(() => sut.UpdateBooth(100, 1, defaultUpdateDto), "update fail");
-        }
-
-        //
-        // DELETE /space/{spaceId}/booth/{boothId}
-        //
-
-        /// <summary>
-        /// Verifies DeleteBoothCascade returns 204 NoContent or 404 NotFound.
-        /// </summary>
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task deleteBoothReturnsExpectedResult(bool repoReturnsTrue)
-        {
-            // ARRANGE
-            mockRepo.Setup(r => r.DeleteBoothCascadeAsync(100, 1)).ReturnsAsync(repoReturnsTrue);
+            repo.Setup(r => r.UpdateBoothAsync(1, 10, defaultUpdateDto))
+                .ReturnsAsync(updated);
 
             // ACT
-            var result = await sut.DeleteBoothCascade(100, 1);
+            var result = await sut.UpdateBooth(1, 10, defaultUpdateDto);
 
             // ASSERT
-            if (repoReturnsTrue)
-                result.Should().BeOfType<NoContentResult>();
-            else
-                result.Should().BeOfType<NotFoundResult>();
+            var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.StatusCode.Should().Be(StatusCodes.Status200OK);
+
+            var envelope = ok.Value.Should().BeOfType<Response>().Subject;
+            envelope.Booth.Should().BeEquivalentTo(updated);
+            repo.Verify(r => r.UpdateBoothAsync(1, 10, defaultUpdateDto), Times.Once);
         }
 
         /// <summary>
-        /// Verifies DeleteBoothCascade returns 500 when repository throws.
+        /// Verifies that UpdateBooth throws ResourceNotFoundException when the repository returns null (not found).
         /// </summary>
         [Fact]
-        public async Task deleteBoothReturns500OnException()
+        public async Task UpdateBooth_ThrowsNotFound_WhenRepoReturnsNull()
         {
             // ARRANGE
-            mockRepo.Setup(r => r.DeleteBoothCascadeAsync(100, 1)).ThrowsAsync(new Exception("delete fail"));
+            repo.Setup(r => r.UpdateBoothAsync(1, 999, It.IsAny<BoothUpdateDto>()))
+                .ReturnsAsync((BoothModel?)null);
 
             // ACT & ASSERT
-            await AssertThrows500(() => sut.DeleteBoothCascade(100, 1), "delete fail");
-        }
-
-        //
-        // Helpers
-        //
-
-        /// <summary>
-        /// Helper method that asserts a 500 InternalServerError result with matching error message.
-        /// </summary>
-        private async Task AssertThrows500<T>(Func<Task<ActionResult<T>>> action, string expectedMessage)
-        {
-            var obj = (await action()).Result.Should().BeOfType<ObjectResult>().Subject;
-            obj.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
-            obj.Value.Should().BeEquivalentTo(new { error = expectedMessage });
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.UpdateBooth(1, 999, defaultUpdateDto));
         }
 
         /// <summary>
-        /// Overload for IActionResult-based endpoints to avoid generic inference issues.
+        /// Verifies that UpdateBooth propagates a repository exception (handled by middleware at runtime).
         /// </summary>
-        private async Task AssertThrows500(Func<Task<IActionResult>> action, string expectedMessage)
+        [Fact]
+        public async Task UpdateBooth_ThrowsRepositoryEx()
         {
-            var obj = (await action()).Should().BeOfType<ObjectResult>().Subject;
-            obj.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
-            obj.Value.Should().BeEquivalentTo(new { error = expectedMessage });
+            // ARRANGE
+            repo.Setup(r => r.UpdateBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<BoothUpdateDto>()))
+                .ThrowsAsync(new Exception("Failed to update booth record in the database"));
+
+            // ACT & ASSERT
+            var ex = await Assert.ThrowsAsync<Exception>(() => sut.UpdateBooth(3, 4, defaultUpdateDto));
+            ex.Message.Should().Be("Failed to update booth record in the database");
         }
+
+        /// <summary>
+        /// Verifies controller behavior when LocalizedPairs is null in the incoming DTO.
+        /// and asserting the controller propagates it.
+        /// </summary>
+        [Fact]
+        public async Task UpdateBooth_ThrowsArgEx_WhenLocalizedPairsIsNull()
+        {
+            // ARRANGE
+            var dto = new BoothUpdateDtoBuilder()
+                        .WithNullLocalizedPairs()
+                        .Build();
+
+            repo.Setup(r => r.UpdateBoothAsync(1, 1, dto))
+                .ThrowsAsync(new ArgumentException("LocalizedPairs cannot be null."));
+
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateBooth(1, 1, dto));
+        }
+
+        /// <summary>
+        /// Verifies controller behavior when MapSpot is null in the incoming DTO.
+        /// The repository throws an ArgumentException and the controller propagates it.
+        /// </summary>
+        [Fact]
+        public async Task UpdateBooth_ThrowsArgEx_WhenMapSpotIsNull()
+        {
+            // ARRANGE
+            var dto = new BoothUpdateDtoBuilder()
+                        .WithNullMapSpot()
+                        .Build();
+
+            repo.Setup(r => r.UpdateBoothAsync(1, 1, dto))
+                .ThrowsAsync(new ArgumentException("MapSpot cannot be null."));
+
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateBooth(1, 1, dto));
+        }
+
+        #endregion
+
+        #region DELETE
+        //
+        // DELETE /api/space/{spaceId}/booth/{boothId}
+        //
+
+        /// <summary>
+        /// Ensures DeleteBoothCascade throws ArgumentException for invalid spaceId/boothId values.
+        /// </summary>
+        [Theory]
+        [InlineData(0, 1)]
+        [InlineData(1, 0)]
+        [InlineData(-1, 1)]
+        [InlineData(1, -1)]
+        public async Task DeleteBoothCascade_ThrowsArgEx_OnInvalidIds(int spaceId, int boothId)
+        {
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.DeleteBoothCascade(spaceId, boothId));
+
+            // Ensure repository is not called when input is invalid
+            repo.Verify(r => r.DeleteBoothCascadeAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Ensures DeleteBoothCascade throws ResourceNotFoundException when repository returns false (not found).
+        /// </summary>
+        [Fact]
+        public async Task DeleteBoothCascade_ThrowsNotFound_WhenRepoReturnsFalse()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteBoothCascadeAsync(1, 2)).ReturnsAsync(false);
+
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.DeleteBoothCascade(1, 2));
+        }
+
+        /// <summary>
+        /// Ensures DeleteBoothCascade returns 204 NoContent upon successful deletion.
+        /// </summary>
+        [Fact]
+        public async Task DeleteBoothCascade_ReturnsNoContent_OnSuccess()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteBoothCascadeAsync(5, 6)).ReturnsAsync(true);
+
+            // ACT
+            var result = await sut.DeleteBoothCascade(5, 6);
+
+            // ASSERT
+            result.Should().BeOfType<NoContentResult>();
+            repo.Verify(r => r.DeleteBoothCascadeAsync(5, 6), Times.Once);
+        }
+
+        /// <summary>
+        /// Verifies that DeleteBoothCascade propagates repository exceptions (middleware handles at runtime).
+        /// </summary>
+        [Fact]
+        public async Task DeleteBoothCascade_ThrowsRepositoryEx()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteBoothCascadeAsync(It.IsAny<int>(), It.IsAny<int>()))
+                .ThrowsAsync(new Exception("Cascade delete failed"));
+
+            // ACT & ASSERT
+            var ex = await Assert.ThrowsAsync<Exception>(() => sut.DeleteBoothCascade(9, 9));
+            ex.Message.Should().Be("Cascade delete failed");
+        }
+
+        #endregion
     }
 }

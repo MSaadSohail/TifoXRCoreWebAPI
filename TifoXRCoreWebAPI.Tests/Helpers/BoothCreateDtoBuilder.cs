@@ -2,33 +2,29 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/30/2025</date>
-// <summary>Fluent builder for BoothCreateDto to simplify and standardize test data setup.</summary>
+// <date>08/11/2025</date>
+// <summary>Fluent builder for BoothCreateDto used in tests for clean and reusable setup.</summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Fluent builder for BoothCreateDto. Allows chaining of overrides for SpaceId, MapSpot, and LocalizedName.
+    /// Fluent builder for BoothCreateDto.
     /// </summary>
     public class BoothCreateDtoBuilder
     {
-        private int _spaceId = 100;
-        private MapSpotModel _mapSpot = new MapSpotModel { X = 0, Y = 0, Z = 0 };
-        private LocalizedPairs _localizedPairs = new LocalizedPairs
+        private int _spaceId = 1;
+        private string _key = "booth_key";
+        private readonly List<LocalizedValue> _values = new()
         {
-            Key = "booth.name",
-            Values = new List<LocalizedValue>
-            {
-                new LocalizedValue { LocaleId = "en", Value = "Booth" }
-            }
+            new LocalizedValue { LocaleId = "en_us", Value = "Booth Name" }
         };
+        private MapSpotModel _mapSpot = new() { X = 1.1m, Y = 2.2m, Z = 3.3m };
 
         /// <summary>
-        /// Sets the SpaceId.
+        /// Sets the SpaceId field for the DTO.
         /// </summary>
         public BoothCreateDtoBuilder WithSpaceId(int spaceId)
         {
@@ -37,7 +33,25 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
-        /// Sets the MapSpot coordinates.
+        /// Sets the i18n key for the booth's LocalizedPairs.
+        /// </summary>
+        public BoothCreateDtoBuilder WithKey(string key)
+        {
+            _key = key;
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a (locale, value) entry to the LocalizedPairs.Values collection.
+        /// </summary>
+        public BoothCreateDtoBuilder WithLocalizedPair(string locale, string value)
+        {
+            _values.Add(new LocalizedValue { LocaleId = locale, Value = value });
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the MapSpot coordinates for the new booth.
         /// </summary>
         public BoothCreateDtoBuilder WithMapSpot(decimal x, decimal y, decimal z)
         {
@@ -46,37 +60,20 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
-        /// Sets the LocalizedPairs with specified key and locale-value pairs.
+        /// Builds a BoothCreateDto instance with the configured state.
         /// </summary>
-        public BoothCreateDtoBuilder WithLocalizedPairs(string key, Dictionary<string, string> values)
+        public BoothCreateDto Build()
         {
-            _localizedPairs = new LocalizedPairs
+            return new BoothCreateDto
             {
-                Key = key,
-                Values = values
-                    .Select(kv => new LocalizedValue { LocaleId = kv.Key, Value = kv.Value })
-                    .ToList()
+                SpaceId = _spaceId,
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = _key,
+                    Values = _values
+                },
+                MapSpot = _mapSpot
             };
-            return this;
         }
-
-        /// <summary>
-        /// Sets the LocalizedPairs to null.
-        /// </summary>
-        public BoothCreateDtoBuilder WithNullLocalizedPairs()
-        {
-            _localizedPairs = null!;
-            return this;
-        }
-
-        /// <summary>
-        /// Builds and returns the configured BoothCreateDto.
-        /// </summary>
-        public BoothCreateDto Build() => new BoothCreateDto
-        {
-            SpaceId = _spaceId,
-            MapSpot = _mapSpot,
-            LocalizedPairs = _localizedPairs
-        };
     }
 }

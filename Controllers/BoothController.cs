@@ -2,13 +2,16 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Syed Hussain</author>
-// <date>07/28/2025</date>
+// <date>08/08/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
-using Microsoft.AspNetCore.Mvc;
 
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Utilities;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -20,24 +23,48 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
     {
         private readonly IBoothRepository _boothRepository = boothRepository;
 
+        /// <summary>
+        /// GET /api/space/{spaceId}/booths
+        /// Returns all booths for a space.
+        /// </summary>
         [HttpGet("{spaceId}/booths")]
-        public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace([FromRoute] int spaceId)
+        [ProducesResponseType(typeof(List<BoothModel>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace(
+        [FromRoute] int spaceId)
         {
-            try
+            AppLogger.Info($"[GetAllBoothsBySpace] Request received for spaceId={spaceId}");
+
+            if (spaceId <= 0)
             {
-                var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
-                if (booths == null || booths.Count == 0)
-                    return NotFound();
-                return Ok(booths);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new { error = ex.Message }
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(GetAllBoothsBySpace),
+                        new { spaceId }
+                    ),
+                    nameof(spaceId)
                 );
             }
+
+            var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
+
+            if (booths == null || booths.Count == 0)
+            {
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "No booths found for the specified space.",
+                        nameof(GetAllBoothsBySpace),
+                        new { spaceId }
+                    )
+                );
+            }
+            AppLogger.Info($"[GetAllBoothsBySpace] Successfully returning {booths.Count} booths for spaceId={spaceId}");
+            return Ok(booths);
         }
+
 
         [HttpPut("{spaceId}/booth/{boothId}")]
         [ProducesResponseType(typeof(Response), StatusCodes.Status200OK)]
@@ -45,27 +72,54 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<Response>> UpdateBooth(
-            [FromRoute] int spaceId,
-            [FromRoute] int boothId,
-            [FromBody] BoothUpdateDto dto
-        )
+        [FromRoute] int spaceId,
+        [FromRoute] int boothId,
+        [FromBody] BoothUpdateDto dto)
         {
-            if (dto == null) return BadRequest();
-
-            try
-            {
-                var updated = await _boothRepository.UpdateBoothAsync(spaceId, boothId, dto);
-                if (updated == null) return NotFound();
-                return Ok(new Response { Booth = updated });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new { error = ex.Message }
+            if (spaceId <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(UpdateBooth),
+                        new { spaceId, boothId }
+                    ),
+                    nameof(spaceId)
                 );
-            }
+
+            if (boothId <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "boothId must be a positive integer.",
+                        nameof(UpdateBooth),
+                        new { spaceId, boothId }
+                    ),
+                    nameof(boothId)
+                );
+
+            if (dto is null)
+                throw new ArgumentNullException(
+                    nameof(dto),
+                    GlobalException.FormatExceptionMessage(
+                        "DTO cannot be null.",
+                        nameof(UpdateBooth),
+                        new { spaceId, boothId }
+                    )
+                );
+
+            var updated = await _boothRepository.UpdateBoothAsync(spaceId, boothId, dto);
+
+            if (updated is null)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "Booth not found.",
+                        nameof(UpdateBooth),
+                        new { spaceId, boothId }
+                    )
+                );
+
+            return Ok(new Response { Booth = updated });
         }
+
 
         /// <summary>
         /// POST /api/space/{spaceId}/booth
@@ -77,29 +131,47 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<BoothWrapper>> CreateBooth(
             [FromRoute] int spaceId,
-            [FromBody] BoothCreateDto boothDto
-        )
+            [FromBody] BoothCreateDto boothDto)
         {
-            if (boothDto == null)
-                return BadRequest();
+            if (spaceId <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(CreateBooth),
+                        new { spaceId }
+                    ),
+                    nameof(spaceId)
+                );
 
-            try
-            {
-                var createdBooth = await _boothRepository.CreateBoothAsync(spaceId, boothDto);
-                return CreatedAtAction(
-                    nameof(GetAllBoothsBySpace),
-                    new { spaceId },
-                    new BoothWrapper { booth = createdBooth }
+            if (boothDto is null)
+                throw new ArgumentNullException(
+                    nameof(boothDto),
+                    GlobalException.FormatExceptionMessage(
+                        "DTO cannot be null.",
+                        nameof(CreateBooth),
+                        new { spaceId }
+                    )
                 );
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new { error = ex.Message }
+
+            var createdBooth = await _boothRepository.CreateBoothAsync(spaceId, boothDto);
+
+            if (createdBooth is null)
+                throw new InvalidOperationException(
+                    GlobalException.FormatExceptionMessage(
+                        "Creation failed.",
+                        nameof(CreateBooth),
+                        new { spaceId }
+                    )
                 );
-            }
+
+            // If you have GET-by-id, prefer CreatedAtAction(nameof(GetBoothById), new { spaceId, boothId = createdBooth.Id }, ...)
+            return CreatedAtAction(
+                nameof(GetAllBoothsBySpace),
+                new { spaceId },
+                new BoothWrapper { booth = createdBooth }
+            );
         }
+
 
 
         /// <summary>
@@ -114,22 +186,44 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         /// </summary>
         [HttpDelete("{spaceId}/booth/{boothId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> DeleteBoothCascade([FromRoute] int spaceId, [FromRoute] int boothId)
         {
-            try
-            {
-                var success = await _boothRepository.DeleteBoothCascadeAsync(spaceId, boothId);
-                return success ? NoContent() : NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    new { error = ex.Message }
+            if (spaceId <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "spaceId must be a positive integer.",
+                        nameof(DeleteBoothCascade),
+                        new { spaceId, boothId }
+                    ),
+                    nameof(spaceId)
                 );
-            }
+
+            if (boothId <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "boothId must be a positive integer.",
+                        nameof(DeleteBoothCascade),
+                        new { spaceId, boothId }
+                    ),
+                    nameof(boothId)
+                );
+
+            var success = await _boothRepository.DeleteBoothCascadeAsync(spaceId, boothId);
+
+            if (!success)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "Booth not found.",
+                        nameof(DeleteBoothCascade),
+                        new { spaceId, boothId }
+                    )
+                );
+
+            return NoContent();
         }
+
     }
 }

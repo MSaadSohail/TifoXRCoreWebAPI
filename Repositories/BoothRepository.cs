@@ -4,11 +4,11 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Class to handle booth SQL side</summary>
-using MySqlConnector;
-using System.Data;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using MySqlConnector;
+using System.Data;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
@@ -95,58 +95,40 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             try
             {
-                // 1) Update booth name_key
+                // 1) Validate that the new map_spot_id exists
+                const string validateSpotSql = @"SELECT COUNT(1) FROM map_spot WHERE id = @MapSpotId;";
+                await using (var cmd = new MySqlCommand(validateSpotSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@MapSpotId", dto.MapSpotId);
+                    var exists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+                    if (!exists)
+                        throw new InvalidOperationException($"MapSpot with ID {dto.MapSpotId} does not exist.");
+                }
+
+                // 2) Update booth: name_key + map_spot_id
                 const string updBooth = @"
-                UPDATE booth
-                   SET name_key = @NameKey
-                 WHERE id = @BoothId
-                   AND space_id = @SpaceId;";
+        UPDATE booth
+           SET name_key = @NameKey,
+               map_spot_id = @MapSpotId
+         WHERE id = @BoothId
+           AND space_id = @SpaceId;";
                 await using (var cmd = new MySqlCommand(updBooth, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
                     cmd.Parameters.AddWithValue("@BoothId", boothId);
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Parameters.AddWithValue("@MapSpotId", dto.MapSpotId);
                     if (await cmd.ExecuteNonQueryAsync() == 0)
                         return null;
                 }
 
-                // 2) Get map_spot_id for the booth
-                const string getMapSpotIdSql = @"SELECT map_spot_id FROM booth WHERE id = @BoothId AND space_id = @SpaceId;";
-                int mapSpotId;
-                await using (var cmd = new MySqlCommand(getMapSpotIdSql, conn, tx))
-                {
-                    cmd.Parameters.AddWithValue("@BoothId", boothId);
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                    var result = await cmd.ExecuteScalarAsync();
-                    if (result == null)
-                        return null;
-                    mapSpotId = Convert.ToInt32(result);
-                }
-
-                // 3) Update map_spot
-                const string updMapSpot = @"
-                UPDATE map_spot
-                   SET x = @X, y = @Y, z = @Z, modified_time = NOW(6), modified_by = @ModifiedBy
-                 WHERE id = @MapSpotId;";
-                await using (var cmd = new MySqlCommand(updMapSpot, conn, tx))
-                {
-                    cmd.Parameters.AddWithValue("@X", dto.MapSpot.X);
-                    cmd.Parameters.AddWithValue("@Y", dto.MapSpot.Y);
-                    cmd.Parameters.AddWithValue("@Z", dto.MapSpot.Z);
-                    cmd.Parameters.AddWithValue("@ModifiedBy", "system");
-                    cmd.Parameters.AddWithValue("@MapSpotId", mapSpotId);
-                    await cmd.ExecuteNonQueryAsync();
-                }
-
-                // 4) Validate all locales first
+                // 3) Validate locales
                 const string checkSupportedLangSql = @"
-                SELECT locale_id FROM supported_languages 
-                WHERE locale_id IN ({0}) AND space_id = @SpaceId;";
-
+        SELECT locale_id FROM supported_languages 
+        WHERE locale_id IN ({0}) AND space_id = @SpaceId;";
                 var allLocales = dto.LocalizedPairs.Values.Select(v => v.LocaleId).Distinct().ToList();
                 var parameterNames = allLocales.Select((l, i) => $"@loc{i}").ToList();
                 var localeParamMap = allLocales.Zip(parameterNames, (val, param) => new { val, param }).ToList();
-
                 var dynamicQuery = string.Format(checkSupportedLangSql, string.Join(", ", parameterNames));
 
                 await using (var checkCmd = new MySqlCommand(dynamicQuery, conn, tx))
@@ -163,26 +145,23 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                     var unsupportedLocales = allLocales.Where(l => !supportedLocales.Contains(l)).ToList();
                     if (unsupportedLocales.Any())
-                    {
-                        throw new InvalidOperationException(
-                            $"The following locales are not supported for space {spaceId}: {string.Join(", ", unsupportedLocales)}");
-                    }
+                        throw new InvalidOperationException($"Unsupported locales: {string.Join(", ", unsupportedLocales)}");
                 }
 
-                // 5) Perform update or insert into i18n
+                // 4) Upsert i18n
                 const string updI18n = @"
-                UPDATE i18n
-                   SET value = @Value
-                 WHERE `key` = @NameKey AND locale_id = @LocaleId AND space_id = @SpaceId;";
+        UPDATE i18n
+           SET value = @Value
+         WHERE `key` = @NameKey AND locale_id = @LocaleId AND space_id = @SpaceId;";
                 const string insI18n = @"
-                INSERT INTO i18n (`key`, locale_id, value, space_id)
-                VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
+        INSERT INTO i18n (`key`, locale_id, value, space_id)
+        VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
                 foreach (var loc in dto.LocalizedPairs.Values)
                 {
                     await using var cmdUp = new MySqlCommand(updI18n, conn, tx);
                     cmdUp.Parameters.AddWithValue("@NameKey", dto.LocalizedPairs.Key);
-                    cmdUp.Parameters.AddWithValue("@LocaleId", loc.LocaleId);   
+                    cmdUp.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
                     cmdUp.Parameters.AddWithValue("@Value", loc.Value);
                     cmdUp.Parameters.AddWithValue("@SpaceId", spaceId);
 
@@ -206,6 +185,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
 
 
@@ -278,8 +258,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         }
 
 
-
-
         public async Task<BoothModel> CreateBoothAsync(int spaceId, BoothCreateDto boothDto)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -288,47 +266,51 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             try
             {
-                // 1) Insert into map_spot
-                const string insertMapSpotSql = @"
-                INSERT INTO map_spot (x, y, z, creation_time, modified_time, modified_by)
-                VALUES (@X, @Y, @Z, NOW(6), NOW(6), @ModifiedBy);";
+                // 1) Validate that the map_spot_id exists
+                const string validateMapSpotSql = @"SELECT id, x, y, z FROM map_spot WHERE id = @MapSpotId;";
+                MapSpotModel? mapSpot = null;
 
-                int mapSpotId;
-                await using (var cmd = new MySqlCommand(insertMapSpotSql, conn, tx))
+                await using (var cmd = new MySqlCommand(validateMapSpotSql, conn, tx))
                 {
-                    cmd.Parameters.AddWithValue("@X", boothDto.MapSpot.X);
-                    cmd.Parameters.AddWithValue("@Y", boothDto.MapSpot.Y);
-                    cmd.Parameters.AddWithValue("@Z", boothDto.MapSpot.Z);
-                    cmd.Parameters.AddWithValue("@ModifiedBy", "system");
-                    await cmd.ExecuteNonQueryAsync();
-                    mapSpotId = Convert.ToInt32(cmd.LastInsertedId);
+                    cmd.Parameters.AddWithValue("@MapSpotId", boothDto.MapSpotId);
+                    await using var reader = await cmd.ExecuteReaderAsync();
+
+                    if (!await reader.ReadAsync())
+                        throw new InvalidOperationException($"MapSpot with ID {boothDto.MapSpotId} does not exist.");
+
+                    mapSpot = new MapSpotModel
+                    {
+                        X = reader.GetDecimal("x"),
+                        Y = reader.GetDecimal("y"),
+                        Z = reader.GetDecimal("z")
+                    };
                 }
 
-                // 2) Insert into booth with map_spot_id
+                // 2) Insert into booth with existing map_spot_id
                 const string insertBoothSql = @"
-                INSERT INTO booth (space_id, name_key, map_spot_id)
-                VALUES (@SpaceId, @NameKey, @MapSpotId);";
+        INSERT INTO booth (space_id, name_key, map_spot_id)
+        VALUES (@SpaceId, @NameKey, @MapSpotId);";
 
                 int newBoothId;
                 await using (var cmd = new MySqlCommand(insertBoothSql, conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@SpaceId", spaceId);
                     cmd.Parameters.AddWithValue("@NameKey", boothDto.LocalizedPairs.Key);
-                    cmd.Parameters.AddWithValue("@MapSpotId", mapSpotId);
+                    cmd.Parameters.AddWithValue("@MapSpotId", boothDto.MapSpotId);
                     await cmd.ExecuteNonQueryAsync();
                     newBoothId = Convert.ToInt32(cmd.LastInsertedId);
                 }
 
-                // 3) Filter supported localizations and insert into i18n
+                // 3) Insert into i18n only for supported locales
                 const string insertI18nSql = @"
-                INSERT INTO i18n (`key`, locale_id, value, space_id)
-                VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
+        INSERT INTO i18n (`key`, locale_id, value, space_id)
+        VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
                 const string checkSupportedLangSql = @"
-                SELECT 1
-                FROM supported_languages 
-                WHERE locale_id = @LocaleId AND space_id = @SpaceId
-                LIMIT 1;";
+        SELECT 1
+        FROM supported_languages 
+        WHERE locale_id = @LocaleId AND space_id = @SpaceId
+        LIMIT 1;";
 
                 var insertedValues = new List<LocalizedValue>();
 
@@ -354,7 +336,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
                     await cmdI18n.ExecuteNonQueryAsync();
 
-                    insertedValues.Add(val); // only return supported entries
+                    insertedValues.Add(val);
                 }
 
                 await tx.CommitAsync();
@@ -363,8 +345,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     Id = newBoothId,
                     SpaceId = spaceId,
-                    MapSpotId = mapSpotId,
-                    MapSpot = boothDto.MapSpot,
+                    MapSpotId = boothDto.MapSpotId,
+                    MapSpot = mapSpot!,
                     LocalizedPairs = new LocalizedPairs
                     {
                         Key = boothDto.LocalizedPairs.Key,
@@ -378,6 +360,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
 
 

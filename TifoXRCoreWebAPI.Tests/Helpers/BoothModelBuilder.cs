@@ -1,36 +1,37 @@
-﻿// <copyright file="BoothModelBuilder.cs" company="Global Mobile Software LLC">
+﻿// <copyright file="BoothControllerTests.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Urvashi Dhingra</author>
-// <date>07/30/2025</date>
-// <summary>Fluent builder for BoothModel to simplify and standardize setup in unit tests.</summary>
+// <date>08/11/2025</date>
+// <summary>Fluent builder for BoothModel used in tests to create reusable and expressive fixtures.</summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
 {
     /// <summary>
-    /// Fluent builder for BoothModel. Supports custom setup of Id, SpaceId, MapSpot, and LocalizedName.
+    /// Fluent builder for BoothModel instances to keep tests concise and consistent.
+    /// Matches the builder pattern used for Teleport entities.
     /// </summary>
     public class BoothModelBuilder
     {
         private int _id = 1;
         private int _spaceId = 100;
-        private int _mapSpotId = 0;
-        private MapSpotModel _mapSpot = new MapSpotModel { X = 0, Y = 0, Z = 0 };
-        private LocalizedPairs _localizedPairs = new LocalizedPairs
+        private int _mapSpotId = 10;
+        private string _key = "booth_key";
+        private MapSpotModel? _mapSpot = new() { X = 0, Y = 0, Z = 0 };
+
+        /// <summary>
+        /// Backing list for LocalizedPairs.Values; includes a default value in English (US).
+        /// </summary>
+        private readonly List<LocalizedValue> _values = new()
         {
-            Key = "booth.name",
-            Values = new List<LocalizedValue>
-            {
-                new LocalizedValue { LocaleId = "en", Value = "Booth Name" }
-            }
+            new LocalizedValue { LocaleId = "en_us", Value = "Booth EN" }
         };
 
         /// <summary>
-        /// Sets the Id of the booth.
+        /// Sets the BoothModel.Id field.
         /// </summary>
         public BoothModelBuilder WithId(int id)
         {
@@ -39,7 +40,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
-        /// Sets the SpaceId of the booth.
+        /// Sets the BoothModel.SpaceId field.
         /// </summary>
         public BoothModelBuilder WithSpaceId(int spaceId)
         {
@@ -48,42 +49,34 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
-        /// Sets the MapSpotId and coordinates of the booth.
+        /// Sets the LocalizedPairs.Key field.
         /// </summary>
-        public BoothModelBuilder WithMapSpot(int mapSpotId, decimal x, decimal y, decimal z)
+        public BoothModelBuilder WithKey(string key)
         {
-            _mapSpotId = mapSpotId;
+            _key = key;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the MapSpotModel (x, y, z) included in the BoothModel.
+        /// </summary>
+        public BoothModelBuilder WithMapSpot(decimal x, decimal y, decimal z)
+        {
             _mapSpot = new MapSpotModel { X = x, Y = y, Z = z };
             return this;
         }
 
         /// <summary>
-        /// Sets the LocalizedPairs with specified key and locale–value pairs.
+        /// Adds an additional (locale, value) pair to the booth's LocalizedPairs.Values.
         /// </summary>
-        public BoothModelBuilder WithLocalizedPairs(string key, Dictionary<string, string> values)
+        public BoothModelBuilder WithLocalizedPair(string locale, string value)
         {
-            _localizedPairs = new LocalizedPairs
-            {
-                Key = key,
-                Values = values
-                    .Select(kv => new LocalizedValue { LocaleId = kv.Key, Value = kv.Value })
-                    .ToList()
-            };
-            return this;
-        }
-
-
-        /// <summary>
-        /// Sets the LocalizedPairs to null.
-        /// </summary>
-        public BoothModelBuilder WithNullLocalizedPairs()
-        {
-            _localizedPairs = null!;
+            _values.Add(new LocalizedValue { LocaleId = locale, Value = value });
             return this;
         }
 
         /// <summary>
-        /// Builds and returns the configured BoothModel.
+        /// Builds a fresh BoothModel instance with the configured properties and localization values.
         /// </summary>
         public BoothModel Build()
         {
@@ -93,7 +86,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
                 SpaceId = _spaceId,
                 MapSpotId = _mapSpotId,
                 MapSpot = _mapSpot,
-                LocalizedPairs = _localizedPairs
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = _key,
+                    Values = _values
+                }
             };
         }
     }

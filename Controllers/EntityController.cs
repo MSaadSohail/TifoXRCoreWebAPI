@@ -2,12 +2,13 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Syed Hussain</author>
-// <date>07/28/2025</date>
+// <date>08/08/2025</date>
 // <summary>Controller to handle Entity APIs</summary>
-using Microsoft.AspNetCore.Mvc;
-using MySqlConnector;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -29,21 +30,35 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         [HttpGet("{id:int}")]
         [ProducesResponseType(typeof(EntityData), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<EntityData>> Get(int id)
         {
-            try
-            {
-                var entity = await _repo.GetByIdAsync(id);
-                return entity is null ? NotFound() : Ok(entity);
-            }
-            catch (MySqlException ex)
-            {
-                _logger.LogError(ex, "Error fetching entity {EntityId}", id);
-                return StatusCode(500, new { error = ex.Message });
-            }
+            if (id <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "id must be a positive integer.",
+                        nameof(Get),
+                        new { id }
+                    ),
+                    nameof(id)
+                );
+
+            var entity = await _repo.GetByIdAsync(id);
+
+            if (entity is null)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "Entity not found.",
+                        nameof(Get),
+                        new { id }
+                    )
+                );
+
+            return Ok(entity);
         }
+
 
         // POST
 
@@ -53,20 +68,38 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<EntityData>> Create([FromBody] Entity dto)
         {
-            if (dto?.LocalizedPairs == null)
-                return BadRequest();
+            if (dto is null)
+                throw new ArgumentNullException(
+                    nameof(dto),
+                    GlobalException.FormatExceptionMessage(
+                        "DTO cannot be null.",
+                        nameof(Create)
+                    )
+                );
 
-            try
-            {
-                var created = await _repo.CreateAsync(dto);
-                return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
-            }
-            catch (MySqlException ex)
-            {
-                _logger.LogError(ex, "Error creating entity");
-                return StatusCode(500, new { error = ex.Message });
-            }
+            if (dto.LocalizedPairs == null || dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "LocalizedPairs.Values cannot be empty.",
+                        nameof(Create),
+                        new { dto?.LocalizedPairs?.Key }
+                    ),
+                    nameof(dto.LocalizedPairs)
+                );
+
+            var created = await _repo.CreateAsync(dto);
+
+            if (created is null)
+                throw new InvalidOperationException(
+                    GlobalException.FormatExceptionMessage(
+                        "Creation failed.",
+                        nameof(Create)
+                    )
+                );
+
+            return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
         }
+
 
         // PUT
 
@@ -77,21 +110,48 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<EntityData>> Update(int id, [FromBody] Entity dto)
         {
-            if (dto?.LocalizedPairs == null)
-                return BadRequest();
+            if (id <= 0)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "id must be a positive integer.",
+                        nameof(Update),
+                        new { id }
+                    ),
+                    nameof(id)
+                );
 
-            try
-            {
-                var updated = await _repo.UpdateAsync(id, dto);
+            if (dto is null)
+                throw new ArgumentNullException(
+                    nameof(dto),
+                    GlobalException.FormatExceptionMessage(
+                        "DTO cannot be null.",
+                        nameof(Update),
+                        new { id }
+                    )
+                );
 
-                // repository returns null when the id didn’t match any row
-                return updated is null ? NotFound() : Ok(updated);
-            }
-            catch (MySqlException ex)
-            {
-                _logger.LogError(ex, "Error updating entity {EntityId}", id);
-                return StatusCode(500, new { error = ex.Message });
-            }
+            if (dto.LocalizedPairs == null || dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "LocalizedPairs.Values cannot be empty.",
+                        nameof(Update),
+                        new { id, dto?.LocalizedPairs?.Key }
+                    ),
+                    nameof(dto.LocalizedPairs)
+                );
+
+            var updated = await _repo.UpdateAsync(id, dto);
+
+            if (updated is null)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        "Entity not found.",
+                        nameof(Update),
+                        new { id }
+                    )
+                );
+
+            return Ok(updated);
         }
 
     }
