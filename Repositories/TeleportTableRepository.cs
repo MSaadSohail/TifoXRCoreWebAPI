@@ -28,7 +28,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// </summary>
         /// <param name="spaceId">The space ID to fetch the teleport table for.</param>
         /// <returns>The teleport table with button and localization data, or null if not found.</returns>
-        public async Task<TeleportTableData?> GetTeleportTableBySpaceAsync(int spaceId)
+        public async Task<TeleportTableData> GetTeleportTableBySpaceAsync(int spaceId)
         {
             AppLogger.Info("GetTeleportTableBySpaceAsync called!");
 
