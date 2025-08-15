@@ -42,16 +42,16 @@ namespace GMS.TifoXRCoreWebAPI.Models.Common
     /// <summary>
     /// Holds a resource key and its localized string values.
     /// </summary>
-    public class LocalizedResource
-    {
-        /// <summary>
-        /// The i18n key (e.g. "bth_nm_101").
-        /// </summary>
-        public string Key { get; set; }
+    //public class LocalizedResource
+    //{
+    //    /// <summary>
+    //    /// The i18n key (e.g. "bth_nm_101").
+    //    /// </summary>
+    //    public string Key { get; set; }
 
-        /// <summary>
-        /// All the localized values for that key (locale → value).
-        /// </summary>
-        public Dictionary<string, string> Localizations { get; set; } = [];
-    }
+    //    /// <summary>
+    //    /// All the localized values for that key (locale → value).
+    //    /// </summary>
+    //    public Dictionary<string, string> Localizations { get; set; } = [];
+    //}
 }
