@@ -10,6 +10,7 @@
 
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
@@ -85,11 +86,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task GetBySpace_ThrowsNotFound_WhenEmptyOrNull()
         {
             mockRepo.Setup(r => r.GetPortalsBySpaceAsync(5)).ReturnsAsync(new List<PortalModel>());
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.GetPortalsBySpace(5));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetPortalsBySpace(5));
 
             mockRepo.Reset();
             mockRepo.Setup(r => r.GetPortalsBySpaceAsync(5)).ReturnsAsync((List<PortalModel>?)null);
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.GetPortalsBySpace(5));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetPortalsBySpace(5));
         }
 
         [Fact]
@@ -131,11 +132,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task GetByBooth_ThrowsNotFound_WhenEmptyOrNull()
         {
             mockRepo.Setup(r => r.GetPortalsByBoothAsync(2, 3)).ReturnsAsync(new List<PortalModel>());
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.GetPortalsByBooth(2, 3));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetPortalsByBooth(2, 3));
 
             mockRepo.Reset();
             mockRepo.Setup(r => r.GetPortalsByBoothAsync(2, 3)).ReturnsAsync((List<PortalModel>?)null);
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.GetPortalsByBooth(2, 3));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetPortalsByBooth(2, 3));
         }
 
         #endregion
@@ -168,7 +169,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task GetById_ThrowsNotFound_WhenNull()
         {
             mockRepo.Setup(r => r.GetPortalByIdAsync(1, 77)).ReturnsAsync((PortalModel?)null);
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.GetPortalById(1, 77));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetPortalById(1, 77));
         }
 
         #endregion
@@ -275,7 +276,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task Update_ThrowsNotFound_OnRepoNull()
         {
             mockRepo.Setup(r => r.UpdatePortalAsync(1, 99, defaultUpdateDto)).ReturnsAsync((PortalModel?)null);
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.UpdatePortal(1, 99, defaultUpdateDto));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.UpdatePortal(1, 99, defaultUpdateDto));
         }
 
         #endregion
@@ -341,7 +342,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                     PortalUpdateDto _d
                     ) => Task.FromResult<PortalModel?>(null));
 
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.UpdatePortalData(3, 33, 333, defaultUpdateDto));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.UpdatePortalData(3, 33, 333, defaultUpdateDto));
         }
 
         #endregion
@@ -362,7 +363,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task Delete_ThrowsNotFound_WhenRepoFalse()
         {
             mockRepo.Setup(r => r.DeletePortalAsync(1, 2)).ReturnsAsync(false);
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.DeletePortal(1, 2));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.DeletePortal(1, 2));
         }
 
         [Fact]
@@ -397,7 +398,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task DeleteForBooth_ThrowsNotFound_WhenRepoFalse()
         {
             mockRepo.Setup(r => r.DeletePortalAsync(1, 2, 3)).ReturnsAsync(false);
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => sut.DeletePortalForBooth(1, 2, 3));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.DeletePortalForBooth(1, 2, 3));
         }
 
         [Fact]
