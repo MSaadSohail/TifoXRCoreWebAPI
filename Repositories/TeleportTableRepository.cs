@@ -11,6 +11,7 @@ using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Utilities;
 using MySqlConnector;
 using System.Data;
+using System.Data.Common;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
@@ -194,54 +195,58 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>The created teleport table, including all created buttons and localizations.</returns>
         public async Task<TeleportTableData> CreateTeleportTableAsync(int spaceId, TeleportTableCreateDto dto)
         {
-            await using var conn = new MySqlConnection(_connStr);
-            await conn.OpenAsync();
+            if (dto == null) throw new ArgumentNullException(nameof(dto));
+
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1. Insert teleport_table row
+                // 1) Insert teleport_table row
                 const string insTable = @"
-                    INSERT INTO teleport_table (space_id, name_key, is_active)
-                    VALUES (@SpaceId, @NameKey, @IsActive);
-                ";
+            INSERT INTO teleport_table (space_id, name_key, is_active)
+            VALUES (@SpaceId, @NameKey, @IsActive);";
 
-                int tableId;
-
-                await using (var cmd = new MySqlCommand(insTable, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, insTable))
                 {
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                    cmd.Parameters.AddWithValue("@NameKey", dto.NameKey);
-                    cmd.Parameters.AddWithValue("@IsActive", dto.IsActive);
-
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    cmd.Parameters.Add(_db.CreateParameter("@NameKey", dto.NameKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@IsActive", dto.IsActive));
                     await cmd.ExecuteNonQueryAsync();
-
-                    tableId = Convert.ToInt32(cmd.LastInsertedId);
                 }
 
-                // 2. Insert table name localizations
-                if (dto.LocalizedPairs?.Values != null && !string.IsNullOrEmpty(dto.LocalizedPairs.Key))
+                // Retrieve the new table id (MySQL)
+                int tableId;
+                const string getLastIdSql = "SELECT LAST_INSERT_ID();";
+                await using (var idCmd = _db.CreateCommand(conn, getLastIdSql))
                 {
+                    idCmd.Transaction = tx;
+                    var obj = await idCmd.ExecuteScalarAsync();
+                    tableId = Convert.ToInt32(obj);
+                }
+
+                // 2) Insert table name localizations (if provided)
+                if (dto.LocalizedPairs?.Values != null && !string.IsNullOrWhiteSpace(dto.LocalizedPairs.Key))
+                {
+                    const string insI18n = @"
+                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
                     foreach (var loc in dto.LocalizedPairs.Values)
                     {
-                        const string insI18n = @"
-                            INSERT INTO i18n (`key`, locale_id, value, space_id)
-                            VALUES (@Key, @LocaleId, @Value, @SpaceId);";
-
-                        await using var cmdI18n = new MySqlCommand(insI18n, conn, tx);
-
-                        cmdI18n.Parameters.AddWithValue("@Key", dto.LocalizedPairs.Key);
-                        cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cmdI18n.Parameters.AddWithValue("@Value", loc.Value);
-                        cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
-
+                        await using var cmdI18n = _db.CreateCommand(conn, insI18n);
+                        cmdI18n.Transaction = tx;
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@Key", dto.LocalizedPairs.Key));
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                         await cmdI18n.ExecuteNonQueryAsync();
                     }
                 }
 
-                // 3. Insert any provided buttons
+                // 3) Insert buttons (if any)
                 var createdButtons = new List<ButtonData>();
-
                 if (dto.Buttons != null)
                 {
                     foreach (var btnDto in dto.Buttons)
@@ -251,9 +256,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     }
                 }
 
+                // 4) Commit
                 await tx.CommitAsync();
 
-                // 4. Return result
+                // 5) Return composed result
                 return new TeleportTableData
                 {
                     Id = tableId,
@@ -283,122 +289,110 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="dto">The DTO with new values and button data.</param>
         /// <returns>The updated teleport table, or null if not found.</returns>
         public async Task<TeleportTableData?> UpdateTeleportTableAsync(
-            int spaceId,
-            int tableId,
-            TeleportTableUpdateDto dto
-        )
+        int spaceId,
+        int tableId,
+        TeleportTableUpdateDto dto)
         {
-            await using var conn = new MySqlConnection(_connStr);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
                 // --- Load supported locales for this space ---
-                var supportedLocales = new HashSet<string>();
+                var supportedLocales = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 const string fetchLocales = @"
-                    SELECT locale_id
-                    FROM supported_languages
-                    WHERE space_id = @SpaceId;
-                ";
+            SELECT locale_id
+            FROM supported_languages
+            WHERE space_id = @SpaceId;";
 
-                await using (var localeCmd = new MySqlCommand(fetchLocales, conn, tx))
+                await using (var localeCmd = _db.CreateCommand(conn, fetchLocales))
                 {
-                    localeCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    localeCmd.Transaction = tx;
+                    localeCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
                     await using var rdr = await localeCmd.ExecuteReaderAsync();
-
                     while (await rdr.ReadAsync())
-                        supportedLocales.Add(rdr.GetString("locale_id"));
+                    {
+                        var locale = rdr.IsDBNull(0) ? null : rdr.GetString(0);
+                        if (!string.IsNullOrWhiteSpace(locale)) supportedLocales.Add(locale!);
+                    }
                 }
 
                 // --- Update main teleport table ---
                 const string updTable = @"
-                    UPDATE teleport_table
-                       SET is_active = @IsActive,
-                           name_key  = @NameKey
-                     WHERE id = @TableId
-                       AND space_id = @SpaceId;
-                ";
+            UPDATE teleport_table
+               SET is_active = @IsActive,
+                   name_key  = @NameKey
+             WHERE id = @TableId
+               AND space_id = @SpaceId;";
 
                 int affected;
-
-                await using (var cmd = new MySqlCommand(updTable, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, updTable))
                 {
-                    cmd.Parameters.AddWithValue("@IsActive", dto.IsActive);
-                    cmd.Parameters.AddWithValue("@NameKey", dto.NameKey);
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@IsActive", dto.IsActive));
+                    cmd.Parameters.Add(_db.CreateParameter("@NameKey", dto.NameKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     affected = await cmd.ExecuteNonQueryAsync();
                 }
 
-                // --- MySQL: 0 affected rows if values unchanged ---
+                // MySQL: 0 affected rows if no value changed — verify existence.
                 if (affected == 0)
                 {
-                    // Check if row exists
                     const string checkSql = @"
-                        SELECT COUNT(*) 
-                        FROM teleport_table 
-                        WHERE id = @TableId 
-                        AND space_id = @SpaceId;
-                    ";
+                SELECT COUNT(*)
+                  FROM teleport_table
+                 WHERE id = @TableId
+                   AND space_id = @SpaceId;";
 
-
-                    await using var checkCmd = new MySqlCommand(checkSql, conn, tx);
-
-                    checkCmd.Parameters.AddWithValue("@TableId", tableId);
-                    checkCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    await using var checkCmd = _db.CreateCommand(conn, checkSql);
+                    checkCmd.Transaction = tx;
+                    checkCmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    checkCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
                     var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
-
                     if (!exists)
                     {
                         await tx.RollbackAsync();
                         return null; // Real 404 (table does not exist)
                     }
-                    // Else: the row exists, but no changes (proceed)
                 }
 
-                // --- Upsert table name localizations (using LocalizedName.Values) ---
+                // --- Upsert table name localizations ---
                 const string updI18n = @"
-                    UPDATE i18n
-                       SET value = @Value
-                     WHERE `key`     = @NameKey
-                       AND locale_id = @LocaleId
-                       AND space_id  = @SpaceId;
-                ";
+            UPDATE i18n
+               SET value = @Value
+             WHERE `key`     = @NameKey
+               AND locale_id = @LocaleId
+               AND space_id  = @SpaceId;";
 
                 const string insI18n = @"
-                    INSERT INTO i18n (`key`, locale_id, value, space_id)
-                    VALUES (@NameKey, @LocaleId, @Value, @SpaceId);
-                ";
+            INSERT INTO i18n (`key`, locale_id, value, space_id)
+            VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
-                if (dto.LocalizedPairs != null && dto.LocalizedPairs.Values != null)
+                if (dto.LocalizedPairs?.Values != null)
                 {
                     foreach (var loc in dto.LocalizedPairs.Values)
                     {
-                        if (!supportedLocales.Contains(loc.LocaleId))
+                        if (string.IsNullOrWhiteSpace(loc.LocaleId) || !supportedLocales.Contains(loc.LocaleId))
                             continue;
 
-                        await using var cu = new MySqlCommand(updI18n, conn, tx);
-
-                        cu.Parameters.AddWithValue("@NameKey", dto.NameKey);
-                        cu.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cu.Parameters.AddWithValue("@Value", loc.Value);
-                        cu.Parameters.AddWithValue("@SpaceId", spaceId);
+                        await using var cu = _db.CreateCommand(conn, updI18n);
+                        cu.Transaction = tx;
+                        cu.Parameters.Add(_db.CreateParameter("@NameKey", dto.NameKey));
+                        cu.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                        cu.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                        cu.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
                         if (await cu.ExecuteNonQueryAsync() == 0)
                         {
-                            await using var ci = new MySqlCommand(insI18n, conn, tx);
-
-                            ci.Parameters.AddWithValue("@NameKey", dto.NameKey);
-                            ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                            ci.Parameters.AddWithValue("@Value", loc.Value);
-                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
-
+                            await using var ci = _db.CreateCommand(conn, insI18n);
+                            ci.Transaction = tx;
+                            ci.Parameters.Add(_db.CreateParameter("@NameKey", dto.NameKey));
+                            ci.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                            ci.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                            ci.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                             await ci.ExecuteNonQueryAsync();
                         }
                     }
@@ -407,94 +401,92 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 // --- Handle buttons (insert/update) and update map_spot coords ---
                 if (dto.Buttons != null && dto.Buttons.Count > 0)
                 {
+                    const string updBtn = @"
+                UPDATE teleport_table_button
+                   SET name_key   = @NameKey,
+                       map_spot_id = @MapSpotId,
+                       is_active  = @IsActive
+                 WHERE id = @BtnId
+                   AND table_id = @TableId;";
+
+                    const string insBtn = @"
+                INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
+                VALUES (@TableId, @NameKey, @MapSpotId, @IsActive);";
+
+                    const string updMapSpot = @"
+                UPDATE map_spot
+                   SET x = @X, y = @Y, z = @Z
+                 WHERE id = @MapSpotId;";
+
                     foreach (var btn in dto.Buttons)
                     {
                         int btnId;
+
                         if (btn.Id.HasValue)
                         {
-                            // Update button record
-                            const string updBtn = @"
-                                UPDATE teleport_table_button
-                                   SET name_key = @NameKey,
-                                       map_spot_id = @MapSpotId,
-                                       is_active = @IsActive
-                                 WHERE id = @BtnId
-                                   AND table_id = @TableId;";
-
-                            await using var cmdU = new MySqlCommand(updBtn, conn, tx);
-
-                            cmdU.Parameters.AddWithValue("@NameKey", btn.NameKey);
-                            cmdU.Parameters.AddWithValue("@MapSpotId", btn.MapSpot.Id);
-                            cmdU.Parameters.AddWithValue("@IsActive", btn.IsActive);
-                            cmdU.Parameters.AddWithValue("@BtnId", btn.Id.Value);
-                            cmdU.Parameters.AddWithValue("@TableId", tableId);
-
+                            await using var cmdU = _db.CreateCommand(conn, updBtn);
+                            cmdU.Transaction = tx;
+                            cmdU.Parameters.Add(_db.CreateParameter("@NameKey", btn.NameKey));
+                            cmdU.Parameters.Add(_db.CreateParameter("@MapSpotId", (object?)(btn.MapSpot?.Id ?? (int?)null) ?? DBNull.Value));
+                            cmdU.Parameters.Add(_db.CreateParameter("@IsActive", btn.IsActive));
+                            cmdU.Parameters.Add(_db.CreateParameter("@BtnId", btn.Id.Value));
+                            cmdU.Parameters.Add(_db.CreateParameter("@TableId", tableId));
                             await cmdU.ExecuteNonQueryAsync();
 
                             btnId = btn.Id.Value;
                         }
                         else
                         {
-                            // Insert new button record
-                            const string insBtn = @"
-                                INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
-                                VALUES (@TableId, @NameKey, @MapSpotId, @IsActive);";
-
-                            await using var cmdI = new MySqlCommand(insBtn, conn, tx);
-
-                            cmdI.Parameters.AddWithValue("@TableId", tableId);
-                            cmdI.Parameters.AddWithValue("@NameKey", btn.NameKey);
-                            cmdI.Parameters.AddWithValue("@MapSpotId", btn.MapSpot.Id);
-                            cmdI.Parameters.AddWithValue("@IsActive", btn.IsActive);
-
+                            await using var cmdI = _db.CreateCommand(conn, insBtn);
+                            cmdI.Transaction = tx;
+                            cmdI.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                            cmdI.Parameters.Add(_db.CreateParameter("@NameKey", btn.NameKey));
+                            cmdI.Parameters.Add(_db.CreateParameter("@MapSpotId", (object?)(btn.MapSpot?.Id ?? (int?)null) ?? DBNull.Value));
+                            cmdI.Parameters.Add(_db.CreateParameter("@IsActive", btn.IsActive));
                             await cmdI.ExecuteNonQueryAsync();
 
-                            btnId = (int)cmdI.LastInsertedId;
+                            // get new id
+                            await using var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();");
+                            idCmd.Transaction = tx;
+                            btnId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
                         }
 
-                        // --- Upsert map spot coordinates (x, y, z) ---
-                        if (btn.MapSpot != null)
+                        // Upsert map spot coordinates if present (expects existing map_spot.id)
+                        if (btn.MapSpot != null && btn.MapSpot.Id > 0)
                         {
-                            const string updMapSpot = @"
-                                UPDATE map_spot
-                                   SET x = @X, y = @Y, z = @Z
-                                 WHERE id = @MapSpotId;";
-
-                            await using var mapCmd = new MySqlCommand(updMapSpot, conn, tx);
-
-                            mapCmd.Parameters.AddWithValue("@X", btn.MapSpot.X);
-                            mapCmd.Parameters.AddWithValue("@Y", btn.MapSpot.Y);
-                            mapCmd.Parameters.AddWithValue("@Z", btn.MapSpot.Z);
-                            mapCmd.Parameters.AddWithValue("@MapSpotId", btn.MapSpot.Id);
-
+                            await using var mapCmd = _db.CreateCommand(conn, updMapSpot);
+                            mapCmd.Transaction = tx;
+                            mapCmd.Parameters.Add(_db.CreateParameter("@X", btn.MapSpot.X));
+                            mapCmd.Parameters.Add(_db.CreateParameter("@Y", btn.MapSpot.Y));
+                            mapCmd.Parameters.Add(_db.CreateParameter("@Z", btn.MapSpot.Z));
+                            mapCmd.Parameters.Add(_db.CreateParameter("@MapSpotId", btn.MapSpot.Id));
                             await mapCmd.ExecuteNonQueryAsync();
                         }
 
-                        // --- Upsert localizations for this button ---
-                        if (btn.LocalizedPairs != null && btn.LocalizedPairs.Values != null)
+                        // Upsert button localizations
+                        if (btn.LocalizedPairs?.Values != null)
                         {
                             foreach (var loc in btn.LocalizedPairs.Values)
                             {
-                                if (!supportedLocales.Contains(loc.LocaleId))
+                                if (string.IsNullOrWhiteSpace(loc.LocaleId) || !supportedLocales.Contains(loc.LocaleId))
                                     continue;
 
-                                await using var cu = new MySqlCommand(updI18n, conn, tx);
+                                await using var cuBtn = _db.CreateCommand(conn, updI18n);
+                                cuBtn.Transaction = tx;
+                                cuBtn.Parameters.Add(_db.CreateParameter("@NameKey", btn.NameKey));
+                                cuBtn.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                                cuBtn.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                                cuBtn.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                                cu.Parameters.AddWithValue("@NameKey", btn.NameKey);
-                                cu.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                                cu.Parameters.AddWithValue("@Value", loc.Value);
-                                cu.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                                if (await cu.ExecuteNonQueryAsync() == 0)
+                                if (await cuBtn.ExecuteNonQueryAsync() == 0)
                                 {
-                                    await using var ci = new MySqlCommand(insI18n, conn, tx);
-
-                                    ci.Parameters.AddWithValue("@NameKey", btn.NameKey);
-                                    ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                                    ci.Parameters.AddWithValue("@Value", loc.Value);
-                                    ci.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                                    await ci.ExecuteNonQueryAsync();
+                                    await using var ciBtn = _db.CreateCommand(conn, insI18n);
+                                    ciBtn.Transaction = tx;
+                                    ciBtn.Parameters.Add(_db.CreateParameter("@NameKey", btn.NameKey));
+                                    ciBtn.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                                    ciBtn.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                                    ciBtn.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                                    await ciBtn.ExecuteNonQueryAsync();
                                 }
                             }
                         }
@@ -502,7 +494,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 await tx.CommitAsync();
-                return await LoadTeleportTableById(conn, spaceId, tableId);
+
+                // Reload using the same connection (no transaction).
+                return await LoadTeleportTableByIdAsync(conn, spaceId, tableId);
             }
             catch
             {
@@ -510,6 +504,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
+
+
 
         #endregion
 
@@ -523,96 +520,109 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>True if deleted, false if not found.</returns>
         public async Task<bool> DeleteTeleportTableAsync(int spaceId, int tableId)
         {
-            await using var conn = new MySqlConnection(_connStr);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1. Get the name_key for the teleport_table (for i18n deletion)
+                // 1) Get the table name_key (for i18n deletion)
                 string? nameKey = null;
-                const string getNameKey = "SELECT name_key FROM teleport_table WHERE id=@TableId AND space_id=@SpaceId;";
+                const string getNameKey = @"
+            SELECT name_key 
+              FROM teleport_table 
+             WHERE id = @TableId AND space_id = @SpaceId;";
 
-                await using (var cmd = new MySqlCommand(getNameKey, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, getNameKey))
                 {
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
                     var result = await cmd.ExecuteScalarAsync();
-
-                    nameKey = result == null || result == DBNull.Value ? null : result.ToString();
+                    nameKey = result == null || result == DBNull.Value ? null : Convert.ToString(result);
                 }
 
-                // 2. Get all button name_keys for i18n deletion
+                // 2) Get all button name_keys (for i18n deletion)
                 var buttonKeys = new List<string>();
+                const string getButtonKeys = @"
+            SELECT name_key 
+              FROM teleport_table_button 
+             WHERE table_id = @TableId;";
 
-                const string getButtonKeys = "SELECT name_key FROM teleport_table_button WHERE table_id=@TableId;";
-
-                await using (var cmd = new MySqlCommand(getButtonKeys, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, getButtonKeys))
                 {
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
 
                     await using var reader = await cmd.ExecuteReaderAsync();
-
                     while (await reader.ReadAsync())
-                        buttonKeys.Add(reader.GetString("name_key"));
+                    {
+                        var key = reader.IsDBNull(0) ? null : reader.GetString(0);
+                        if (!string.IsNullOrWhiteSpace(key)) buttonKeys.Add(key!);
+                    }
                 }
 
-                // 3. Delete button i18n
+                // 3) Delete button i18n (only if we have keys)
                 if (buttonKeys.Count > 0)
                 {
-                    var inClause = string.Join(",", buttonKeys.Select((k, i) => $"@BtnKey{i}"));
-                    var delBtnI18n = $"DELETE FROM i18n WHERE `key` IN ({inClause}) AND space_id=@SpaceId;";
+                    // Build IN clause with parameterized keys
+                    var paramNames = new List<string>(buttonKeys.Count);
+                    for (int i = 0; i < buttonKeys.Count; i++)
+                        paramNames.Add($"@BtnKey{i}");
 
-                    await using var delBtnI18nCmd = new MySqlCommand(delBtnI18n, conn, tx);
+                    var delBtnI18nSql =
+                        $"DELETE FROM i18n WHERE `key` IN ({string.Join(",", paramNames)}) AND space_id = @SpaceId;";
+
+                    await using var delBtnI18nCmd = _db.CreateCommand(conn, delBtnI18nSql);
+                    delBtnI18nCmd.Transaction = tx;
 
                     for (int i = 0; i < buttonKeys.Count; i++)
-                        delBtnI18nCmd.Parameters.AddWithValue($"@BtnKey{i}", buttonKeys[i]);
+                        delBtnI18nCmd.Parameters.Add(_db.CreateParameter($"@BtnKey{i}", buttonKeys[i]));
 
-                    delBtnI18nCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    delBtnI18nCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
                     await delBtnI18nCmd.ExecuteNonQueryAsync();
                 }
 
-                // 4. Delete table i18n
-                if (!string.IsNullOrEmpty(nameKey))
+                // 4) Delete table i18n
+                if (!string.IsNullOrWhiteSpace(nameKey))
                 {
-                    const string delTableI18n = "DELETE FROM i18n WHERE `key`=@NameKey AND space_id=@SpaceId;";
+                    const string delTableI18n = @"
+                DELETE FROM i18n 
+                 WHERE `key` = @NameKey AND space_id = @SpaceId;";
 
-                    await using var delTableI18nCmd = new MySqlCommand(delTableI18n, conn, tx);
-
-                    delTableI18nCmd.Parameters.AddWithValue("@NameKey", nameKey);
-                    delTableI18nCmd.Parameters.AddWithValue("@SpaceId", spaceId);
-
+                    await using var delTableI18nCmd = _db.CreateCommand(conn, delTableI18n);
+                    delTableI18nCmd.Transaction = tx;
+                    delTableI18nCmd.Parameters.Add(_db.CreateParameter("@NameKey", nameKey!));
+                    delTableI18nCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     await delTableI18nCmd.ExecuteNonQueryAsync();
                 }
 
-                // 5. Delete all buttons
-                const string delBtns = "DELETE FROM teleport_table_button WHERE table_id=@TableId;";
-
-                await using (var cmd = new MySqlCommand(delBtns, conn, tx))
+                // 5) Delete all buttons
+                const string delBtns = @"DELETE FROM teleport_table_button WHERE table_id = @TableId;";
+                await using (var delBtnsCmd = _db.CreateCommand(conn, delBtns))
                 {
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
-
-                    await cmd.ExecuteNonQueryAsync();
+                    delBtnsCmd.Transaction = tx;
+                    delBtnsCmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    await delBtnsCmd.ExecuteNonQueryAsync();
                 }
 
-                // 6. Delete the table itself
-                const string delTable = "DELETE FROM teleport_table WHERE id=@TableId AND space_id=@SpaceId;";
+                // 6) Delete the table itself
+                const string delTable = @"
+            DELETE FROM teleport_table 
+             WHERE id = @TableId AND space_id = @SpaceId;";
 
-                await using (var cmd = new MySqlCommand(delTable, conn, tx))
+                int affected;
+                await using (var delTableCmd = _db.CreateCommand(conn, delTable))
                 {
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    var affected = await cmd.ExecuteNonQueryAsync();
-
-                    await tx.CommitAsync();
-
-                    return affected > 0;
+                    delTableCmd.Transaction = tx;
+                    delTableCmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    delTableCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    affected = await delTableCmd.ExecuteNonQueryAsync();
                 }
+
+                await tx.CommitAsync();
+                return affected > 0;
             }
             catch
             {
@@ -620,6 +630,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
         /// <summary>
         /// Deletes all teleport tables in a given space, including all related data.
@@ -630,30 +641,36 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         {
             var tableIds = new List<int>();
 
-            await using var conn = new MySqlConnection(_connStr);
+            // 1) Fetch all teleport_table ids for the space
+            await using var conn = await _db.OpenConnectionAsync();
+            const string getIdsSql = @"SELECT id FROM teleport_table WHERE space_id = @SpaceId;";
 
-            await conn.OpenAsync();
-
-            const string getIds = "SELECT id FROM teleport_table WHERE space_id=@SpaceId;";
-
-            await using (var cmd = new MySqlCommand(getIds, conn))
+            await using (var cmd = _db.CreateCommand(conn, getIdsSql))
             {
-                cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
                 await using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
-                    tableIds.Add(rdr.GetInt32("id"));
+                {
+                    // first column is id
+                    var id = rdr.IsDBNull(0) ? (int?)null : rdr.GetInt32(0);
+                    if (id.HasValue) tableIds.Add(id.Value);
+                }
             }
 
-            int count = 0;
+            if (tableIds.Count == 0) return 0;
 
+            // 2) Delete each table using the existing delete routine
+            var deletedCount = 0;
             foreach (var tableId in tableIds)
             {
                 if (await DeleteTeleportTableAsync(spaceId, tableId))
-                    count++;
+                    deletedCount++;
             }
 
-            return count;
+            return deletedCount;
         }
+
 
         /// <summary>
         /// Deletes a single button from a teleport table, including its i18n localizations.
@@ -663,54 +680,54 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>True if deleted, false otherwise.</returns>
         public async Task<bool> DeleteTeleportTableButtonAsync(int buttonId, int tableId)
         {
-            await using var conn = new MySqlConnection(_connStr);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1. Get the button name_key for i18n deletion
+                // 1) Fetch the button's name_key (for i18n cleanup)
                 string? btnKey = null;
-                const string getKey = "SELECT name_key FROM teleport_table_button WHERE id=@ButtonId AND table_id=@TableId;";
+                const string getKeySql = @"
+            SELECT name_key
+              FROM teleport_table_button
+             WHERE id = @ButtonId AND table_id = @TableId;";
 
-                await using (var cmd = new MySqlCommand(getKey, conn, tx))
+                await using (var getKeyCmd = _db.CreateCommand(conn, getKeySql))
                 {
-                    cmd.Parameters.AddWithValue("@ButtonId", buttonId);
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
+                    getKeyCmd.Transaction = tx;
+                    getKeyCmd.Parameters.Add(_db.CreateParameter("@ButtonId", buttonId));
+                    getKeyCmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
 
-                    var result = await cmd.ExecuteScalarAsync();
-
-                    btnKey = result == null || result == DBNull.Value ? null : result.ToString();
+                    var result = await getKeyCmd.ExecuteScalarAsync();
+                    btnKey = result == null || result == DBNull.Value ? null : Convert.ToString(result);
                 }
 
-                // 2. Delete i18n for the button
-                if (!string.IsNullOrEmpty(btnKey))
+                // 2) Delete i18n for this button (no space filter to match original behavior)
+                if (!string.IsNullOrWhiteSpace(btnKey))
                 {
-                    const string delBtnI18n = "DELETE FROM i18n WHERE `key`=@BtnKey;";
-
-                    await using var delBtnI18nCmd = new MySqlCommand(delBtnI18n, conn, tx);
-
-                    delBtnI18nCmd.Parameters.AddWithValue("@BtnKey", btnKey);
-
+                    const string delBtnI18nSql = @"DELETE FROM i18n WHERE `key` = @BtnKey;";
+                    await using var delBtnI18nCmd = _db.CreateCommand(conn, delBtnI18nSql);
+                    delBtnI18nCmd.Transaction = tx;
+                    delBtnI18nCmd.Parameters.Add(_db.CreateParameter("@BtnKey", btnKey!));
                     await delBtnI18nCmd.ExecuteNonQueryAsync();
                 }
 
-                // 3. Delete the button itself
-                const string delBtn = "DELETE FROM teleport_table_button WHERE id=@ButtonId AND table_id=@TableId;";
+                // 3) Delete the button
+                const string delBtnSql = @"
+            DELETE FROM teleport_table_button
+             WHERE id = @ButtonId AND table_id = @TableId;";
 
-                await using (var cmd = new MySqlCommand(delBtn, conn, tx))
+                int affected;
+                await using (var delBtnCmd = _db.CreateCommand(conn, delBtnSql))
                 {
-                    cmd.Parameters.AddWithValue("@ButtonId", buttonId);
-                    cmd.Parameters.AddWithValue("@TableId", tableId);
-
-                    var affected = await cmd.ExecuteNonQueryAsync();
-
-                    await tx.CommitAsync();
-
-                    return affected > 0;
+                    delBtnCmd.Transaction = tx;
+                    delBtnCmd.Parameters.Add(_db.CreateParameter("@ButtonId", buttonId));
+                    delBtnCmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    affected = await delBtnCmd.ExecuteNonQueryAsync();
                 }
+
+                await tx.CommitAsync();
+                return affected > 0;
             }
             catch
             {
@@ -718,6 +735,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
         #endregion
 
@@ -731,153 +749,149 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="spaceId">The space ID for the table.</param>
         /// <param name="tableId">The table ID to fetch.</param>
         /// <returns>The loaded teleport table with full button and localization info, or null if not found.</returns>
-        private static async Task<TeleportTableData?> LoadTeleportTableById(
-            MySqlConnection conn,
-            int spaceId,
-            int tableId
-        )
+        private async Task<TeleportTableData?> LoadTeleportTableByIdAsync(
+            DbConnection conn, int spaceId, int tableId)
         {
-            // --- 1. Load table + localizations ---
-            const string tableSql = @"
-                SELECT
-                    t.id,
-                    t.space_id,
-                    t.is_active,
-                    t.name_key,
-                    i.locale_id,
-                    i.value
-                FROM teleport_table AS t
-                LEFT JOIN i18n AS i
-                  ON i.`key`    = t.name_key
-                 AND i.space_id = t.space_id
-                WHERE t.id = @TableId
-                  AND t.space_id = @SpaceId
-                ORDER BY i.locale_id;
-            ";
+            const string sql = @"
+        SELECT
+            t.id AS table_id,
+            t.space_id,
+            t.is_active,
+            t.name_key AS table_name_key,
+            i.locale_id AS table_locale_id,
+            i.value AS table_localized_value,
+
+            b.id AS button_id,
+            b.name_key AS button_name_key,
+            b.is_active AS button_is_active,
+            b.map_spot_id,
+
+            ms.x AS map_spot_x,
+            ms.y AS map_spot_y,
+            ms.z AS map_spot_z,
+
+            bi.locale_id AS button_locale_id,
+            bi.value AS button_localized_value
+        FROM teleport_table t
+        LEFT JOIN i18n i  ON i.`key` = t.name_key AND i.space_id = t.space_id
+        LEFT JOIN teleport_table_button b ON b.table_id = t.id
+        LEFT JOIN map_spot ms ON ms.id = b.map_spot_id
+        LEFT JOIN i18n bi ON bi.`key` = b.name_key AND bi.space_id = t.space_id
+        WHERE t.space_id = @SpaceId AND t.id = @TableId
+        ORDER BY b.id, bi.locale_id;";
+
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+
+            await using var reader = await cmd.ExecuteReaderAsync();
 
             TeleportTableData? table = null;
-            var localizedName = new Dictionary<string, string>();
+            var buttonMap = new Dictionary<int, ButtonData>();
+            var tableLocals = new List<LocalizedValue>();
+            var buttonLocals = new Dictionary<int, List<LocalizedValue>>();
 
-            await using (var cmd = new MySqlCommand(tableSql, conn))
+            bool ordReady = false;
+            int o_table_id = -1, o_space_id = -1, o_is_active = -1, o_table_name_key = -1, o_table_locale_id = -1, o_table_localized_value = -1;
+            int o_button_id = -1, o_button_name_key = -1, o_button_is_active = -1, o_map_spot_id = -1;
+            int o_map_spot_x = -1, o_map_spot_y = -1, o_map_spot_z = -1;
+            int o_button_locale_id = -1, o_button_localized_value = -1;
+
+            while (await reader.ReadAsync())
             {
-                cmd.Parameters.AddWithValue("@TableId", tableId);
-                cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                await using var reader = await cmd.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
+                if (!ordReady)
                 {
-                    table ??= new TeleportTableData
-                    {
-                        Id = reader.GetInt32("id"),
-                        SpaceId = reader.GetInt32("space_id"),
-                        NameKey = reader.IsDBNull("name_key") ? null :
-                        reader.GetString("name_key"),
+                    o_table_id = reader.GetOrdinal("table_id");
+                    o_space_id = reader.GetOrdinal("space_id");
+                    o_is_active = reader.GetOrdinal("is_active");
+                    o_table_name_key = reader.GetOrdinal("table_name_key");
+                    o_table_locale_id = reader.GetOrdinal("table_locale_id");
+                    o_table_localized_value = reader.GetOrdinal("table_localized_value");
 
-                        IsActive = reader.GetBoolean("is_active"),
+                    o_button_id = reader.GetOrdinal("button_id");
+                    o_button_name_key = reader.GetOrdinal("button_name_key");
+                    o_button_is_active = reader.GetOrdinal("button_is_active");
+                    o_map_spot_id = reader.GetOrdinal("map_spot_id");
 
-                        LocalizedPairs = new LocalizedPairs
-                        {
-                            Key = reader.IsDBNull("name_key") ? "" : reader.GetString("name_key"),
-                            Values = []
-                        },
-                        Buttons = []
-                    };
+                    o_map_spot_x = reader.GetOrdinal("map_spot_x");
+                    o_map_spot_y = reader.GetOrdinal("map_spot_y");
+                    o_map_spot_z = reader.GetOrdinal("map_spot_z");
 
-                    if (!reader.IsDBNull("locale_id") && !reader.IsDBNull("value"))
-                    {
-                        table.LocalizedPairs.Values.Add(new LocalizedValue
-                        {
-                            LocaleId = reader.GetString("locale_id"),
-                            Value = reader.GetString("value")
-                        });
-                    }
+                    o_button_locale_id = reader.GetOrdinal("button_locale_id");
+                    o_button_localized_value = reader.GetOrdinal("button_localized_value");
+
+                    ordReady = true;
                 }
-            }
 
-            if (table == null)
-                return null;
-
-            // --- 2. Load buttons with their localizations ---
-            const string btnSql = @"
-                SELECT
-                    b.id,
-                    b.name_key AS button_name_key,
-                    b.is_active,
-
-                    b.map_spot_id,
-                    ms.x AS map_spot_x,
-                    ms.y AS map_spot_y,
-                    ms.z AS map_spot_z,
-
-                    i.locale_id,
-                    i.value
-                FROM teleport_table_button AS b
-                LEFT JOIN map_spot AS ms ON ms.id = b.map_spot_id
-                LEFT JOIN i18n AS i ON i.`key` = b.name_key AND i.space_id = @SpaceId
-                WHERE b.table_id = @TableId
-                ORDER BY b.id, i.locale_id;
-            ";
-
-            var btnMap = new Dictionary<int, ButtonData>();
-
-            await using (var btnCmd = new MySqlCommand(btnSql, conn))
-            {
-                btnCmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                btnCmd.Parameters.AddWithValue("@TableId", tableId);
-
-                await using var btnReader = await btnCmd.ExecuteReaderAsync();
-
-                while (await btnReader.ReadAsync())
+                table ??= new TeleportTableData
                 {
-                    var btnId = btnReader.GetInt32("id");
+                    Id = reader.GetInt32(o_table_id),
+                    SpaceId = reader.GetInt32(o_space_id),
+                    IsActive = reader.GetBoolean(o_is_active),
+                    NameKey = reader.GetString(o_table_name_key),
+                    LocalizedPairs = new LocalizedPairs
+                    {
+                        Key = reader.GetString(o_table_name_key),
+                        Values = tableLocals
+                    },
+                    Buttons = []
+                };
 
-                    if (!btnMap.TryGetValue(btnId, out var btn))
+                // Table i18n
+                if (!reader.IsDBNull(o_table_locale_id) && !reader.IsDBNull(o_table_localized_value))
+                {
+                    var localeId = reader.GetString(o_table_locale_id);
+                    var value = reader.GetString(o_table_localized_value);
+                    if (!tableLocals.Any(v => v.LocaleId == localeId))
+                        tableLocals.Add(new LocalizedValue { LocaleId = localeId, Value = value });
+                }
+
+                // Button
+                if (!reader.IsDBNull(o_button_id))
+                {
+                    var buttonId = reader.GetInt32(o_button_id);
+                    if (!buttonMap.TryGetValue(buttonId, out var btn))
                     {
                         btn = new ButtonData
                         {
-                            Id = btnId,
-                            NameKey = btnReader.IsDBNull("button_name_key") ? "" :
-                            btnReader.GetString("button_name_key"),
-                            IsActive = btnReader.GetBoolean("is_active"),
+                            Id = buttonId,
+                            NameKey = reader.IsDBNull(o_button_name_key) ? string.Empty : reader.GetString(o_button_name_key),
+                            IsActive = !reader.IsDBNull(o_button_is_active) && reader.GetBoolean(o_button_is_active),
                             LocalizedPairs = new LocalizedPairs
                             {
-                                Key = btnReader.IsDBNull("button_name_key") ? "" :
-                                btnReader.GetString("button_name_key"),
+                                Key = reader.IsDBNull(o_button_name_key) ? string.Empty : reader.GetString(o_button_name_key),
                                 Values = []
                             },
-
-                            MapSpot = btnReader.IsDBNull("map_spot_id") ? null : new MapSpotData
-                            {
-                                Id = btnReader.GetInt32("map_spot_id"),
-                                X = btnReader.IsDBNull("map_spot_x") ? 0 : btnReader.GetDecimal("map_spot_x"),
-                                Y = btnReader.IsDBNull("map_spot_y") ? 0 : btnReader.GetDecimal("map_spot_y"),
-                                Z = btnReader.IsDBNull("map_spot_z") ? 0 : btnReader.GetDecimal("map_spot_z")
-                            }
+                            MapSpot = reader.IsDBNull(o_map_spot_id)
+                                ? null
+                                : new MapSpotData
+                                {
+                                    Id = reader.GetInt32(o_map_spot_id),
+                                    X = reader.IsDBNull(o_map_spot_x) ? 0 : reader.GetDecimal(o_map_spot_x),
+                                    Y = reader.IsDBNull(o_map_spot_y) ? 0 : reader.GetDecimal(o_map_spot_y),
+                                    Z = reader.IsDBNull(o_map_spot_z) ? 0 : reader.GetDecimal(o_map_spot_z)
+                                }
                         };
-                        btnMap[btnId] = btn;
+
+                        buttonMap[buttonId] = btn;
+                        buttonLocals[buttonId] = btn.LocalizedPairs.Values;
                     }
 
-                    // Add the localized value if present and not already added
-                    if (!btnReader.IsDBNull("locale_id") && !btnReader.IsDBNull("value"))
+                    // Button i18n
+                    if (!reader.IsDBNull(o_button_locale_id) && !reader.IsDBNull(o_button_localized_value))
                     {
-                        string localeId = btnReader.GetString("locale_id");
-                        string value = btnReader.GetString("value");
-
-                        // Avoid duplicates if your SQL returns multiple rows per locale (e.g., due to joins)
-                        if (!btn.LocalizedPairs.Values.Any(lv => lv.LocaleId == localeId))
-                        {
-                            btn.LocalizedPairs.Values.Add(new LocalizedValue
-                            {
-                                LocaleId = localeId,
-                                Value = value
-                            });
-                        }
+                        var localeId = reader.GetString(o_button_locale_id);
+                        var value = reader.GetString(o_button_localized_value);
+                        var values = buttonLocals[buttonId];
+                        if (!values.Any(v => v.LocaleId == localeId))
+                            values.Add(new LocalizedValue { LocaleId = localeId, Value = value });
                     }
                 }
             }
 
-            table.Buttons = [.. btnMap.Values];
+            if (table != null)
+                table.Buttons = buttonMap.Values.ToList();
+
             return table;
         }
 
@@ -892,111 +906,134 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="externalTx">Optional open MySQL transaction for transactional use.</param>
         /// <returns>The created button, including its map spot and localizations.</returns>
         public async Task<ButtonData> CreateTeleportTableButtonAsync(
-            int spaceId,
-            int tableId,
-            ButtonCreateDto btnDto,
-            MySqlConnection? externalConn = null,
-            MySqlTransaction? externalTx = null
-        )
+        int spaceId,
+        int tableId,
+        ButtonCreateDto btnDto,
+        DbConnection? externalConn = null,
+        DbTransaction? externalTx = null)
         {
-            bool useExternal = externalConn != null && externalTx != null;
+            if (btnDto == null) throw new ArgumentNullException(nameof(btnDto));
 
-            await using var conn = useExternal ? null : new MySqlConnection(_connStr);
+            var useExternal = externalConn != null && externalTx != null;
 
-            if (!useExternal)
-                await conn.OpenAsync();
-            var tx = useExternal ? externalTx : await conn!.BeginTransactionAsync();
+            await using var conn = useExternal ? null : await _db.OpenConnectionAsync();
+            var connection = externalConn ?? conn!;
+            var tx = externalTx ?? await connection.BeginTransactionAsync();
 
             try
             {
-                // 1. Insert map_spot
-                int mapSpotId;
-
-                if (btnDto.MapSpot.Id > 0)
+                // 1) Insert or reuse map_spot
+                int? mapSpotId = null;
+                if (btnDto.MapSpot != null)
                 {
-                    mapSpotId = btnDto.MapSpot.Id;
+                    if (btnDto.MapSpot.Id > 0)
+                    {
+                        mapSpotId = btnDto.MapSpot.Id;
+                    }
+                    else
+                    {
+                        const string insMapSpot = @"
+                    INSERT INTO map_spot (x, y, z)
+                    VALUES (@X, @Y, @Z);";
+
+                        await using (var cmdMap = _db.CreateCommand(connection, insMapSpot))
+                        {
+                            cmdMap.Transaction = tx;
+                            cmdMap.Parameters.Add(_db.CreateParameter("@X", btnDto.MapSpot.X));
+                            cmdMap.Parameters.Add(_db.CreateParameter("@Y", btnDto.MapSpot.Y));
+                            cmdMap.Parameters.Add(_db.CreateParameter("@Z", btnDto.MapSpot.Z));
+                            await cmdMap.ExecuteNonQueryAsync();
+                        }
+
+                        // fetch new id
+                        const string getLastIdSql = "SELECT LAST_INSERT_ID();";
+                        await using (var idCmd = _db.CreateCommand(connection, getLastIdSql))
+                        {
+                            idCmd.Transaction = tx;
+                            var obj = await idCmd.ExecuteScalarAsync();
+                            mapSpotId = Convert.ToInt32(obj);
+                        }
+                    }
                 }
-                else
-                {
-                    const string insMapSpot = @"
-                        INSERT INTO map_spot (x, y, z)
-                        VALUES (@X, @Y, @Z);";
 
-                    await using var cmdMap = new MySqlCommand(insMapSpot, useExternal ? externalConn : conn, tx);
-
-                    cmdMap.Parameters.AddWithValue("@X", btnDto.MapSpot.X);
-                    cmdMap.Parameters.AddWithValue("@Y", btnDto.MapSpot.Y);
-                    cmdMap.Parameters.AddWithValue("@Z", btnDto.MapSpot.Z);
-
-                    await cmdMap.ExecuteNonQueryAsync();
-
-                    mapSpotId = Convert.ToInt32(cmdMap.LastInsertedId);
-                }
-
-                // 2. Insert button
+                // 2) Insert button
                 const string insBtn = @"
-                    INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
-                    VALUES (@TableId, @NameKey, @MapSpotId, @IsActive);";
+            INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
+            VALUES (@TableId, @NameKey, @MapSpotId, @IsActive);";
 
                 int buttonId;
-
-                await using (var cmdBtn = new MySqlCommand(insBtn, useExternal ? externalConn : conn, tx))
+                await using (var cmdBtn = _db.CreateCommand(connection, insBtn))
                 {
-                    cmdBtn.Parameters.AddWithValue("@TableId", tableId);
-                    cmdBtn.Parameters.AddWithValue("@NameKey", btnDto.NameKey);
-                    cmdBtn.Parameters.AddWithValue("@MapSpotId", mapSpotId);
-                    cmdBtn.Parameters.AddWithValue("@IsActive", btnDto.IsActive);
-
+                    cmdBtn.Transaction = tx;
+                    cmdBtn.Parameters.Add(_db.CreateParameter("@TableId", tableId));
+                    cmdBtn.Parameters.Add(_db.CreateParameter("@NameKey", btnDto.NameKey ?? string.Empty));
+                    cmdBtn.Parameters.Add(_db.CreateParameter("@MapSpotId", (object?)mapSpotId ?? DBNull.Value));
+                    cmdBtn.Parameters.Add(_db.CreateParameter("@IsActive", btnDto.IsActive));
                     await cmdBtn.ExecuteNonQueryAsync();
-
-                    buttonId = Convert.ToInt32(cmdBtn.LastInsertedId);
                 }
 
-                // 3. Insert i18n for button name
-                if (btnDto.LocalizedPairs?.Values != null && !string.IsNullOrEmpty(btnDto.LocalizedPairs.Key))
+                // fetch new button id
+                const string getButtonIdSql = "SELECT LAST_INSERT_ID();";
+                await using (var idBtn = _db.CreateCommand(connection, getButtonIdSql))
                 {
+                    idBtn.Transaction = tx;
+                    var obj = await idBtn.ExecuteScalarAsync();
+                    buttonId = Convert.ToInt32(obj);
+                }
+
+                // 3) Insert i18n for button name (if provided)
+                if (btnDto.LocalizedPairs?.Values != null &&
+                    !string.IsNullOrWhiteSpace(btnDto.LocalizedPairs.Key))
+                {
+                    const string insI18n = @"
+                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
                     foreach (var loc in btnDto.LocalizedPairs.Values)
                     {
-                        const string insI18n = @"
-                            INSERT INTO i18n (`key`, locale_id, value, space_id)
-                            VALUES (@Key, @LocaleId, @Value, @SpaceId);";
-
-                        await using var cmdI18n = new MySqlCommand(insI18n, useExternal ? externalConn : conn, tx);
-
-                        cmdI18n.Parameters.AddWithValue("@Key", btnDto.LocalizedPairs.Key);
-                        cmdI18n.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cmdI18n.Parameters.AddWithValue("@Value", loc.Value);
-                        cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
-
+                        await using var cmdI18n = _db.CreateCommand(connection, insI18n);
+                        cmdI18n.Transaction = tx;
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@Key", btnDto.LocalizedPairs.Key));
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                        cmdI18n.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                         await cmdI18n.ExecuteNonQueryAsync();
                     }
                 }
 
                 if (!useExternal)
-                    await tx!.CommitAsync();
+                    await tx.CommitAsync();
 
+                // 4) Return hydrated result (coords only if provided in DTO)
                 return new ButtonData
                 {
                     Id = buttonId,
-                    NameKey = btnDto.NameKey,
+                    NameKey = btnDto.NameKey ?? string.Empty,
                     IsActive = btnDto.IsActive,
-                    LocalizedPairs = btnDto.LocalizedPairs,
-                    MapSpot = new MapSpotData
+                    LocalizedPairs = btnDto.LocalizedPairs ?? new LocalizedPairs
                     {
-                        Id = mapSpotId,
-                        X = btnDto.MapSpot.X,
-                        Y = btnDto.MapSpot.Y,
-                        Z = btnDto.MapSpot.Z
-                    }
+                        Key = btnDto.NameKey ?? string.Empty,
+                        Values = new List<LocalizedValue>()
+                    },
+                    MapSpot = mapSpotId.HasValue
+                        ? new MapSpotData
+                        {
+                            Id = mapSpotId.Value,
+                            X = btnDto.MapSpot?.X ?? 0,
+                            Y = btnDto.MapSpot?.Y ?? 0,
+                            Z = btnDto.MapSpot?.Z ?? 0
+                        }
+                        : null
                 };
             }
             catch
             {
-                if (!useExternal && tx != null)
+                if (!useExternal)
                     await tx.RollbackAsync();
                 throw;
             }
         }
+
         #endregion
     }
 }
