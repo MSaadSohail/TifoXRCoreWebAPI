@@ -5,11 +5,14 @@
 // <date>08/15/2025</date>
 // <summary>Smoke test for GetTeleportTableBySpaceAsync verifying null return when no rows are present.</summary>
 
-using System.Data;
 using FluentAssertions;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes;
 using Microsoft.Extensions.Configuration;
-using TifoXRCoreWebAPI.Tests.TestDoubles.Fakes;
+using System.Data;
+using System.Data.Common;
 using TifoXRCoreWebAPI.Tests.TestDoubles.Schemas;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 using Xunit;

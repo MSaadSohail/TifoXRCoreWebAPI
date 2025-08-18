@@ -10,7 +10,7 @@ using System.Data;
 using System.Data.Common;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 
-namespace TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
+namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 {
     /// <summary>
     /// Minimal test double for <see cref="IDbProvider"/> that uses a reader factory to avoid reusing
@@ -19,6 +19,15 @@ namespace TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
     /// </summary>
     internal sealed class FakeDbProvider : IDbProvider
     {
+        private enum StepKind { Scalar, NonQuery, Reader, ReaderFromFactory }
+        private sealed class Step
+        {
+            public StepKind Kind { get; init; }
+            public object? ScalarResult { get; init; }
+            public int NonQueryResult { get; init; }
+            public Func<DbDataReader>? ReaderFactory { get; init; }
+        }
+        private readonly Queue<Step> _steps = new();
         private readonly Func<DbDataReader> _readerFactory;
 
         /// <param name="readerFactory">
@@ -26,13 +35,17 @@ namespace TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
         /// In tests, pass () => dataTable.CreateDataReader().
         /// </param>
         public FakeDbProvider(Func<DbDataReader> readerFactory) => _readerFactory = readerFactory;
+        public void EnqueueScalar(object? value) => _steps.Enqueue(new Step { Kind = StepKind.Scalar, ScalarResult = value });
+        public void EnqueueNonQuery(int count) => _steps.Enqueue(new Step { Kind = StepKind.NonQuery, NonQueryResult = count });
+        public void EnqueueReader(Func<DbDataReader> factory) =>
+            _steps.Enqueue(new Step { Kind = StepKind.Reader, ReaderFactory = factory });
 
         public Task<DbConnection> OpenConnectionAsync()
             => Task.FromResult<DbConnection>(new FakeConnection());
 
         // Signature matches interface with optional transaction (= null).
         public DbCommand CreateCommand(DbConnection connection, string commandText, DbTransaction? transaction = null)
-            => new FakeCommand(_readerFactory) { CommandText = commandText, Transaction = transaction };
+    => new FakeCommand(_readerFactory, _steps) { CommandText = commandText, Transaction = transaction };
 
         public DbParameter CreateParameter(string name, object? value)
             => new FakeParameter { ParameterName = name, Value = value };
@@ -47,22 +60,53 @@ namespace TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             public override string ServerVersion => "0";
             public override ConnectionState State => ConnectionState.Open;
 
-            // No-ops: this is a test double; disposal is safe no-op.
+            public FakeTransaction? CurrentTx { get; private set; }
+            public bool BeganTx { get; private set; }
+
             public override void ChangeDatabase(string databaseName) { }
             public override void Close() { }
             public override void Open() { }
 
             protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
-                => throw new NotImplementedException();
+            {
+                BeganTx = true;
+                CurrentTx = new FakeTransaction(this);
+                return CurrentTx;
+            }
+
+
+
             protected override DbCommand CreateDbCommand()
                 => throw new NotImplementedException();
+        }
+        private sealed class FakeTransaction : DbTransaction
+        {
+            private readonly FakeConnection _conn;
+            public bool Committed { get; private set; }
+            public bool RolledBack { get; private set; }
+
+            public FakeTransaction(FakeConnection conn) => _conn = conn;
+            public override IsolationLevel IsolationLevel => IsolationLevel.ReadCommitted;
+            protected override DbConnection DbConnection => _conn;
+
+            public override void Commit() { Committed = true; }
+            public override void Rollback() { RolledBack = true; }
+            public override Task CommitAsync(CancellationToken cancellationToken = default)
+            { Committed = true; return Task.CompletedTask; }
+            public override Task RollbackAsync(CancellationToken cancellationToken = default)
+            { RolledBack = true; return Task.CompletedTask; }
         }
 
         private sealed class FakeCommand : DbCommand
         {
-            private readonly Func<DbDataReader> _readerFactory;
+            private readonly Func<DbDataReader> _defaultReaderFactory; // your existing factory
+            private readonly Queue<Step> _steps; // NEW: consume scripted steps
 
-            public FakeCommand(Func<DbDataReader> readerFactory) => _readerFactory = readerFactory;
+            public FakeCommand(Func<DbDataReader> readerFactory, Queue<Step> steps)
+            {
+                _defaultReaderFactory = readerFactory;
+                _steps = steps;
+            }
 
             public override string CommandText { get; set; } = "";
             public override int CommandTimeout { get; set; } = 30;
@@ -75,18 +119,46 @@ namespace TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             protected override DbTransaction? DbTransaction { get; set; }
 
             public override void Cancel() { }
-            public override int ExecuteNonQuery() => throw new NotImplementedException();
-            public override object? ExecuteScalar() => throw new NotImplementedException();
             public override void Prepare() { }
             protected override DbParameter CreateDbParameter() => new FakeParameter();
 
-            /// <summary>
-            /// IMPORTANT: ExecuteReaderAsync IS virtual in DbCommand. We rely on the base implementation,
-            /// which calls our override of ExecuteDbDataReader(CommandBehavior), where we return
-            /// a NEW reader via the factory on each call. This avoids "reader already in use" issues.
-            /// </summary>
+            public override object? ExecuteScalar()
+            {
+                var step = NextOrDefault();
+                if (step == null) throw new InvalidOperationException("No scripted step for ExecuteScalar.");
+                if (step.Kind != StepKind.Scalar)
+                    throw new InvalidOperationException($"Expected Scalar step, got {step.Kind} for SQL: {CommandText}");
+                return step.ScalarResult;
+            }
+            public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken)
+                => Task.FromResult(ExecuteScalar());
+
+            public override int ExecuteNonQuery()
+            {
+                var step = NextOrDefault();
+                if (step == null) throw new InvalidOperationException("No scripted step for ExecuteNonQuery.");
+                if (step.Kind != StepKind.NonQuery)
+                    throw new InvalidOperationException($"Expected NonQuery step, got {step.Kind} for SQL: {CommandText}");
+                return step.NonQueryResult;
+            }
+            public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
+                => Task.FromResult(ExecuteNonQuery());
+
             protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
-                => _readerFactory();
+            {
+                var step = NextOrDefault();
+                if (step == null)
+                {
+                    // Fallback: maintain your original behavior for simple cases
+                    return _defaultReaderFactory();
+                }
+                if (step.Kind == StepKind.Reader)
+                    return step.ReaderFactory!();
+                throw new InvalidOperationException($"Expected Reader step, got {step.Kind} for SQL: {CommandText}");
+            }
+
+            private Step? NextOrDefault() => _steps.Count > 0 ? _steps.Dequeue() : null;
+
 
             private sealed class FakeParamCollection : DbParameterCollection
             {
