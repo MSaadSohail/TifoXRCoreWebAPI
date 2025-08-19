@@ -20,6 +20,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
     internal sealed class FakeDbProvider : IDbProvider
     {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         private enum StepKind { Scalar, NonQuery, Reader, ReaderFromFactory }
         private sealed class Step
         {
@@ -44,6 +45,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
         // --------- scriptable behavior/state exposed to tests ---------
         private readonly Func<DbDataReader> _readerFactory;
 
+=======
+        // --------- scriptable behavior/state exposed to tests ---------
+        private readonly Func<DbDataReader> _readerFactory;
+
+>>>>>>> Stashed changes
         /// <summary>Queue of values that ExecuteScalar() will dequeue from.</summary>
         public Queue<object> ScalarResults { get; }
 
@@ -71,6 +77,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
         }
 
         // --------------------------- IDbProvider ---------------------------
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
         public Task<DbConnection> OpenConnectionAsync()
@@ -78,8 +87,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
         public DbCommand CreateCommand(DbConnection connection, string commandText, DbTransaction? transaction = null)
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     => new FakeCommand(_readerFactory, _steps) { CommandText = commandText, Transaction = transaction };
 =======
+=======
+>>>>>>> Stashed changes
         {
             // Accept any DbConnection for compatibility; we use our own fake in tests.
             var fakeConn = connection as FakeConnection ?? new FakeConnection(this);
@@ -89,6 +101,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
                 Transaction = transaction
             };
         }
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
         public DbParameter CreateParameter(string name, object? value)
@@ -111,9 +126,12 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             public override ConnectionState State => ConnectionState.Open;
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             public FakeTransaction? CurrentTx { get; private set; }
             public bool BeganTx { get; private set; }
 
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
             public override void ChangeDatabase(string databaseName) { }
@@ -124,6 +142,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
             protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             {
                 BeganTx = true;
                 CurrentTx = new FakeTransaction(this);
@@ -132,6 +151,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
 
 =======
+=======
+>>>>>>> Stashed changes
                 => new FakeTransaction(_owner, this, isolationLevel);
 
             // *** IMPORTANT: Your TFM expects ValueTask<DbTransaction> here. ***
@@ -139,6 +160,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
                 IsolationLevel isolationLevel,
                 CancellationToken cancellationToken = default)
                 => new ValueTask<DbTransaction>(new FakeTransaction(_owner, this, isolationLevel));
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
             protected override DbCommand CreateDbCommand()
@@ -162,6 +186,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
             public override void Commit() => _owner.Commits++;
             public override void Rollback() => _owner.Rollbacks++;
+<<<<<<< Updated upstream
         }
         private sealed class FakeTransaction : DbTransaction
         {
@@ -179,10 +204,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             { Committed = true; return Task.CompletedTask; }
             public override Task RollbackAsync(CancellationToken cancellationToken = default)
             { RolledBack = true; return Task.CompletedTask; }
+=======
+>>>>>>> Stashed changes
         }
 
         private sealed class FakeCommand : DbCommand
         {
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
             private readonly Func<DbDataReader> _defaultReaderFactory; // your existing factory
             private readonly Queue<Step> _steps; // NEW: consume scripted steps
@@ -202,6 +230,17 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 >>>>>>> Stashed changes
             }
 
+=======
+            private readonly FakeDbProvider _owner;
+            private readonly FakeConnection _conn;
+
+            public FakeCommand(FakeDbProvider owner, FakeConnection conn)
+            {
+                _owner = owner;
+                _conn = conn;
+            }
+
+>>>>>>> Stashed changes
             public override string CommandText { get; set; } = string.Empty;
             public override int CommandTimeout { get; set; } = 30;
             public override CommandType CommandType { get; set; } = CommandType.Text;
@@ -216,6 +255,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             public override void Prepare() { }
             protected override DbParameter CreateDbParameter() => new FakeParameter();
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
             public override object? ExecuteScalar()
             {
@@ -256,6 +296,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
 
             private sealed class FakeParamCollection : DbParameterCollection
+=======
+            /// <summary>Base ExecuteReader/ExecuteReaderAsync delegate here.</summary>
+            protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
+>>>>>>> Stashed changes
 =======
             /// <summary>Base ExecuteReader/ExecuteReaderAsync delegate here.</summary>
             protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
