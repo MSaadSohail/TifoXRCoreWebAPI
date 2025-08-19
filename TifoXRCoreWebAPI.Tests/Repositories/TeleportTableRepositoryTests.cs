@@ -15,29 +15,18 @@ using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Builders;
 using GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes;
+using GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Schemas;
 using Microsoft.Extensions.Configuration;
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 using System.Data;
 using System.Data.Common;
-=======
-=======
->>>>>>> Stashed changes
-using TifoXRCoreWebAPI.Tests.TestDoubles.Builders;
-using TifoXRCoreWebAPI.Tests.TestDoubles.Fakes;
->>>>>>> Stashed changes
-using TifoXRCoreWebAPI.Tests.TestDoubles.Schemas;
-using Xunit;
-
-// IMPORTANT: disambiguate against System.Data.DataRowBuilder
-using TestDataRowBuilder = TifoXRCoreWebAPI.Tests.TestDoubles.Builders.DataRowBuilder;
+using TestDataRowBuilder = GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Builders.DataRowBuilder;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 {
     public class TeleportTableRepositoryTests
     {
-        // ---------------------------- repo factories ----------------------------
 
         /// <summary>
         /// For GET-style tests that need a reader created from a DataTable.
@@ -102,7 +91,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [InlineData(1)]
         public async Task Get_ReturnsNull_WhenNoRows(int spaceId)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
             var sut = BuildRepo(dt);
 
             var result = await sut.GetTeleportTableBySpaceAsync(spaceId);
@@ -114,7 +103,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [MemberData(nameof(TableLocaleSets))]
         public async Task Get_ReturnsTable_WithTableI18n_NoButtons(string[] tableLocales)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             foreach (var pair in tableLocales)
             {
@@ -148,7 +137,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [MemberData(nameof(ButtonNoI18nCases))]
         public async Task Get_ReturnsTable_WithSingleButton_NoI18n_NoMapSpot(int buttonId, string nameKey, bool isActive)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults()
@@ -174,7 +163,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [InlineData(false)]
         public async Task Get_Aggregates_MultipleButtons_And_MultiLocaleButtonI18n_DedupesLocales(bool includeDuplicateFr)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults()
@@ -238,7 +227,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         public async Task Get_Button_WithMapSpot_PopulatesCoordinates(
             int buttonId, string nameKey, bool isActive, int mapSpotId, decimal x, decimal y, decimal z)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults()
@@ -265,7 +254,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [InlineData(false, false)]
         public async Task Get_Ignores_Null_TableAndButton_I18n_Pairs(bool nullTableI18n, bool nullButtonI18n)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults()
@@ -305,7 +294,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [InlineData("fr-FR", "Seulement Table")]
         public async Task Get_NoButtons_Yields_EmptyButtonsList_NotNull(string tableLocale, string tableValue)
         {
-            var dt = RepositorySchemas.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults()
@@ -741,5 +730,519 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(1);
         }
         #endregion
+
+        #region PUT TESTS
+
+        // small helpers (PUT)
+
+        private static DbDataReader SupportedLangs(params string[] locales)
+        {
+            var t = new DataTable();
+            t.Columns.Add("locale_id", typeof(string));
+            foreach (var loc in locales) t.Rows.Add(loc);
+            return t.CreateDataReader();
+        }
+
+        [Theory]
+        [InlineData(123, 999)]
+        [InlineData(5, 0)]
+        public async Task Put_ReturnsNull_WhenTableNotFound(int spaceId, int tableId)
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+            // 1) supported_languages
+            fakeDb.EnqueueReader(() => SupportedLangs());
+            // 2) UPDATE teleport_table -> 0 rows
+            fakeDb.EnqueueNonQuery(0);
+            // 3) existence check -> 0 (not found)
+            fakeDb.EnqueueScalar(0);
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = true,
+                LocalizedPairs = null,
+                Buttons = null
+            };
+
+            var result = await sut.UpdateTeleportTableAsync(spaceId, tableId, dto);
+
+            result.Should().BeNull();
+            fakeDb.Commits.Should().Be(0);
+            fakeDb.Rollbacks.Should().Be(1);
+        }
+
+        [Theory]
+        [InlineData("Teleport New", true)]
+        [InlineData("Renamed", false)]
+        public async Task Put_NoChangesButExists_Upserts_Table_I18n_And_Commits(string newNameLocalized, bool isActive)
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+
+            // 1) supported_languages -> en-US
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
+            // 2) UPDATE teleport_table -> 0 rows (no change)
+            fakeDb.EnqueueNonQuery(0);
+            // 3) existence check -> 1 (exists)
+            fakeDb.EnqueueScalar(1);
+            // 4) UPDATE i18n (en-US) -> 0 so INSERT will run
+            fakeDb.EnqueueNonQuery(0);
+
+            // 5) Reload
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(tableId: 1, spaceId: 123, isActive: isActive, tableNameKey: "teleport.table")
+                .WithTableLocale("en-US", newNameLocalized)
+                .AddTo(dt);
+            fakeDb.EnqueueReader(() => dt.CreateDataReader());
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = isActive,
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = "teleport.table",
+                    Values = new List<LocalizedValue> { new LocalizedValue { LocaleId = "en-US", Value = newNameLocalized } }
+                },
+                Buttons = null
+            };
+
+            var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
+
+            updated.Should().NotBeNull();
+            updated!.Id.Should().Be(1);
+            updated.IsActive.Should().Be(isActive);
+            updated.LocalizedPairs.Values.Should()
+                .ContainSingle(v => v.LocaleId == "en-US" && v.Value == newNameLocalized);
+
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task Put_TableAndButtons_Mixed_Update_Insert_MapSpotAndI18n()
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+
+            // 1) supported_languages -> en-US, es-ES
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US", "es-ES"));
+
+            // 2) UPDATE teleport_table -> 1 row affected
+            fakeDb.EnqueueNonQuery(1);
+
+            // 3) Table i18n upserts:
+            //    en-US -> UPDATE returns 1 (no INSERT)
+            //    es-ES -> UPDATE returns 0 (INSERT runs)
+            fakeDb.EnqueueNonQuery(1); // update en-US
+            fakeDb.EnqueueNonQuery(0); // update es-ES (then insert)
+
+            // 4) Existing button (id=10): UPDATE button, UPDATE map_spot, i18n upserts
+            fakeDb.EnqueueNonQuery(1); // upd button
+            fakeDb.EnqueueNonQuery(1); // upd map_spot
+            fakeDb.EnqueueNonQuery(0); // btn i18n en-US -> update=0 then insert
+            fakeDb.EnqueueNonQuery(1); // btn i18n es-ES -> update=1 no insert
+
+            // 5) New button: INSERT button + LAST_INSERT_ID, UPDATE map_spot, i18n upsert
+            fakeDb.EnqueueNonQuery(1); // ins button
+            fakeDb.EnqueueScalar(999); // new button id
+            fakeDb.EnqueueNonQuery(1); // upd map_spot
+            fakeDb.EnqueueNonQuery(0); // btn i18n en-US -> update=0 then insert
+
+            // 6) Reload composed table
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(tableId: 77, spaceId: 123, isActive: true, tableNameKey: "teleport.table")
+                .WithTableLocale("en-US", "T-EN")
+                .AddTo(dt);
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(tableId: 77, spaceId: 123, isActive: true, tableNameKey: "teleport.table")
+                .WithTableLocale("es-ES", "T-ES")
+                .AddTo(dt);
+
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(tableId: 77, spaceId: 123, isActive: true, tableNameKey: "teleport.table")
+                .WithButton(10, "btn.play", true)
+                .WithMapSpot(777, 1.1m, 2.2m, 3.3m)
+                .WithButtonLocale("en-US", "Play")
+                .AddTo(dt);
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(tableId: 77, spaceId: 123, isActive: true, tableNameKey: "teleport.table")
+                .WithButton(10, "btn.play", true)
+                .WithMapSpot(777, 1.1m, 2.2m, 3.3m)
+                .WithButtonLocale("es-ES", "Jugar")
+                .AddTo(dt);
+
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(tableId: 77, spaceId: 123, isActive: true, tableNameKey: "teleport.table")
+                .WithButton(999, "btn.new", false)
+                .WithMapSpot(888, 9m, 8m, 7m)
+                .WithButtonLocale("en-US", "New")
+                .AddTo(dt);
+
+            fakeDb.EnqueueReader(() => dt.CreateDataReader());
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = true,
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = "teleport.table",
+                    Values = new List<LocalizedValue>
+                    {
+                        new LocalizedValue { LocaleId = "en-US", Value = "T-EN" },
+                        new LocalizedValue { LocaleId = "es-ES", Value = "T-ES" }
+                    }
+                },
+                Buttons = new List<ButtonUpdateDto>
+                {
+                    new ButtonUpdateDto
+                    {
+                        Id = 10,
+                        NameKey = "btn.play",
+                        IsActive = true,
+                        MapSpot = new MapSpotData { Id = 777, X = 1.1m, Y = 2.2m, Z = 3.3m },
+                        LocalizedPairs = new LocalizedPairs
+                        {
+                            Key = "btn.play",
+                            Values = new List<LocalizedValue>
+                            {
+                                new LocalizedValue { LocaleId = "en-US", Value = "Play" },
+                                new LocalizedValue { LocaleId = "es-ES", Value = "Jugar" }
+                            }
+                        }
+                    },
+                    new ButtonUpdateDto
+                    {
+                        NameKey = "btn.new",
+                        IsActive = false,
+                        MapSpot = new MapSpotData { Id = 888, X = 9m, Y = 8m, Z = 7m },
+                        LocalizedPairs = new LocalizedPairs
+                        {
+                            Key = "btn.new",
+                            Values = new List<LocalizedValue>
+                            {
+                                new LocalizedValue { LocaleId = "en-US", Value = "New" }
+                            }
+                        }
+                    }
+                }
+            };
+
+            var updated = await sut.UpdateTeleportTableAsync(123, 77, dto);
+
+            updated.Should().NotBeNull();
+            updated!.Id.Should().Be(77);
+            updated.LocalizedPairs.Values.Select(v => v.LocaleId)
+                .Should().BeEquivalentTo(new[] { "en-US", "es-ES" });
+            updated.Buttons.Should().HaveCount(2);
+
+            var bPlay = updated.Buttons.Single(b => b.Id == 10);
+            bPlay.MapSpot!.X.Should().Be(1.1m);
+            bPlay.LocalizedPairs.Values.Select(v => v.LocaleId)
+                 .Should().BeEquivalentTo(new[] { "en-US", "es-ES" });
+
+            var bNew = updated.Buttons.Single(b => b.Id == 999);
+            bNew.IsActive.Should().BeFalse();
+            bNew.MapSpot!.Id.Should().Be(888);
+            bNew.LocalizedPairs.Values.Should().ContainSingle(v => v.LocaleId == "en-US" && v.Value == "New");
+
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task Put_SkipsUnsupportedAndBlankLocales_For_Table_And_Buttons()
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+            // Guard: ensure no accidental map_spot update occurs
+            fakeDb.ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase);
+
+            // 1) supported_languages -> only en-US
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
+
+            // 2) UPDATE teleport_table -> 1
+            fakeDb.EnqueueNonQuery(1);
+
+            // 3) Table i18n: only en-US will upsert (UPDATE=0 -> INSERT)
+            fakeDb.EnqueueNonQuery(0);
+
+            // 4) Existing button update (id=10)
+            fakeDb.EnqueueNonQuery(1); // upd button
+                                       //    Button i18n: only en-US counts -> UPDATE (0) then INSERT
+            fakeDb.EnqueueNonQuery(0);
+
+            // 5) Reload
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults()
+                .WithTableLocale("en-US", "Only EN")
+                .AddTo(dt);
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults()
+                .WithButton(10, "btn.one", true)
+                .WithButtonLocale("en-US", "One EN")
+                .AddTo(dt);
+
+            fakeDb.EnqueueReader(() => dt.CreateDataReader());
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = true,
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = "teleport.table",
+                    Values = new List<LocalizedValue>
+                    {
+                        new LocalizedValue { LocaleId = "",      Value = "X" },     // ignored
+                        new LocalizedValue { LocaleId = "  ",    Value = "Y" },     // ignored
+                        new LocalizedValue { LocaleId = null!,   Value = "Z" },     // ignored
+                        new LocalizedValue { LocaleId = "fr-FR", Value = "FR" },    // unsupported
+                        new LocalizedValue { LocaleId = "en-US", Value = "Only EN"} // handled
+                    }
+                },
+                Buttons = new List<ButtonUpdateDto>
+                {
+                    new ButtonUpdateDto
+                    {
+                        Id = 10,
+                        NameKey = "btn.one",
+                        IsActive = true,
+                        MapSpot = null,
+                        LocalizedPairs = new LocalizedPairs
+                        {
+                            Key = "btn.one",
+                            Values = new List<LocalizedValue>
+                            {
+                                new LocalizedValue { LocaleId = null!,   Value = "X" }, // ignored
+                                new LocalizedValue { LocaleId = "  ",    Value = "Y" }, // ignored
+                                new LocalizedValue { LocaleId = "fr-FR", Value = "FR"}, // unsupported
+                                new LocalizedValue { LocaleId = "en-US", Value = "One EN"} // handled
+                            }
+                        }
+                    }
+                }
+            };
+
+            var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
+
+            updated.Should().NotBeNull();
+            updated!.LocalizedPairs.Values.Should().ContainSingle(v => v.LocaleId == "en-US" && v.Value == "Only EN");
+            updated.Buttons.Should().ContainSingle(b => b.Id == 10);
+            updated.Buttons[0].LocalizedPairs.Values.Should().ContainSingle(v => v.LocaleId == "en-US" && v.Value == "One EN");
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task Put_NewButton_NullMapSpot_NoMapSpotUpdate(bool isActive)
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                // Guard: fail if any UPDATE map_spot happens
+                ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase)
+            };
+
+            // 1) supported_languages
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
+            // 2) UPDATE teleport_table -> 1
+            fakeDb.EnqueueNonQuery(1);
+            // 3) INSERT new button + id
+            fakeDb.EnqueueNonQuery(1);
+            fakeDb.EnqueueScalar(333);
+
+            // 4) Reload with button 333 and no map spot
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(isActive: isActive)
+                .AddTo(dt);
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(isActive: isActive)
+                .WithButton(333, "btn.add", true)
+                .AddTo(dt);
+            fakeDb.EnqueueReader(() => dt.CreateDataReader());
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = isActive,
+                LocalizedPairs = null,
+                Buttons = new List<ButtonUpdateDto>
+                {
+                    new ButtonUpdateDto
+                    {
+                        NameKey = "btn.add",
+                        IsActive = true,
+                        MapSpot = null,
+                        LocalizedPairs = null
+                    }
+                }
+            };
+
+            var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
+
+            updated.Should().NotBeNull();
+            updated!.Buttons.Should().ContainSingle(b => b.Id == 333 && b.MapSpot == null);
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task Put_ExistingButton_ClearMapSpotId(bool isActive)
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                // Guard: fail if any UPDATE map_spot happens (should not when MapSpot=null)
+                ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase)
+            };
+
+            // 1) supported_languages
+            fakeDb.EnqueueReader(() => SupportedLangs());
+            // 2) UPDATE teleport_table -> 1
+            fakeDb.EnqueueNonQuery(1);
+            // 3) UPDATE existing button (map_spot_id -> NULL)
+            fakeDb.EnqueueNonQuery(1);
+            // 4) Reload with button having NULL map_spot
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(isActive: isActive)
+                .AddTo(dt);
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(isActive: isActive)
+                .WithButton(44, "btn.clear", true)
+                .AddTo(dt);
+            fakeDb.EnqueueReader(() => dt.CreateDataReader());
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = isActive,
+                LocalizedPairs = null,
+                Buttons = new List<ButtonUpdateDto>
+                {
+                    new ButtonUpdateDto
+                    {
+                        Id = 44,
+                        NameKey = "btn.clear",
+                        IsActive = true,
+                        MapSpot = null,
+                        LocalizedPairs = null
+                    }
+                }
+            };
+
+            var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
+
+            updated.Should().NotBeNull();
+            var btn = updated!.Buttons.Single(b => b.Id == 44);
+            btn.MapSpot.Should().BeNull();
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task Put_EmptyButtonsList_SkipsButtonsSection(bool isActive)
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                // Guard: fail if any teleport_table_button DML sneaks in
+                ShouldThrowOnNonQuery = sql => sql.Contains("teleport_table_button", StringComparison.OrdinalIgnoreCase)
+            };
+
+            // 1) supported_languages
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
+            // 2) UPDATE teleport_table -> 1
+            fakeDb.EnqueueNonQuery(1);
+            // 3) Reload (no buttons)
+            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            TestDataRowBuilder.TeleportSelectRow()
+                .WithTeleportTableDefaults(isActive: isActive)
+                .AddTo(dt);
+            fakeDb.EnqueueReader(() => dt.CreateDataReader());
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = isActive,
+                LocalizedPairs = null,
+                Buttons = new List<ButtonUpdateDto>() // empty
+            };
+
+            var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
+
+            updated.Should().NotBeNull();
+            updated!.Buttons.Should().BeEmpty();
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task Put_Rollback_When_Button_I18n_Insert_Fails()
+        {
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO i18n", StringComparison.OrdinalIgnoreCase),
+                NonQueryException = new InvalidOperationException("boom at button i18n")
+            };
+
+            // 1) supported_languages
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
+            // 2) UPDATE teleport_table -> 1
+            fakeDb.EnqueueNonQuery(1);
+            // 3) Existing button update
+            fakeDb.EnqueueNonQuery(1);
+            // 4) Button i18n: UPDATE returns 0 -> triggers INSERT which throws
+            fakeDb.EnqueueNonQuery(0);
+
+            var sut = BuildRepo(fakeDb);
+            var dto = new TeleportTableUpdateDto
+            {
+                NameKey = "teleport.table",
+                IsActive = true,
+                LocalizedPairs = null,
+                Buttons = new List<ButtonUpdateDto>
+                {
+                    new ButtonUpdateDto
+                    {
+                        Id = 10,
+                        NameKey = "btn.bad",
+                        IsActive = true,
+                        MapSpot = null,
+                        LocalizedPairs = new LocalizedPairs
+                        {
+                            Key = "btn.bad",
+                            Values = new List<LocalizedValue>
+                            {
+                                new LocalizedValue { LocaleId = "en-US", Value = "Bad" }
+                            }
+                        }
+                    }
+                }
+            };
+
+            var act = async () => await sut.UpdateTeleportTableAsync(123, 1, dto);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                     .WithMessage("*boom at button i18n*");
+            fakeDb.Commits.Should().Be(0);
+            fakeDb.Rollbacks.Should().Be(1);
+        }
+
+        #endregion
+
     }
 }

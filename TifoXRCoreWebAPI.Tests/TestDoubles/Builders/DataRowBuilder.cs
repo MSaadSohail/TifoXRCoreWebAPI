@@ -11,7 +11,7 @@
 
 using System.Data;
 
-namespace TifoXRCoreWebAPI.Tests.TestDoubles.Builders
+namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Builders
 {
     /// <summary>
     /// Fluent builder for adding a single row to a <see cref="DataTable"/>.

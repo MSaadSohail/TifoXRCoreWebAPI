@@ -8,7 +8,7 @@
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
-namespace TifoXRCoreWebAPI.Tests.TestDoubles.Builders
+namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Builders
 {
     public sealed class TeleportTableCreateDtoBuilder
     {

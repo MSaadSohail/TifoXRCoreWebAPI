@@ -5,53 +5,34 @@
 // <date>08/19/2025</date>
 // <summary>
 // Test double for IDbProvider. It returns a fake DbConnection/DbCommand stack that:
-//  - returns a NEW DbDataReader each time via an injected factory
-//  - records executed SQL strings
-//  - supports ExecuteNonQuery (optionally throwing based on SQL)
-//  - supports ExecuteScalar via a queued result sequence
+//  - can queue DbDataReaders, scalars, and non-query row counts
+//  - returns a NEW DbDataReader each time from queued factories (fallback to ctor factory)
+//  - records executed SQL (normalized)
+//  - supports ExecuteNonQuery (optionally throwing based on SQL predicate)
 //  - supports transactions and counts Commit/Rollback
+// </summary>
 
 using System.Data;
 using System.Data.Common;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 {
     internal sealed class FakeDbProvider : IDbProvider
     {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        private enum StepKind { Scalar, NonQuery, Reader, ReaderFromFactory }
-        private sealed class Step
-        {
-            public StepKind Kind { get; init; }
-            public object? ScalarResult { get; init; }
-            public int NonQueryResult { get; init; }
-            public Func<DbDataReader>? ReaderFactory { get; init; }
-        }
-        private readonly Queue<Step> _steps = new();
+        // Base reader factory used when no queued readers exist
         private readonly Func<DbDataReader> _readerFactory;
 
-        /// <param name="readerFactory">
-        /// Factory that returns a NEW, unconsumed DbDataReader on every invocation.
-        /// In tests, pass () => dataTable.CreateDataReader().
-        /// </param>
-        public FakeDbProvider(Func<DbDataReader> readerFactory) => _readerFactory = readerFactory;
-        public void EnqueueScalar(object? value) => _steps.Enqueue(new Step { Kind = StepKind.Scalar, ScalarResult = value });
-        public void EnqueueNonQuery(int count) => _steps.Enqueue(new Step { Kind = StepKind.NonQuery, NonQueryResult = count });
-        public void EnqueueReader(Func<DbDataReader> factory) =>
-            _steps.Enqueue(new Step { Kind = StepKind.Reader, ReaderFactory = factory });
-=======
-        // --------- scriptable behavior/state exposed to tests ---------
-        private readonly Func<DbDataReader> _readerFactory;
+        // Scriptable queues
+        private readonly Queue<Func<DbDataReader>> _readerResults = new();
+        private readonly Queue<int> _nonQueryResults = new();
 
-=======
-        // --------- scriptable behavior/state exposed to tests ---------
-        private readonly Func<DbDataReader> _readerFactory;
-
->>>>>>> Stashed changes
-        /// <summary>Queue of values that ExecuteScalar() will dequeue from.</summary>
-        public Queue<object> ScalarResults { get; }
+        /// <summary>Queue of values that ExecuteScalar() will dequeue from (nullable).</summary>
+        public Queue<object?> ScalarResults { get; }
 
         /// <summary>Optional predicate: when true for a SQL, ExecuteNonQuery() throws <see cref="NonQueryException"/>.</summary>
         public Func<string, bool>? ShouldThrowOnNonQuery { get; set; }
@@ -70,30 +51,31 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
         // ------------------------------ ctor ------------------------------
 
-        public FakeDbProvider(Func<DbDataReader> readerFactory, Queue<object>? scalarResults = null)
+        public FakeDbProvider(Func<DbDataReader> readerFactory, Queue<object?>? scalarResults = null)
         {
             _readerFactory = readerFactory ?? throw new ArgumentNullException(nameof(readerFactory));
-            ScalarResults = scalarResults ?? new Queue<object>();
+            ScalarResults = scalarResults ?? new Queue<object?>();
         }
 
+        // ----------------------- scripting helpers ------------------------
+
+        public void EnqueueReader(Func<DbDataReader> factory) => _readerResults.Enqueue(factory);
+        public void EnqueueScalar(object? value) => ScalarResults.Enqueue(value);
+        public void EnqueueNonQuery(int affectedRows) => _nonQueryResults.Enqueue(affectedRows);
+
+        internal DbDataReader NextReader()
+            => _readerResults.Count > 0 ? _readerResults.Dequeue().Invoke() : _readerFactory();
+
+        internal int NextNonQuery()
+            => _nonQueryResults.Count > 0 ? _nonQueryResults.Dequeue() : 1;
+
         // --------------------------- IDbProvider ---------------------------
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
         public Task<DbConnection> OpenConnectionAsync()
             => Task.FromResult<DbConnection>(new FakeConnection(this));
 
         public DbCommand CreateCommand(DbConnection connection, string commandText, DbTransaction? transaction = null)
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-    => new FakeCommand(_readerFactory, _steps) { CommandText = commandText, Transaction = transaction };
-=======
-=======
->>>>>>> Stashed changes
         {
-            // Accept any DbConnection for compatibility; we use our own fake in tests.
             var fakeConn = connection as FakeConnection ?? new FakeConnection(this);
             return new FakeCommand(this, fakeConn)
             {
@@ -101,10 +83,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
                 Transaction = transaction
             };
         }
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
         public DbParameter CreateParameter(string name, object? value)
             => new FakeParameter { ParameterName = name, Value = value };
@@ -125,45 +103,17 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             public override string ServerVersion => "0";
             public override ConnectionState State => ConnectionState.Open;
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            public FakeTransaction? CurrentTx { get; private set; }
-            public bool BeganTx { get; private set; }
-
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             public override void ChangeDatabase(string databaseName) { }
             public override void Close() { }
             public override void Open() { }
 
-            // PUBLIC BeginTransaction/BeginTransactionAsync route into these overrides.
-
             protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            {
-                BeganTx = true;
-                CurrentTx = new FakeTransaction(this);
-                return CurrentTx;
-            }
-
-
-=======
-=======
->>>>>>> Stashed changes
                 => new FakeTransaction(_owner, this, isolationLevel);
 
-            // *** IMPORTANT: Your TFM expects ValueTask<DbTransaction> here. ***
             protected override ValueTask<DbTransaction> BeginDbTransactionAsync(
                 IsolationLevel isolationLevel,
                 CancellationToken cancellationToken = default)
                 => new ValueTask<DbTransaction>(new FakeTransaction(_owner, this, isolationLevel));
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
             protected override DbCommand CreateDbCommand()
                 => new FakeCommand(_owner, this);
@@ -186,51 +136,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 
             public override void Commit() => _owner.Commits++;
             public override void Rollback() => _owner.Rollbacks++;
-<<<<<<< Updated upstream
-        }
-        private sealed class FakeTransaction : DbTransaction
-        {
-            private readonly FakeConnection _conn;
-            public bool Committed { get; private set; }
-            public bool RolledBack { get; private set; }
-
-            public FakeTransaction(FakeConnection conn) => _conn = conn;
-            public override IsolationLevel IsolationLevel => IsolationLevel.ReadCommitted;
-            protected override DbConnection DbConnection => _conn;
-
-            public override void Commit() { Committed = true; }
-            public override void Rollback() { RolledBack = true; }
-            public override Task CommitAsync(CancellationToken cancellationToken = default)
-            { Committed = true; return Task.CompletedTask; }
-            public override Task RollbackAsync(CancellationToken cancellationToken = default)
-            { RolledBack = true; return Task.CompletedTask; }
-=======
->>>>>>> Stashed changes
         }
 
         private sealed class FakeCommand : DbCommand
         {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            private readonly Func<DbDataReader> _defaultReaderFactory; // your existing factory
-            private readonly Queue<Step> _steps; // NEW: consume scripted steps
-
-            public FakeCommand(Func<DbDataReader> readerFactory, Queue<Step> steps)
-            {
-                _defaultReaderFactory = readerFactory;
-                _steps = steps;
-=======
-            private readonly FakeDbProvider _owner;
-            private readonly FakeConnection _conn;
-
-            public FakeCommand(FakeDbProvider owner, FakeConnection conn)
-            {
-                _owner = owner;
-                _conn = conn;
->>>>>>> Stashed changes
-            }
-
-=======
             private readonly FakeDbProvider _owner;
             private readonly FakeConnection _conn;
 
@@ -240,7 +149,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
                 _conn = conn;
             }
 
->>>>>>> Stashed changes
             public override string CommandText { get; set; } = string.Empty;
             public override int CommandTimeout { get; set; } = 30;
             public override CommandType CommandType { get; set; } = CommandType.Text;
@@ -255,58 +163,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             public override void Prepare() { }
             protected override DbParameter CreateDbParameter() => new FakeParameter();
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            public override object? ExecuteScalar()
-            {
-                var step = NextOrDefault();
-                if (step == null) throw new InvalidOperationException("No scripted step for ExecuteScalar.");
-                if (step.Kind != StepKind.Scalar)
-                    throw new InvalidOperationException($"Expected Scalar step, got {step.Kind} for SQL: {CommandText}");
-                return step.ScalarResult;
-            }
-            public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken)
-                => Task.FromResult(ExecuteScalar());
-
-            public override int ExecuteNonQuery()
-            {
-                var step = NextOrDefault();
-                if (step == null) throw new InvalidOperationException("No scripted step for ExecuteNonQuery.");
-                if (step.Kind != StepKind.NonQuery)
-                    throw new InvalidOperationException($"Expected NonQuery step, got {step.Kind} for SQL: {CommandText}");
-                return step.NonQueryResult;
-            }
-            public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
-                => Task.FromResult(ExecuteNonQuery());
-
             protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
-            {
-                var step = NextOrDefault();
-                if (step == null)
-                {
-                    // Fallback: maintain your original behavior for simple cases
-                    return _defaultReaderFactory();
-                }
-                if (step.Kind == StepKind.Reader)
-                    return step.ReaderFactory!();
-                throw new InvalidOperationException($"Expected Reader step, got {step.Kind} for SQL: {CommandText}");
-            }
-
-            private Step? NextOrDefault() => _steps.Count > 0 ? _steps.Dequeue() : null;
-
-
-            private sealed class FakeParamCollection : DbParameterCollection
-=======
-            /// <summary>Base ExecuteReader/ExecuteReaderAsync delegate here.</summary>
-            protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
->>>>>>> Stashed changes
-=======
-            /// <summary>Base ExecuteReader/ExecuteReaderAsync delegate here.</summary>
-            protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
->>>>>>> Stashed changes
             {
                 RecordSql();
-                return _owner._readerFactory();
+                return _owner.NextReader();
             }
 
             public override int ExecuteNonQuery()
@@ -316,8 +176,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
                 if (_owner.ShouldThrowOnNonQuery?.Invoke(Normalize(CommandText)) == true)
                     throw _owner.NonQueryException;
 
-                // Pretend one row affected for DML.
-                return 1;
+                return _owner.NextNonQuery();
             }
 
             public override object? ExecuteScalar()
@@ -336,7 +195,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
             }
 
             private static string Normalize(string sql)
-                => (sql ?? string.Empty).Trim().Replace("\r", " ").Replace("\n", " ").Replace("\t", " ");
+                => (sql ?? string.Empty).Trim()
+                    .Replace("\r", " ")
+                    .Replace("\n", " ")
+                    .Replace("\t", " ");
         }
 
         private sealed class FakeParamCollection : DbParameterCollection

@@ -7,9 +7,9 @@
 
 using System.Data;
 
-namespace TifoXRCoreWebAPI.Tests.TestDoubles.Schemas
+namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Schemas
 {
-    public static class RepositorySchemas
+    public static class TeleportSchema
     {
         /// <summary>
         /// Schema for the SELECT used by TeleportTableRepository.GetTeleportTableBySpaceAsync.
