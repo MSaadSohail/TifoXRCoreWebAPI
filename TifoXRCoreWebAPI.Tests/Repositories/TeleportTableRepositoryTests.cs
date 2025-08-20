@@ -1,10 +1,10 @@
-﻿// © 2025 Global Mobile Software LLC. All rights reserved.
-// Author: Urvashi Dhingra
-// Date: 08/19/2025
+﻿// <copyright file="TeleportTableRepositoryTests.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Urvashi Dhingra</author>
+// <date>08/19/2025</date>
 // Summary:
-// Single file containing theory-first unit tests for
-//  - GetTeleportTableBySpaceAsync (GET)
-//  - CreateTeleportTableAsync (POST)
+// Test file containing unit tests for GET, POST, PUT, DELETE
 // Uses:
 //   - FakeDbProvider (scriptable; supports ExecuteReader/NonQuery/Scalar + transactions)
 //   - RepositorySchemas (generic schema helper)
@@ -21,18 +21,23 @@ using GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Schemas;
 using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
+using System.Text.RegularExpressions;
 using TestDataRowBuilder = GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Builders.DataRowBuilder;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 {
+    /// <summary>
+    /// End-to-end unit tests for <see cref="TeleportTableRepository"/>, organized by HTTP verb.
+    /// Each test follows Arrange / Act / Assert structure.
+    /// </summary>
     public class TeleportTableRepositoryTests
     {
-
         /// <summary>
-        /// For GET-style tests that need a reader created from a DataTable.
+        /// Builds a repository using a <see cref="DataTable"/>-backed reader for GET scenarios.
         /// </summary>
         private static TeleportTableRepository BuildRepo(DataTable dt)
         {
+            // Arrange
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -42,14 +47,20 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var fakeDb = new FakeDbProvider(() => dt.CreateDataReader());
-            return new TeleportTableRepository(config, fakeDb);
+
+            // Act
+            var repo = new TeleportTableRepository(config, fakeDb);
+
+            // Assert (none — helper)
+            return repo;
         }
 
         /// <summary>
-        /// For POST-style tests that need scripted ExecuteScalar/NonQuery/Txn behavior.
+        /// Builds a repository using a scripted <see cref="FakeDbProvider"/> for POST/PUT/DELETE scenarios.
         /// </summary>
         private static TeleportTableRepository BuildRepo(FakeDbProvider fakeDb)
         {
+            // Arrange
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -58,13 +69,20 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 })
                 .Build();
 
-            return new TeleportTableRepository(config, fakeDb);
+            // Act
+            var repo = new TeleportTableRepository(config, fakeDb);
+
+            // Assert (none — helper)
+            return repo;
         }
 
         #region GET TESTS
 
         // -------- data sources for parameterized tests --------
 
+        /// <summary>
+        /// Yields sets of (locale|value) pairs to validate table-level i18n aggregation.
+        /// </summary>
         public static IEnumerable<object[]> TableLocaleSets()
         {
             yield return new object[] { new[] { "en-US|Teleport" } };
@@ -72,12 +90,18 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             yield return new object[] { new[] { "en-US|Tele", "de-DE|Teleportieren", "fr-FR|Téléportation" } };
         }
 
+        /// <summary>
+        /// Yields button rows with/without activity to validate button projection sans i18n.
+        /// </summary>
         public static IEnumerable<object[]> ButtonNoI18nCases()
         {
             yield return new object[] { 10, "btn.play", true };
             yield return new object[] { 11, "btn.stop", false };
         }
 
+        /// <summary>
+        /// Yields map spot variations to validate map coordinate population.
+        /// </summary>
         public static IEnumerable<object[]> MapSpotCases()
         {
             // buttonId, nameKey, active, mapSpotId, x, y, z
@@ -86,23 +110,33 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             yield return new object[] { 7, "btn.neg", true, 3, -12.345m, 999.999m, -0.001m };
         }
 
+        /// <summary>
+        /// Ensures null is returned when the query yields no rows.
+        /// </summary>
         [Theory]
         [InlineData(123)]
         [InlineData(1)]
         public async Task Get_ReturnsNull_WhenNoRows(int spaceId)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
             var sut = BuildRepo(dt);
 
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(spaceId);
 
+            // Assert
             result.Should().BeNull("no rows were returned by the data reader");
         }
 
+        /// <summary>
+        /// Verifies table i18n aggregation without any buttons.
+        /// </summary>
         [Theory]
         [MemberData(nameof(TableLocaleSets))]
         public async Task Get_ReturnsTable_WithTableI18n_NoButtons(string[] tableLocales)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             foreach (var pair in tableLocales)
@@ -117,8 +151,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             }
 
             var sut = BuildRepo(dt);
+
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(123);
 
+            // Assert
             result.Should().NotBeNull();
             result!.Id.Should().Be(1);
             result.SpaceId.Should().Be(123);
@@ -133,10 +170,14 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             result.Buttons.Should().NotBeNull().And.BeEmpty();
         }
 
+        /// <summary>
+        /// Projects a single button without i18n or map spot.
+        /// </summary>
         [Theory]
         [MemberData(nameof(ButtonNoI18nCases))]
         public async Task Get_ReturnsTable_WithSingleButton_NoI18n_NoMapSpot(int buttonId, string nameKey, bool isActive)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
@@ -145,8 +186,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .AddTo(dt);
 
             var sut = BuildRepo(dt);
+
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(123);
 
+            // Assert
             result.Should().NotBeNull();
             result!.Buttons.Should().HaveCount(1);
 
@@ -158,11 +202,15 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             b.MapSpot.Should().BeNull();
         }
 
+        /// <summary>
+        /// Aggregates multiple buttons and deduplicates repeated button i18n rows.
+        /// </summary>
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Get_Aggregates_MultipleButtons_And_MultiLocaleButtonI18n_DedupesLocales(bool includeDuplicateFr)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
@@ -198,8 +246,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .AddTo(dt);
 
             var sut = BuildRepo(dt);
+
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(123);
 
+            // Assert
             result.Should().NotBeNull();
             result!.Buttons.Should().HaveCount(2);
 
@@ -222,11 +273,15 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .ContainSingle(v => v.LocaleId == "en-US" && v.Value == "Two");
         }
 
+        /// <summary>
+        /// Projects a button with an attached map spot and verifies coordinates.
+        /// </summary>
         [Theory]
         [MemberData(nameof(MapSpotCases))]
         public async Task Get_Button_WithMapSpot_PopulatesCoordinates(
             int buttonId, string nameKey, bool isActive, int mapSpotId, decimal x, decimal y, decimal z)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
@@ -236,8 +291,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .AddTo(dt);
 
             var sut = BuildRepo(dt);
+
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(123);
 
+            // Assert
             result.Should().NotBeNull();
             var btn = result!.Buttons.Should().ContainSingle().Subject;
             btn.MapSpot.Should().NotBeNull();
@@ -247,6 +305,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             btn.MapSpot.Z.Should().Be(z);
         }
 
+        /// <summary>
+        /// Ignores null table/button i18n pairs while still building the object graph.
+        /// </summary>
         [Theory]
         [InlineData(true, true)]
         [InlineData(true, false)]
@@ -254,6 +315,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         [InlineData(false, false)]
         public async Task Get_Ignores_Null_TableAndButton_I18n_Pairs(bool nullTableI18n, bool nullButtonI18n)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
@@ -272,8 +334,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .AddTo(dt);
 
             var sut = BuildRepo(dt);
+
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(123);
 
+            // Assert
             result.Should().NotBeNull();
 
             if (nullTableI18n)
@@ -289,11 +354,15 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 result.Buttons[0].LocalizedPairs.Values.Should().ContainSingle(v => v.LocaleId == "en-US" && v.Value == "Nulls");
         }
 
+        /// <summary>
+        /// When no button rows exist, verifies Buttons is an empty list (not null).
+        /// </summary>
         [Theory]
         [InlineData("en-US", "Only Table")]
         [InlineData("fr-FR", "Seulement Table")]
         public async Task Get_NoButtons_Yields_EmptyButtonsList_NotNull(string tableLocale, string tableValue)
         {
+            // Arrange
             var dt = TeleportSchema.CreateTeleportSelectSchema();
 
             TestDataRowBuilder.TeleportSelectRow()
@@ -302,8 +371,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .AddTo(dt);
 
             var sut = BuildRepo(dt);
+
+            // Act
             var result = await sut.GetTeleportTableBySpaceAsync(123);
 
+            // Assert
             result.Should().NotBeNull();
             result!.Buttons.Should().NotBeNull().And.BeEmpty();
         }
@@ -314,11 +386,17 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         // ---------- helpers (for POST) ----------
 
+        /// <summary>
+        /// Counts INSERT statements for the given table name.
+        /// </summary>
         private static int CountInsertFor(FakeDbProvider db, string table) =>
             db.ExecutedSql.Count(s =>
                 s.Contains($"INSERT INTO {table} ", StringComparison.OrdinalIgnoreCase) ||
                 s.Contains($"INSERT INTO {table}(", StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>
+        /// Asserts expected INSERT counts across key tables for create flows.
+        /// </summary>
         private static void AssertInsertCounts(
             FakeDbProvider db,
             int teleportTable = 0,
@@ -334,25 +412,34 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             db.ExecutedSql.Count(s => s.Contains("SELECT LAST_INSERT_ID()", StringComparison.OrdinalIgnoreCase)).Should().Be(lastId);
         }
 
+        /// <summary>
+        /// Ensures null DTO throws and no transaction is attempted.
+        /// </summary>
         [Fact]
         public async Task Create_Throws_ArgumentNull_WhenDtoIsNull()
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
             var sut = BuildRepo(fakeDb);
 
+            // Act
             Func<Task> act = async () => await sut.CreateTeleportTableAsync(123, null!);
-            await act.Should().ThrowAsync<ArgumentNullException>();
 
+            // Assert
+            await act.Should().ThrowAsync<ArgumentNullException>();
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Creates a table with no i18n and no buttons, validating commit.
+        /// </summary>
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Create_Table_NoI18n_NoButtons_Commits(bool isActive)
         {
-            // Scalar seq: [tableId]
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
                 scalarResults: new Queue<object>(new object[] { 100 })
@@ -364,8 +451,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var sut = BuildRepo(fakeDb);
+
+            // Act
             var created = await sut.CreateTeleportTableAsync(123, dto);
 
+            // Assert
             created.Id.Should().Be(100);
             created.SpaceId.Should().Be(123);
             created.NameKey.Should().Be("teleport.table");
@@ -384,12 +474,15 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Inserts all provided table locales and verifies i18n row count.
+        /// </summary>
         [Theory]
         [InlineData(2)]
         [InlineData(3)]
         public async Task Create_Table_With_I18n_Inserts_All_Locales(int localeCount)
         {
-            // Scalar seq: [tableId]
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
                 scalarResults: new Queue<object>(new object[] { 101 })
@@ -406,8 +499,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var sut = BuildRepo(fakeDb);
+
+            // Act
             var created = await sut.CreateTeleportTableAsync(123, dto);
 
+            // Assert
             created.Id.Should().Be(101);
             created.LocalizedPairs!.Key.Should().Be("teleport.name");
             created.LocalizedPairs!.Values.Should().HaveCount(localeCount);
@@ -425,10 +521,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Adds a button without map spot or i18n; verifies graph + SQL.
+        /// </summary>
         [Fact]
         public async Task Create_Table_And_Button_Without_MapSpot_No_I18n()
         {
-            // Scalar seq: [tableId, buttonId]
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
                 scalarResults: new Queue<object>(new object[] { 200, 300 })
@@ -444,8 +543,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var sut = BuildRepo(fakeDb);
+
+            // Act
             var created = await sut.CreateTeleportTableAsync(123, dto);
 
+            // Assert
             created.Id.Should().Be(200);
             created.Buttons.Should().ContainSingle();
             var b = created.Buttons[0];
@@ -465,10 +567,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Adds a button with a new map spot and i18n; validates object and SQL counts.
+        /// </summary>
         [Fact]
         public async Task Create_Table_And_Button_With_New_MapSpot_And_I18n()
         {
-            // Scalar seq: [tableId, mapSpotId, buttonId]
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
                 scalarResults: new Queue<object>(new object[] { 500, 600, 601 })
@@ -487,9 +592,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var sut = BuildRepo(fakeDb);
+
+            // Act
             var created = await sut.CreateTeleportTableAsync(123, dto);
 
-            // ----- asserts on object graph -----
+            // Assert
             created.Id.Should().Be(500);
             created.LocalizedPairs!.Values.Should()
                 .ContainSingle(l => l.LocaleId == "en-US" && l.Value == "Teleport");
@@ -505,7 +612,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             btn.LocalizedPairs.Values.Should()
                 .ContainSingle(v => v.LocaleId == "en-US" && v.Value == "Map");
 
-            // ----- asserts on SQL execution -----
             fakeDb.ExecutedSql.Count(s =>
                 s.Contains("INSERT INTO teleport_table ", StringComparison.OrdinalIgnoreCase) ||
                 s.Contains("INSERT INTO teleport_table(", StringComparison.OrdinalIgnoreCase)
@@ -531,10 +637,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Uses an existing map spot id (no INSERT into map_spot expected).
+        /// </summary>
         [Fact]
         public async Task Create_Uses_Existing_MapSpotId_No_MapSpot_Insert()
         {
-            // Scalar seq: [tableId, buttonId] (no map spot id)
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
                 scalarResults: new Queue<object>(new object[] { 800, 900 })
@@ -551,8 +660,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var sut = BuildRepo(fakeDb);
+
+            // Act
             var created = await sut.CreateTeleportTableAsync(123, dto);
 
+            // Assert
             created.Id.Should().Be(800);
             var btn = created.Buttons.Should().ContainSingle().Subject;
             btn.Id.Should().Be(900);
@@ -569,10 +681,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Rolls back the transaction if the button INSERT fails.
+        /// </summary>
         [Fact]
         public async Task Create_RollsBack_When_Button_Insert_Fails()
         {
-            // Scalar seq: [tableId] — failure occurs when inserting the button
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
                 scalarResults: new Queue<object>(new object[] { 1234 })
@@ -592,8 +707,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .Build();
 
             var sut = BuildRepo(fakeDb);
+
+            // Act
             var act = async () => await sut.CreateTeleportTableAsync(123, dto);
 
+            // Assert
             await act.Should().ThrowAsync<InvalidOperationException>()
                      .WithMessage("*boom during button insert*");
 
@@ -601,140 +719,165 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(1);
         }
 
-        // ---------- additional POST coverage ----------
-
-        public static IEnumerable<object[]> CreateVariants()
-        {
-            // tableI18n, buttonCount, buttonI18nEach, mapSpotMode
-            // mapSpotMode: 0=none, 1=new, 2=existing
-            yield return new object[] { 0, 0, 0, 0 };
-            yield return new object[] { 2, 0, 0, 0 };
-            yield return new object[] { 0, 1, 0, 0 };
-            yield return new object[] { 1, 1, 1, 1 };
-            yield return new object[] { 0, 1, 0, 2 };
-            yield return new object[] { 2, 2, 1, 1 }; // richer: 2 buttons, each with 1 i18n and new map spot
-        }
-
-        // -- targeted failure-path tests: each should rollback --
-
+        /// <summary>
+        /// Validates guard: null button DTO throws without touching transactions.
+        /// </summary>
         [Fact]
-        public async Task Create_Rollback_When_Table_Insert_Fails()
+        public async Task CreateButton_Throws_ArgumentNull_WhenDtoIsNull()
         {
-            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
-            {
-                ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO teleport_table", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at table")
-            };
-
-            var dto = TeleportTableCreateDtoBuilder.Default()
-                .WithNameKey("teleport.table")
-                .WithIsActive(true)
-                .Build();
-
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
             var sut = BuildRepo(fakeDb);
-            var act = async () => await sut.CreateTeleportTableAsync(123, dto);
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*boom at table*");
+            // Act
+            var act = async () => await sut.CreateTeleportTableButtonAsync(123, 77, null!);
+
+            // Assert
+            await act.Should().ThrowAsync<ArgumentNullException>();
             fakeDb.Commits.Should().Be(0);
-            fakeDb.Rollbacks.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Internal transaction path: commits on success.
+        /// </summary>
         [Fact]
-        public async Task Create_Rollback_When_MapSpot_Insert_Fails()
+        public async Task CreateButton_InternalTx_Commits_OnSuccess()
         {
-            // Scalars: [tableId] (we will fail before consuming later scalars)
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
-                scalarResults: new Queue<object>(new object[] { 2001 })
-            )
-            {
-                ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO map_spot", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at map_spot")
-            };
-
-            var dto = TeleportTableCreateDtoBuilder.Default()
-                .WithNameKey("teleport.table")
-                .WithIsActive(true)
-                .AddButton(ButtonCreateDtoBuilder.Default()
-                    .WithNameKey("btn.map")
-                    .WithIsActive(true)
-                    .WithNewMapSpot(1, 2, 3)
-                    .Build())
-                .Build();
+                scalarResults: new Queue<object?>(new object?[] { 600, 601 })
+            );
 
             var sut = BuildRepo(fakeDb);
-            var act = async () => await sut.CreateTeleportTableAsync(123, dto);
+            var dto = ButtonCreateDtoBuilder.Default()
+                .WithNameKey("btn.ok")
+                .WithIsActive(true)
+                .WithNewMapSpot(1.1m, 2.2m, 3.3m)
+                .WithButtonLocales(("en-US", "OK"))
+                .Build();
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*boom at map_spot*");
-            fakeDb.Commits.Should().Be(0);
-            fakeDb.Rollbacks.Should().Be(1);
+            // Act
+            var created = await sut.CreateTeleportTableButtonAsync(123, 77, dto);
+
+            // Assert
+            created.Id.Should().Be(601);
+            created.MapSpot!.Id.Should().Be(600);
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Internal transaction path: rolls back when button insert fails.
+        /// </summary>
         [Fact]
-        public async Task Create_Rollback_When_Table_I18n_Insert_Fails()
+        public async Task CreateButton_InternalTx_Rollback_OnFailure()
         {
-            // Scalars: [tableId]
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
-                scalarResults: new Queue<object>(new object[] { 2101 })
+                scalarResults: new Queue<object?>(new object?[] { 700 })
             )
             {
-                ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO i18n", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at table i18n")
+                ShouldThrowOnNonQuery = sql =>
+                    WS(sql).Contains("INSERT INTO teleport_table_button", StringComparison.OrdinalIgnoreCase),
+                NonQueryException = new InvalidOperationException("boom at button insert")
             };
 
-            // DTO with table i18n and no buttons to ensure the first i18n is table-level
-            var dto = TeleportTableCreateDtoBuilder.Default()
-                .WithNameKey("teleport.table")
+            var sut = BuildRepo(fakeDb);
+            var dto = ButtonCreateDtoBuilder.Default()
+                .WithNameKey("btn.fail")
                 .WithIsActive(true)
-                .WithTableLocales(("en-US", "T"))
+                .WithNewMapSpot(9m, 9m, 9m)
                 .Build();
 
-            var sut = BuildRepo(fakeDb);
-            var act = async () => await sut.CreateTeleportTableAsync(123, dto);
+            // Act
+            var act = async () => await sut.CreateTeleportTableButtonAsync(123, 77, dto);
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*table i18n*");
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*button insert*");
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(1);
         }
 
+        /// <summary>
+        /// External transaction path: the method must not commit/rollback.
+        /// </summary>
         [Fact]
-        public async Task Create_Rollback_When_Button_I18n_Insert_Fails()
+        public async Task CreateButton_ExternalTx_Skips_InternalCommitRollback()
         {
-            // Scalars: [tableId, buttonId]
+            // Arrange
             var fakeDb = new FakeDbProvider(
                 () => new DataTable().CreateDataReader(),
-                scalarResults: new Queue<object>(new object[] { 2201, 2202 })
-            )
-            {
-                ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO i18n", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at button i18n")
-            };
-
-            // DTO with button i18n and no table i18n to ensure first i18n is button-level
-            var dto = TeleportTableCreateDtoBuilder.Default()
-                .WithNameKey("teleport.table")
-                .WithIsActive(true)
-                .AddButton(ButtonCreateDtoBuilder.Default()
-                    .WithNameKey("btn.i18n")
-                    .WithIsActive(true)
-                    .WithButtonLocales(("en-US", "Go"))
-                    .Build())
-                .Build();
+                scalarResults: new Queue<object?>(new object?[] { 800, 801 })
+            );
 
             var sut = BuildRepo(fakeDb);
-            var act = async () => await sut.CreateTeleportTableAsync(123, dto);
+            var extConn = await fakeDb.OpenConnectionAsync();
+            var extTx = await extConn.BeginTransactionAsync();
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*button i18n*");
+            var dto = ButtonCreateDtoBuilder.Default()
+                .WithNameKey("btn.ext")
+                .WithIsActive(true)
+                .WithNewMapSpot(4m, 5m, 6m)
+                .Build();
+
+            // Act
+            var created = await sut.CreateTeleportTableButtonAsync(123, 77, dto, extConn, extTx);
+
+            // Assert
+            created.Id.Should().Be(801);
+            created.MapSpot!.Id.Should().Be(800);
             fakeDb.Commits.Should().Be(0);
-            fakeDb.Rollbacks.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
         }
+
+        /// <summary>
+        /// External transaction path: even on failure, method must not rollback internally.
+        /// </summary>
+        [Fact]
+        public async Task CreateButton_ExternalTx_Failure_DoesNotRollbackInternally()
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(
+                () => new DataTable().CreateDataReader(),
+                scalarResults: new Queue<object?>(new object?[] { 900 })
+            )
+            {
+                ShouldThrowOnNonQuery = sql =>
+                    WS(sql).Contains("INSERT INTO teleport_table_button", StringComparison.OrdinalIgnoreCase),
+                NonQueryException = new InvalidOperationException("boom external tx")
+            };
+
+            var sut = BuildRepo(fakeDb);
+            var extConn = await fakeDb.OpenConnectionAsync();
+            var extTx = await extConn.BeginTransactionAsync();
+
+            var dto = ButtonCreateDtoBuilder.Default()
+                .WithNameKey("btn.oops")
+                .WithIsActive(true)
+                .WithNewMapSpot(1m, 2m, 3m)
+                .Build();
+
+            // Act
+            var act = async () => await sut.CreateTeleportTableButtonAsync(123, 77, dto, extConn, extTx);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*external tx*");
+            fakeDb.Commits.Should().Be(0);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
         #endregion
 
         #region PUT TESTS
 
         // small helpers (PUT)
 
+        /// <summary>
+        /// Creates a reader that returns the provided supported language codes.
+        /// </summary>
         private static DbDataReader SupportedLangs(params string[] locales)
         {
             var t = new DataTable();
@@ -743,18 +886,19 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             return t.CreateDataReader();
         }
 
+        /// <summary>
+        /// Returns null when UPDATE affects zero rows and existence check fails.
+        /// </summary>
         [Theory]
         [InlineData(123, 999)]
         [InlineData(5, 0)]
         public async Task Put_ReturnsNull_WhenTableNotFound(int spaceId, int tableId)
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
-            // 1) supported_languages
-            fakeDb.EnqueueReader(() => SupportedLangs());
-            // 2) UPDATE teleport_table -> 0 rows
-            fakeDb.EnqueueNonQuery(0);
-            // 3) existence check -> 0 (not found)
-            fakeDb.EnqueueScalar(0);
+            fakeDb.EnqueueReader(() => SupportedLangs()); // supported_languages
+            fakeDb.EnqueueNonQuery(0);                    // UPDATE teleport_table -> 0
+            fakeDb.EnqueueScalar(0);                      // existence check -> not found
 
             var sut = BuildRepo(fakeDb);
             var dto = new TeleportTableUpdateDto
@@ -765,31 +909,32 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 Buttons = null
             };
 
+            // Act
             var result = await sut.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
+            // Assert
             result.Should().BeNull();
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(1);
         }
 
+        /// <summary>
+        /// When no data changes but table exists, upserts table i18n and commits.
+        /// </summary>
         [Theory]
         [InlineData("Teleport New", true)]
         [InlineData("Renamed", false)]
         public async Task Put_NoChangesButExists_Upserts_Table_I18n_And_Commits(string newNameLocalized, bool isActive)
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
 
-            // 1) supported_languages -> en-US
-            fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
-            // 2) UPDATE teleport_table -> 0 rows (no change)
-            fakeDb.EnqueueNonQuery(0);
-            // 3) existence check -> 1 (exists)
-            fakeDb.EnqueueScalar(1);
-            // 4) UPDATE i18n (en-US) -> 0 so INSERT will run
-            fakeDb.EnqueueNonQuery(0);
+            fakeDb.EnqueueReader(() => SupportedLangs("en-US")); // supported_languages
+            fakeDb.EnqueueNonQuery(0);                           // UPDATE teleport_table -> 0 (no change)
+            fakeDb.EnqueueScalar(1);                             // existence check -> exists
+            fakeDb.EnqueueNonQuery(0);                           // UPDATE i18n -> 0 then INSERT
 
-            // 5) Reload
-            var dt = TeleportSchema.CreateTeleportSelectSchema();
+            var dt = TeleportSchema.CreateTeleportSelectSchema(); // reload
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults(tableId: 1, spaceId: 123, isActive: isActive, tableNameKey: "teleport.table")
                 .WithTableLocale("en-US", newNameLocalized)
@@ -809,8 +954,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 Buttons = null
             };
 
+            // Act
             var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
 
+            // Assert
             updated.Should().NotBeNull();
             updated!.Id.Should().Be(1);
             updated.IsActive.Should().Be(isActive);
@@ -821,36 +968,35 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Updates table and mixed button set (update existing, insert new), including map spots and i18n upserts.
+        /// </summary>
         [Fact]
         public async Task Put_TableAndButtons_Mixed_Update_Insert_MapSpotAndI18n()
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
 
-            // 1) supported_languages -> en-US, es-ES
             fakeDb.EnqueueReader(() => SupportedLangs("en-US", "es-ES"));
+            fakeDb.EnqueueNonQuery(1); // UPDATE teleport_table
 
-            // 2) UPDATE teleport_table -> 1 row affected
-            fakeDb.EnqueueNonQuery(1);
+            // table i18n upserts
+            fakeDb.EnqueueNonQuery(1); // en-US update
+            fakeDb.EnqueueNonQuery(0); // es-ES update -> then insert
 
-            // 3) Table i18n upserts:
-            //    en-US -> UPDATE returns 1 (no INSERT)
-            //    es-ES -> UPDATE returns 0 (INSERT runs)
-            fakeDb.EnqueueNonQuery(1); // update en-US
-            fakeDb.EnqueueNonQuery(0); // update es-ES (then insert)
+            // existing button (id=10)
+            fakeDb.EnqueueNonQuery(1); // update button
+            fakeDb.EnqueueNonQuery(1); // update map spot
+            fakeDb.EnqueueNonQuery(0); // i18n en-US update -> insert
+            fakeDb.EnqueueNonQuery(1); // i18n es-ES update
 
-            // 4) Existing button (id=10): UPDATE button, UPDATE map_spot, i18n upserts
-            fakeDb.EnqueueNonQuery(1); // upd button
-            fakeDb.EnqueueNonQuery(1); // upd map_spot
-            fakeDb.EnqueueNonQuery(0); // btn i18n en-US -> update=0 then insert
-            fakeDb.EnqueueNonQuery(1); // btn i18n es-ES -> update=1 no insert
+            // new button
+            fakeDb.EnqueueNonQuery(1); // insert button
+            fakeDb.EnqueueScalar(999); // LAST_INSERT_ID
+            fakeDb.EnqueueNonQuery(1); // update map spot
+            fakeDb.EnqueueNonQuery(0); // i18n en-US update -> insert
 
-            // 5) New button: INSERT button + LAST_INSERT_ID, UPDATE map_spot, i18n upsert
-            fakeDb.EnqueueNonQuery(1); // ins button
-            fakeDb.EnqueueScalar(999); // new button id
-            fakeDb.EnqueueNonQuery(1); // upd map_spot
-            fakeDb.EnqueueNonQuery(0); // btn i18n en-US -> update=0 then insert
-
-            // 6) Reload composed table
+            // reload
             var dt = TeleportSchema.CreateTeleportSelectSchema();
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults(tableId: 77, spaceId: 123, isActive: true, tableNameKey: "teleport.table")
@@ -932,8 +1078,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 }
             };
 
+            // Act
             var updated = await sut.UpdateTeleportTableAsync(123, 77, dto);
 
+            // Assert
             updated.Should().NotBeNull();
             updated!.Id.Should().Be(77);
             updated.LocalizedPairs.Values.Select(v => v.LocaleId)
@@ -954,28 +1102,26 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Skips unsupported/blank locales for table and button i18n; commits.
+        /// </summary>
         [Fact]
         public async Task Put_SkipsUnsupportedAndBlankLocales_For_Table_And_Buttons()
         {
-            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
-            // Guard: ensure no accidental map_spot update occurs
-            fakeDb.ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase);
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                // Guard: ensure no accidental map_spot update occurs
+                ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase)
+            };
 
-            // 1) supported_languages -> only en-US
             fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
+            fakeDb.EnqueueNonQuery(1); // UPDATE teleport_table
+            fakeDb.EnqueueNonQuery(0); // UPDATE i18n -> then INSERT
 
-            // 2) UPDATE teleport_table -> 1
-            fakeDb.EnqueueNonQuery(1);
+            fakeDb.EnqueueNonQuery(1); // UPDATE existing button
+            fakeDb.EnqueueNonQuery(0); // Button i18n en-US -> update 0 then insert
 
-            // 3) Table i18n: only en-US will upsert (UPDATE=0 -> INSERT)
-            fakeDb.EnqueueNonQuery(0);
-
-            // 4) Existing button update (id=10)
-            fakeDb.EnqueueNonQuery(1); // upd button
-                                       //    Button i18n: only en-US counts -> UPDATE (0) then INSERT
-            fakeDb.EnqueueNonQuery(0);
-
-            // 5) Reload
             var dt = TeleportSchema.CreateTeleportSelectSchema();
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults()
@@ -986,7 +1132,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 .WithButton(10, "btn.one", true)
                 .WithButtonLocale("en-US", "One EN")
                 .AddTo(dt);
-
             fakeDb.EnqueueReader(() => dt.CreateDataReader());
 
             var sut = BuildRepo(fakeDb);
@@ -1029,8 +1174,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 }
             };
 
+            // Act
             var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
 
+            // Assert
             updated.Should().NotBeNull();
             updated!.LocalizedPairs.Values.Should().ContainSingle(v => v.LocaleId == "en-US" && v.Value == "Only EN");
             updated.Buttons.Should().ContainSingle(b => b.Id == 10);
@@ -1039,26 +1186,26 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// New button with null map spot must not trigger a map_spot UPDATE.
+        /// </summary>
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Put_NewButton_NullMapSpot_NoMapSpotUpdate(bool isActive)
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
             {
                 // Guard: fail if any UPDATE map_spot happens
                 ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase)
             };
 
-            // 1) supported_languages
             fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
-            // 2) UPDATE teleport_table -> 1
-            fakeDb.EnqueueNonQuery(1);
-            // 3) INSERT new button + id
-            fakeDb.EnqueueNonQuery(1);
+            fakeDb.EnqueueNonQuery(1); // UPDATE teleport_table
+            fakeDb.EnqueueNonQuery(1); // INSERT new button
             fakeDb.EnqueueScalar(333);
 
-            // 4) Reload with button 333 and no map spot
             var dt = TeleportSchema.CreateTeleportSelectSchema();
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults(isActive: isActive)
@@ -1087,32 +1234,35 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 }
             };
 
+            // Act
             var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
 
+            // Assert
             updated.Should().NotBeNull();
             updated!.Buttons.Should().ContainSingle(b => b.Id == 333 && b.MapSpot == null);
             fakeDb.Commits.Should().Be(1);
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Clearing map spot for an existing button must not perform a map_spot UPDATE.
+        /// </summary>
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Put_ExistingButton_ClearMapSpotId(bool isActive)
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
             {
                 // Guard: fail if any UPDATE map_spot happens (should not when MapSpot=null)
                 ShouldThrowOnNonQuery = sql => sql.Contains("UPDATE map_spot", StringComparison.OrdinalIgnoreCase)
             };
 
-            // 1) supported_languages
             fakeDb.EnqueueReader(() => SupportedLangs());
-            // 2) UPDATE teleport_table -> 1
-            fakeDb.EnqueueNonQuery(1);
-            // 3) UPDATE existing button (map_spot_id -> NULL)
-            fakeDb.EnqueueNonQuery(1);
-            // 4) Reload with button having NULL map_spot
+            fakeDb.EnqueueNonQuery(1); // UPDATE teleport_table
+            fakeDb.EnqueueNonQuery(1); // UPDATE existing button (map_spot_id -> NULL)
+
             var dt = TeleportSchema.CreateTeleportSelectSchema();
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults(isActive: isActive)
@@ -1142,8 +1292,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 }
             };
 
+            // Act
             var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
 
+            // Assert
             updated.Should().NotBeNull();
             var btn = updated!.Buttons.Single(b => b.Id == 44);
             btn.MapSpot.Should().BeNull();
@@ -1151,22 +1303,24 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// With empty Buttons list, button processing is skipped entirely.
+        /// </summary>
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Put_EmptyButtonsList_SkipsButtonsSection(bool isActive)
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
             {
                 // Guard: fail if any teleport_table_button DML sneaks in
                 ShouldThrowOnNonQuery = sql => sql.Contains("teleport_table_button", StringComparison.OrdinalIgnoreCase)
             };
 
-            // 1) supported_languages
             fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
-            // 2) UPDATE teleport_table -> 1
-            fakeDb.EnqueueNonQuery(1);
-            // 3) Reload (no buttons)
+            fakeDb.EnqueueNonQuery(1); // UPDATE teleport_table
+
             var dt = TeleportSchema.CreateTeleportSelectSchema();
             TestDataRowBuilder.TeleportSelectRow()
                 .WithTeleportTableDefaults(isActive: isActive)
@@ -1182,31 +1336,33 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 Buttons = new List<ButtonUpdateDto>() // empty
             };
 
+            // Act
             var updated = await sut.UpdateTeleportTableAsync(123, 1, dto);
 
+            // Assert
             updated.Should().NotBeNull();
             updated!.Buttons.Should().BeEmpty();
             fakeDb.Commits.Should().Be(1);
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Rolls back when the button i18n INSERT throws.
+        /// </summary>
         [Fact]
         public async Task Put_Rollback_When_Button_I18n_Insert_Fails()
         {
+            // Arrange
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
             {
                 ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO i18n", StringComparison.OrdinalIgnoreCase),
                 NonQueryException = new InvalidOperationException("boom at button i18n")
             };
 
-            // 1) supported_languages
             fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
-            // 2) UPDATE teleport_table -> 1
-            fakeDb.EnqueueNonQuery(1);
-            // 3) Existing button update
-            fakeDb.EnqueueNonQuery(1);
-            // 4) Button i18n: UPDATE returns 0 -> triggers INSERT which throws
-            fakeDb.EnqueueNonQuery(0);
+            fakeDb.EnqueueNonQuery(1); // UPDATE teleport_table
+            fakeDb.EnqueueNonQuery(1); // UPDATE existing button
+            fakeDb.EnqueueNonQuery(0); // Button i18n UPDATE -> INSERT (throws)
 
             var sut = BuildRepo(fakeDb);
             var dto = new TeleportTableUpdateDto
@@ -1234,8 +1390,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 }
             };
 
+            // Act
             var act = async () => await sut.UpdateTeleportTableAsync(123, 1, dto);
 
+            // Assert
             await act.Should().ThrowAsync<InvalidOperationException>()
                      .WithMessage("*boom at button i18n*");
             fakeDb.Commits.Should().Be(0);
@@ -1244,5 +1402,269 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         #endregion
 
+        #region DELETE TESTS
+
+        // ---------- helpers ----------
+
+        /// <summary>
+        /// Normalizes whitespace in SQL for easier assertions.
+        /// </summary>
+        private static string WS(string s) => Regex.Replace(s ?? "", @"\s+", " ").Trim();
+
+        /// <summary>
+        /// Returns the executed SQL bag (normalized).
+        /// </summary>
+        private static List<string> SqlBag(FakeDbProvider db) => db.ExecutedSql.Select(WS).ToList();
+
+        /// <summary>
+        /// Case-insensitive, whitespace-tolerant search in the SQL bag.
+        /// </summary>
+        private static bool HasSql(IEnumerable<string> bag, string needle)
+            => bag.Any(s => s.IndexOf(WS(needle), StringComparison.OrdinalIgnoreCase) >= 0);
+
+        /// <summary>
+        /// Creates a reader yielding button name_key rows (nullable allowed).
+        /// </summary>
+        private static DbDataReader ButtonKeysReader(params string?[] keys)
+        {
+            var t = new DataTable();
+            t.Columns.Add("name_key", typeof(string));
+            foreach (var k in keys)
+            {
+                var r = t.NewRow();
+                r[0] = (object?)k ?? DBNull.Value;
+                t.Rows.Add(r);
+            }
+            return t.CreateDataReader();
+        }
+
+        /// <summary>
+        /// Creates a reader yielding teleport_table ids.
+        /// </summary>
+        private static DbDataReader TableIdsReader(params int[] ids)
+        {
+            var t = new DataTable();
+            t.Columns.Add("id", typeof(int));
+            foreach (var id in ids)
+            {
+                var r = t.NewRow();
+                r[0] = id;
+                t.Rows.Add(r);
+            }
+            return t.CreateDataReader();
+        }
+
+        /// <summary>
+        /// Exercises DeleteTeleportTableAsync across permutations:
+        /// - presence/absence of table name_key and button keys
+        /// - final table delete success/failure.
+        /// </summary>
+        [Theory]
+        [InlineData(true, 2, 1)]
+        [InlineData(true, 0, 1)]
+        [InlineData(false, 2, 1)]
+        [InlineData(false, 0, 1)]
+        [InlineData(true, 0, 0)]
+        [InlineData(false, 2, 0)]
+        [InlineData(false, 0, 0)]
+        public async Task DeleteTable_Theory(bool hasTableKey, int buttonKeyCount, int tableDeleteAffected)
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+
+            fakeDb.EnqueueScalar(hasTableKey ? "teleport.table" : null); // table name_key
+
+            var keys = Enumerable.Range(1, buttonKeyCount).Select(i => $"btn.{i}").Cast<string?>().ToArray();
+            fakeDb.EnqueueReader(() => ButtonKeysReader(keys));          // button keys
+
+            var before = (buttonKeyCount > 0 ? 1 : 0) + (hasTableKey ? 1 : 0) + 1; // btn i18n + table i18n + delete buttons
+            for (int i = 0; i < before; i++) fakeDb.EnqueueNonQuery(1);
+            fakeDb.EnqueueNonQuery(tableDeleteAffected); // final table delete
+
+            var sut = BuildRepo(fakeDb);
+
+            // Act
+            var ok = await sut.DeleteTeleportTableAsync(spaceId: 123, tableId: 77);
+
+            // Assert
+            ok.Should().Be(tableDeleteAffected > 0);
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+
+            var sql = SqlBag(fakeDb);
+
+            sql.Should().Contain(s => s.Contains("SELECT name_key") && s.Contains("FROM teleport_table "));
+            sql.Should().Contain(s => s.Contains("SELECT name_key") && s.Contains("FROM teleport_table_button"));
+
+            if (buttonKeyCount > 0)
+                HasSql(sql, "DELETE FROM i18n WHERE `key` IN (").Should().BeTrue();
+            else
+                HasSql(sql, "DELETE FROM i18n WHERE `key` IN (").Should().BeFalse();
+
+            if (hasTableKey)
+                HasSql(sql, "DELETE FROM i18n WHERE `key` = @NameKey AND space_id = @SpaceId").Should().BeTrue();
+            else
+                HasSql(sql, "DELETE FROM i18n WHERE `key` = @NameKey AND space_id = @SpaceId").Should().BeFalse();
+
+            HasSql(sql, "DELETE FROM teleport_table_button WHERE table_id = @TableId").Should().BeTrue();
+            HasSql(sql, "DELETE FROM teleport_table WHERE id = @TableId AND space_id = @SpaceId").Should().BeTrue();
+        }
+
+        /// <summary>
+        /// Rolls back delete when the button delete step fails.
+        /// </summary>
+        [Fact]
+        public async Task DeleteTable_Rollback_On_DeleteButtons_Failure()
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                ShouldThrowOnNonQuery = sql => WS(sql).Contains("DELETE FROM teleport_table_button WHERE table_id = @TableId",
+                                                               StringComparison.OrdinalIgnoreCase),
+                NonQueryException = new InvalidOperationException("boom deleting buttons")
+            };
+
+            fakeDb.EnqueueScalar("teleport.table");
+            fakeDb.EnqueueReader(() => ButtonKeysReader("btn.one"));
+
+            var sut = BuildRepo(fakeDb);
+
+            // Act
+            var act = async () => await sut.DeleteTeleportTableAsync(123, 7);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*boom deleting buttons*");
+            fakeDb.Commits.Should().Be(0);
+            fakeDb.Rollbacks.Should().Be(1);
+        }
+
+        /// <summary>
+        /// When a space has no tables, DeleteTeleportTablesBySpaceAsync returns 0 and does not start transactions.
+        /// </summary>
+        [Fact]
+        public async Task DeleteTablesBySpace_NoRows_ReturnsZero()
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+            fakeDb.EnqueueReader(() => TableIdsReader()); // empty
+            var sut = BuildRepo(fakeDb);
+
+            // Act
+            var deleted = await sut.DeleteTeleportTablesBySpaceAsync(123);
+
+            // Assert
+            deleted.Should().Be(0);
+            fakeDb.Commits.Should().Be(0);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        /// <summary>
+        /// Mixed results across multiple table ids should return the success count and commit each successful delete.
+        /// </summary>
+        [Fact]
+        public async Task DeleteTablesBySpace_MixedSuccess_ReturnsSuccessCount()
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+            fakeDb.EnqueueReader(() => TableIdsReader(10, 20, 30));
+
+            // id=10 success
+            fakeDb.EnqueueScalar("k10");
+            fakeDb.EnqueueReader(() => ButtonKeysReader("b10"));
+            fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1);
+
+            // id=20 not found on final table delete
+            fakeDb.EnqueueScalar("k20");
+            fakeDb.EnqueueReader(() => ButtonKeysReader("b20"));
+            fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(0);
+
+            // id=30 success
+            fakeDb.EnqueueScalar("k30");
+            fakeDb.EnqueueReader(() => ButtonKeysReader("b30"));
+            fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1); fakeDb.EnqueueNonQuery(1);
+
+            var sut = BuildRepo(fakeDb);
+
+            // Act
+            var deleted = await sut.DeleteTeleportTablesBySpaceAsync(123);
+
+            // Assert
+            deleted.Should().Be(2);
+            fakeDb.Commits.Should().Be(3);
+            fakeDb.Rollbacks.Should().Be(0);
+        }
+
+        /// <summary>
+        /// Button delete theory covering presence/absence of i18n key and delete affected count.
+        /// </summary>
+        [Theory]
+        [InlineData(true, 1)]
+        [InlineData(true, 0)]
+        [InlineData(false, 1)]
+        [InlineData(false, 0)]
+        public async Task DeleteButton_Theory(bool hasI18nKey, int buttonDeleteAffected)
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+
+            fakeDb.EnqueueScalar(hasI18nKey ? "btn.key" : null);
+
+            if (hasI18nKey) fakeDb.EnqueueNonQuery(1); // delete i18n (optional)
+            fakeDb.EnqueueNonQuery(buttonDeleteAffected); // final delete
+
+            var sut = BuildRepo(fakeDb);
+
+            // Act
+            var ok = await sut.DeleteTeleportTableButtonAsync(buttonId: 44, tableId: 7);
+
+            // Assert
+            ok.Should().Be(buttonDeleteAffected > 0);
+            fakeDb.Commits.Should().Be(1);
+            fakeDb.Rollbacks.Should().Be(0);
+
+            var sql = SqlBag(fakeDb);
+
+            sql.Should().Contain(s => s.Contains("SELECT name_key") && s.Contains("FROM teleport_table_button"));
+
+            if (hasI18nKey)
+                HasSql(sql, "DELETE FROM i18n WHERE `key` = @BtnKey").Should().BeTrue();
+            else
+                HasSql(sql, "DELETE FROM i18n WHERE `key` = @BtnKey").Should().BeFalse();
+
+            sql.Any(s =>
+                s.Contains("DELETE FROM teleport_table_button", StringComparison.OrdinalIgnoreCase) &&
+                s.Contains("WHERE id = @ButtonId", StringComparison.OrdinalIgnoreCase) &&
+                s.Contains("AND table_id = @TableId", StringComparison.OrdinalIgnoreCase)
+            ).Should().BeTrue();
+        }
+
+        /// <summary>
+        /// Rolls back when the optional i18n delete throws.
+        /// </summary>
+        [Fact]
+        public async Task DeleteButton_Rollback_On_I18nDelete_Failure()
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
+            {
+                ShouldThrowOnNonQuery = sql => WS(sql).Contains("DELETE FROM i18n WHERE `key` = @BtnKey",
+                                                               StringComparison.OrdinalIgnoreCase),
+                NonQueryException = new InvalidOperationException("boom at i18n")
+            };
+
+            fakeDb.EnqueueScalar("btn.oops");
+
+            var sut = BuildRepo(fakeDb);
+
+            // Act
+            var act = async () => await sut.DeleteTeleportTableButtonAsync(1, 2);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*boom at i18n*");
+            fakeDb.Commits.Should().Be(0);
+            fakeDb.Rollbacks.Should().Be(1);
+        }
+
+        #endregion
     }
 }
