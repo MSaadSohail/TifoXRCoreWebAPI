@@ -2,7 +2,7 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Syed Hussain</author>
-// <date>08/08/2025</date>
+// <date>08/20/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
 
@@ -10,8 +10,10 @@ using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using GMS.TifoXRCoreWebAPI.Utilities;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 using Microsoft.AspNetCore.Mvc;
+using Serilog;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -33,37 +35,64 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace(
-        [FromRoute] int spaceId)
+        [FromRoute] int spaceId,
+        [FromServices] IDiagnosticContext diag,          // from Serilog.AspNetCore
+        [FromServices] IAppLogger<BoothController> log) // your wrapper
         {
-            AppLogger.Info($"[GetAllBoothsBySpace] Request received for spaceId={spaceId}");
-
-            if (spaceId <= 0)
+            // Attach stable context to *all* logs in this scope (if any)
+            using (log.WithProperties(("SpaceId", spaceId)))
             {
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(GetAllBoothsBySpace),
-                        new { spaceId }
-                    ),
-                    nameof(spaceId)
-                );
-            }
+                // Validate (don’t log: common/expected; your middleware maps to 400)
+                if (spaceId <= 0)
+                {
+                    throw new ArgumentException(
+                        GlobalException.FormatExceptionMessage(
+                            "spaceId must be a positive integer.",
+                            nameof(GetAllBoothsBySpace),
+                            new { spaceId }
+                        ),
+                        nameof(spaceId)
+                    );
+                }
 
-            var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
+                // Time the repository call; warn if slow (threshold tuned to your SLO)
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
+                sw.Stop();
 
-            if (booths == null || booths.Count == 0)
-            {
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "No booths found for the specified space.",
-                        nameof(GetAllBoothsBySpace),
-                        new { spaceId }
-                    )
-                );
+                // Push useful facts into the *request completion* log
+                diag.Set("SpaceId", spaceId);
+                diag.Set("RepoDurationMs", sw.ElapsedMilliseconds);
+                diag.Set("BoothCount", booths?.Count ?? 0);
+
+                // Optional: surface slow path without spamming (Warning = unexpected but not fatal)
+                if (sw.ElapsedMilliseconds > 500)
+                    log.Warn("Slow repository call fetching booths (ElapsedMs={ElapsedMs})", sw.ElapsedMilliseconds);
+
+                // Not found is an expected branch → throw; GlobalException will log once and return 404
+                if (booths is null || booths.Count == 0)
+                {
+                    throw new ResourceNotFoundException(
+                        GlobalException.FormatExceptionMessage(
+                            "No booths found for the specified space.",
+                            nameof(GetAllBoothsBySpace),
+                            new { spaceId }
+                        )
+                    );
+                }
+                log.Info("info with Severity level 1");
+                log.Warn("Warning with severity level 2");
+                log.Error("Error with severity level 3");
+                log.Error(new ResourceNotFoundException("Invalid Operation Exception"), "Specific Resource Not Found");
+
+
+                // Success: no extra Info log — the middleware will emit:
+                // "HTTP GET /api/space/{spaceId}/booths responded 200 in {Elapsed} ms"
+                // enriched with SpaceId, BoothCount, RepoDurationMs
+                return Ok(booths);
             }
-            AppLogger.Info($"[GetAllBoothsBySpace] Successfully returning {booths.Count} booths for spaceId={spaceId}");
-            return Ok(booths);
         }
+
 
 
         [HttpPut("{spaceId}/booth/{boothId}")]

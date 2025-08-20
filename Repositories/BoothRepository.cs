@@ -7,6 +7,7 @@
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 using MySqlConnector;
 using System.Data;
 using System.Data.Common;
@@ -18,11 +19,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     {
         private readonly string _connectionString;
         private readonly IDbProvider _db;
+        //private readonly IAppLogger<BoothRepository>? _log;
 
-        public BoothRepository(IConfiguration configuration, IDbProvider db)
+        public BoothRepository(IConfiguration configuration, IDbProvider db /*IAppLogger<BoothRepository> log*/)
         {
             _db = db;
+            //_log = log;
         }
+
         public async Task<List<BoothModel>> GetAllBoothsBySpaceAsync(int spaceId)
         {
             const string sql = @"
@@ -117,6 +121,142 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             return booths.Values.ToList();
         }
+        //===The following function is an example of how an AppLogger logging can be implemented in the method===
+        /*public async Task<List<BoothModel>> GetAllBoothsBySpaceAsync(int spaceId)
+        {
+            const string SqlBoothsBySpace = "BoothsBySpace"; // stable query name for logs
+
+            const string sql = @"
+    SELECT
+        b.id,
+        b.space_id,
+        b.name_key,
+        b.map_spot_id,
+        ms.x,
+        ms.y,
+        ms.z,
+        i.locale_id,
+        i.value
+    FROM booth b
+    INNER JOIN i18n i
+        ON i.`key` = b.name_key
+       AND i.space_id = b.space_id
+    LEFT JOIN map_spot ms
+        ON b.map_spot_id = ms.id
+    WHERE b.space_id = @SpaceId
+    ORDER BY b.id, i.locale_id;";
+
+            using (_log.WithProperties(("SpaceId", spaceId)))
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var booths = new Dictionary<int, BoothModel>();
+                int rows = 0;
+
+                try
+                {
+                    await using var conn = await _db.OpenConnectionAsync();
+                    await using var cmd = _db.CreateCommand(conn, sql);
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
+                    await using var reader = await cmd.ExecuteReaderAsync();
+
+                    bool ordReady = false;
+                    int o_id = -1, o_space_id = -1, o_name_key = -1, o_map_spot_id = -1;
+                    int o_x = -1, o_y = -1, o_z = -1, o_locale_id = -1, o_value = -1;
+
+                    while (await reader.ReadAsync())
+                    {
+                        if (!ordReady)
+                        {
+                            o_id = reader.GetOrdinal("id");
+                            o_space_id = reader.GetOrdinal("space_id");
+                            o_name_key = reader.GetOrdinal("name_key");
+                            o_map_spot_id = reader.GetOrdinal("map_spot_id");
+                            o_x = reader.GetOrdinal("x");
+                            o_y = reader.GetOrdinal("y");
+                            o_z = reader.GetOrdinal("z");
+                            o_locale_id = reader.GetOrdinal("locale_id");
+                            o_value = reader.GetOrdinal("value");
+                            ordReady = true;
+                        }
+
+                        var id = reader.GetInt32(o_id);
+                        if (!booths.TryGetValue(id, out var booth))
+                        {
+                            var hasCoords = !reader.IsDBNull(o_x);
+                            booth = new BoothModel
+                            {
+                                Id = id,
+                                SpaceId = reader.GetInt32(o_space_id),
+                                MapSpotId = reader.IsDBNull(o_map_spot_id) ? default : reader.GetInt32(o_map_spot_id),
+                                MapSpot = hasCoords
+                                    ? new MapSpotModel
+                                    {
+                                        X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
+                                        Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
+                                        Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z)
+                                    }
+                                    : null,
+                                LocalizedPairs = new LocalizedPairs
+                                {
+                                    Key = reader.GetString(o_name_key),
+                                    Values = new List<LocalizedValue>()
+                                }
+                            };
+                            booths[id] = booth;
+                        }
+
+                        var locId = reader.GetString(o_locale_id);
+                        var val = reader.GetString(o_value);
+
+                        if (!booth.LocalizedPairs.Values.Any(v => v.LocaleId == locId))
+                        {
+                            booth.LocalizedPairs.Values.Add(new LocalizedValue
+                            {
+                                LocaleId = locId,
+                                Value = val
+                            });
+                        }
+
+                        rows++;
+                    }
+
+                    sw.Stop();
+
+                    // Push a DEBUG summary (only if enabled) so prod stays quiet
+                    if (_log.IsEnabled(LogLevel.Debug))
+                    {
+                        _log.Debug("DB query {Query} completed (ElapsedMs={ElapsedMs}, Rows={RowCount})",
+                                   SqlBoothsBySpace, sw.ElapsedMilliseconds, rows);
+                        // Optional: include parameters ONLY at Debug
+                        _log.Debug("DB params {Params}", new { SpaceId = spaceId });
+                    }
+
+                    // Warn if the query is slow (tune threshold to your SLO)
+                    if (sw.ElapsedMilliseconds > 500)
+                    {
+                        _log.Warn("Slow DB query {Query} (ElapsedMs={ElapsedMs}, Rows={RowCount})",
+                                  SqlBoothsBySpace, sw.ElapsedMilliseconds, rows);
+                    }
+
+                    return booths.Values.ToList();
+                }
+                catch (DbException ex)
+                {
+                    sw.Stop();
+                    // One structured error with key context; do NOT dump SQL/params at Error level
+                    _log.Error(ex,
+                        "DB failure executing {Query} (ElapsedMs={ElapsedMs})",
+                        SqlBoothsBySpace, sw.ElapsedMilliseconds);
+
+                    // (Optional) include params at Debug for forensics
+                    if (_log.IsEnabled(LogLevel.Debug))
+                        _log.Debug("DB params {Params}", new { SpaceId = spaceId });
+
+                    throw; // let GlobalException produce the API error
+                }
+            }
+        }*/
 
 
         public async Task<BoothModel?> UpdateBoothAsync(int spaceId, int boothId, BoothUpdateDto dto)

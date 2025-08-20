@@ -31,7 +31,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>The teleport table with button and localization data, or null if not found.</returns>
         public async Task<TeleportTableData> GetTeleportTableBySpaceAsync(int spaceId)
         {
-            AppLogger.Info("GetTeleportTableBySpaceAsync called!");
+            //AppLogger.Info("GetTeleportTableBySpaceAsync called!");
 
             const string sql = @"
                 SELECT

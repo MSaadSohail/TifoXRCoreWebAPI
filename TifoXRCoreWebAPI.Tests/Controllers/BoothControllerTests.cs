@@ -7,13 +7,16 @@
 
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions; // <-- for ResourceNotFoundException
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Moq;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions; // <-- for ResourceNotFoundException
+using Serilog;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -28,18 +31,42 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         private readonly BoothUpdateDto defaultUpdateDto;
         private readonly BoothCreateDto defaultCreateDto;
 
+        private readonly Mock<IDiagnosticContext> diag;
+        private readonly Mock<IAppLogger<BoothController>> log;
+
         /// <summary>
         /// Initializes the test fixture with a mock repository, controller under test, and default DTOs.
         /// </summary>
         public BoothControllerTests()
         {
-            // Initialize mock repository and controller under test
             repo = new Mock<IBoothRepository>();
             sut = new BoothController(repo.Object);
 
             defaultUpdateDto = new BoothUpdateDtoBuilder().Build();
             defaultCreateDto = new BoothCreateDtoBuilder().Build();
+
+            // Serilog diagnostic context – allow any Set(...)
+            diag = new Mock<Serilog.IDiagnosticContext>();
+            diag.Setup(d => d.Set(
+                It.IsAny<string>(),
+                It.IsAny<object>(),
+                It.IsAny<bool>()));
+
+            // App logger – no-op everything; provide disposable scope for WithProperties
+            log = new Mock<IAppLogger<BoothController>>();
+            log.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(false);
+            log.Setup(l => l.WithProperties(It.IsAny<(string, object)[]>()))
+               .Returns(Mock.Of<IDisposable>());
+            // (optional) If you verify calls later, keep these lines; otherwise not required:
+            // log.Setup(l => l.Info(It.IsAny<string>(), It.IsAny<object[]>()));
+            // log.Setup(l => l.Warn(It.IsAny<string>(), It.IsAny<object[]>()));
+            // log.Setup(l => l.Error(It.IsAny<string>(), It.IsAny<object[]>()));
+            // log.Setup(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>(), It.IsAny<object[]>()));
         }
+
+        // ---------- helpers ----------
+        private Task<ActionResult<List<BoothModel>>> CallGetAll(int spaceId) =>
+            sut.GetAllBoothsBySpace(spaceId, diag.Object, log.Object);
 
         #region GET
         //
@@ -64,7 +91,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 .ReturnsAsync(list);
 
             // ACT
-            var result = await sut.GetAllBoothsBySpace(100);
+            var result = await CallGetAll(100);
 
             // ASSERT
             var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
@@ -90,7 +117,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 repo.Setup(r => r.GetAllBoothsBySpaceAsync(200)).ReturnsAsync(new List<BoothModel>());
 
             // ACT & ASSERT
-            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetAllBoothsBySpace(200));
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => CallGetAll(200));
+            repo.Verify(r => r.GetAllBoothsBySpaceAsync(200), Times.Once);
         }
 
         /// <summary>
@@ -103,7 +131,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public async Task GetAllBoothsBySpace_ThrowsArgEx_OnInvalidSpaceId(int spaceId)
         {
             // ACT & ASSERT
-            await Assert.ThrowsAsync<ArgumentException>(() => sut.GetAllBoothsBySpace(spaceId));
+            await Assert.ThrowsAsync<ArgumentException>(() => CallGetAll(spaceId));
 
             // Ensure repository is not called when input is invalid
             repo.Verify(r => r.GetAllBoothsBySpaceAsync(It.IsAny<int>()), Times.Never);
@@ -121,7 +149,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
                 .ThrowsAsync(new Exception("Simulated repository failure"));
 
             // ACT & ASSERT
-            var ex = await Assert.ThrowsAsync<Exception>(() => sut.GetAllBoothsBySpace(321));
+            var ex = await Assert.ThrowsAsync<Exception>(() => CallGetAll(321));
             ex.Message.Should().Be("Simulated repository failure");
         }
 
