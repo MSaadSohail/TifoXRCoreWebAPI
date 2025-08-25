@@ -143,6 +143,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         // ---------- tests ----------
 
+
+        // <summary>
+        // Ensures GetAllBoothsBySpaceAsync returns an empty list (not null)
+        // when no booth records exist for the given spaceId.
+        // </summary>
         [Fact]
         public async Task ReturnsEmptyList_WhenNoRows()
         {
@@ -154,8 +159,12 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             result.Should().NotBeNull().And.BeEmpty();
         }
 
+        // <summary>
+        // Ensures GetAllBoothsBySpaceAsync returns a single booth with aggregated,
+        // de-duplicated locales and no map spot when map_spot_id is null.
+        // </summary>
         [Fact]
-        public async Task SingleBooth_NoMapSpot_AggregatesLocales_DeDupes()
+        public async Task AggregatesLocales_DeDupes()
         {
             var dt = BoothGetSchema.CreateEmptySchema();
 
@@ -190,8 +199,12 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             booth.LocalizedPairs.Values.Should().Contain(v => v.LocaleId == "es_es" && v.Value == "Booth ES");
         }
 
+
+        // <summary>
+        // Ensures GetAllBoothsBySpaceAsync correctly populates map spot ID and coordinates (x,y,z).
+        // </summary>
         [Fact]
-        public async Task SingleBooth_WithMapSpot_PopulatesCoords()
+        public async Task PopulatesCoords()
         {
             var dt = BoothGetSchema.CreateEmptySchema();
 
@@ -215,8 +228,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             booth.MapSpot.Z.Should().Be(3.3m);
         }
 
+
+        // <summary>
+        // Ensures GetAllBoothsBySpaceAsync aggregates multiple booths correctly,
+        // each with its own map spot and localized values.
+        // </summary>
         [Fact]
-        public async Task MultipleBooths_AggregatePerBooth()
+        public async Task MultipleBoothsAggregatePerBooth()
         {
             var dt = BoothGetSchema.CreateEmptySchema();
 
@@ -243,8 +261,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             b20.LocalizedPairs.Values.Select(v => v.LocaleId).Should().BeEquivalentTo(new[] { "en_us", "es_es" });
         }
 
+
+        // <summary>
+        // Ensures GetAllBoothsBySpaceAsync sets MapSpotId but leaves MapSpot null
+        // when map_spot_id exists but no coordinate values (x,y,z) are returned.
+        // </summary>
         [Fact]
-        public async Task MapSpotIdPresent_ButNoCoords_LeavesMapSpotNull()
+        public async Task LeavesMapSpotNull()
         {
             var dt = BoothGetSchema.CreateEmptySchema();
 
@@ -266,8 +289,14 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             booth.MapSpot.Should().BeNull(); // because x is null => hasCoords == false
         }
 
+
+
+        // <summary>
+        // Ensures GetAllBoothsBySpaceAsync removes duplicate locales for a booth
+        // while retaining unique translations per locale.
+        // </summary>
         [Fact]
-        public async Task DeDupesLocales_PerBooth()
+        public async Task DeDupesLocalesPerBooth()
         {
             var dt = BoothGetSchema.CreateEmptySchema();
 
@@ -288,7 +317,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>COUNT(map_spot)=0 -> throws.</summary>
         [Fact]
-        public async Task MapSpotMissing_Throws()
+        public async Task MapSpotMissingThrows()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no reader expected"));
             fake.EnqueueScalar(0); // validate spot
@@ -302,7 +331,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>UPDATE booth affects 0 rows -> null.</summary>
         [Fact]
-        public async Task UpdateNoRows_Null()
+        public async Task UpdateNoRowsNull()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no reader expected"));
             fake.EnqueueScalar(1); // spot ok
@@ -316,7 +345,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Supported langs omit 'fr_fr' -> throws.</summary>
         [Fact]
-        public async Task UnsupportedLocales_Throws()
+        public async Task UnsupportedLocalesThrows()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             fake.EnqueueScalar(1);          // spot ok
@@ -332,7 +361,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Upsert i18n (en_us insert, es_es update), then reload merged booth.</summary>
         [Fact]
-        public async Task UpdateOk_UpsertAndReload()
+        public async Task UpdateOkUpsertAndReload()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             fake.EnqueueScalar(1);                 // spot ok
@@ -366,7 +395,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>No locales in DTO: skip lang check/upserts; reload only.</summary>
         [Fact]
-        public async Task UpdateOk_NoLocales_ReloadOnly()
+        public async Task UpdateOkNoLocalesReloadOnly()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             var dto = new BoothUpdateDto { MapSpotId = 7, LocalizedPairs = new LocalizedPairs { Key = "bth_key", Values = null } };
@@ -393,7 +422,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>SELECT x,y,z returns no rows -> throws.</summary>
         [Fact]
-        public async Task MapSpotMissing_Throws_Create()
+        public async Task MapSpotMissingThrowsCreate()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no fallback reader expected"));
             // 1) validate map_spot: empty reader
@@ -409,7 +438,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Happy path: insert booth, insert supported i18n, return full model.</summary>
         [Fact]
-        public async Task CreateOk_InsertsAllSupported()
+        public async Task CreateOkInsertsAllSupported()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no fallback reader expected"));
 
@@ -445,7 +474,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Only supported locales are inserted; unsupported are ignored.</summary>
         [Fact]
-        public async Task CreateOk_FiltersUnsupported()
+        public async Task CreateOkFiltersUnsupported()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no fallback reader expected"));
 
@@ -472,7 +501,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>No locales in DTO -> skip lang check and i18n inserts; return model.</summary>
         [Fact]
-        public async Task CreateOk_NoLocales_SkipsI18n()
+        public async Task CreateOkNoLocalesSkipsI18n()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no fallback reader expected"));
 
@@ -503,7 +532,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Blank/null locale IDs are ignored; only real locales are validated/inserted.</summary>
         [Fact]
-        public async Task CreateOk_BlankAndNullLocales_Ignored()
+        public async Task BlankAndNullLocalesIgnored()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no fallback reader expected"));
 
@@ -533,7 +562,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>map_spot coords NULL -> MapSpot defaults to 0s.</summary>
         [Fact]
-        public async Task CreateOk_MapSpotNullDefToZero()
+        public async Task MapSpotNullDefToZero()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no fallback reader expected"));
 
@@ -568,7 +597,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Booth not found (name_key scalar is null) → returns false.</summary>
         [Fact]
-        public async Task Delete_NotFound_ReturnsFalse()
+        public async Task DeleteNotFoundReturnsFalse()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no reader expected"));
             // 1) fetch booth name_key -> null -> early false
@@ -583,7 +612,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>No portals: delete booth i18n and booth only → true.</summary>
         [Fact]
-        public async Task Delete_NoPortals_JustBooth()
+        public async Task DeleteNoPortalsJustBooth()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             // 1) fetch booth name_key
@@ -602,7 +631,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Portals with various media: cascades i18n/portal/media deletes → true.</summary>
         [Fact]
-        public async Task Delete_WithPortals_CascadesAll()
+        public async Task DeleteWithPortalsCascadesAll()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             // 1) booth key
@@ -643,7 +672,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
         /// <summary>Whitespace media ids are ignored (no media deletions).</summary>
         [Fact]
-        public async Task Delete_WhitespaceMedia_IgnoresMedia()
+        public async Task DeleteWhitespaceMedia()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             // 1) booth key
