@@ -1,22 +1,16 @@
 ﻿using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System;
-using Microsoft.Extensions.Logging;
-using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 
-namespace TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
+using Microsoft.Extensions.Logging;
+
+namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 {
     public sealed class NullAppLogger<T> : IAppLogger<T>
     {
         public bool IsEnabled(LogLevel level) => false;
 
-        public void Debug(string message, params object[] args) { }
-        public void Warn(string message, params object[] args) { }
-        public void Error(Exception ex, string message, params object[] args) { }
+        public void Debug(string message, params object?[] args) { }
+        public void Warn(string message, params object?[] args) { }
+        public void Error(Exception ex, string message, params object?[] args) { }
 
         // Match the interface used by BoothRepository: returns IDisposable
         public IDisposable WithProperties(params (string Key, object Value)[] properties)

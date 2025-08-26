@@ -7,8 +7,7 @@
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
-using MySqlConnector;
+//using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 using System.Data;
 using System.Data.Common;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
@@ -17,7 +16,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public class BoothRepository : IBoothRepository
     {
-        private readonly string _connectionString;
+
         private readonly IDbProvider _db;
         //private readonly IAppLogger<BoothRepository>? _log;
 
@@ -532,10 +531,10 @@ VALUES (@SpaceId, @NameKey, @MapSpotId);";
                 {
                     var paramNames = allLocales.Select((_, i) => $"@loc{i}").ToList();
                     var checkSupportedLangSql = $@"
-SELECT locale_id
-  FROM supported_languages
- WHERE locale_id IN ({string.Join(", ", paramNames)})
-   AND space_id = @SpaceId;";
+                    SELECT locale_id
+                      FROM supported_languages
+                     WHERE locale_id IN ({string.Join(", ", paramNames)})
+                       AND space_id = @SpaceId;";
 
                     await using (var checkCmd = _db.CreateCommand(conn, checkSupportedLangSql))
                     {

@@ -2,10 +2,11 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Syed Hussain</author>
-// <date>08/20/2025</date>
+// <date>08/26/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
 
+using GMS.TifoXRCoreWebAPI.Errors;
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
@@ -37,12 +38,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<List<BoothModel>>> GetAllBoothsBySpace(
         [FromRoute] int spaceId,
         [FromServices] IDiagnosticContext diag,          // from Serilog.AspNetCore
-        [FromServices] IAppLogger<BoothController> log) // your wrapper
+        [FromServices] IAppLogger<BoothController> log)
         {
             // Attach stable context to *all* logs in this scope (if any)
             using (log.WithProperties(("SpaceId", spaceId)))
             {
-                // Validate (don’t log: common/expected; your middleware maps to 400)
+                // Validate (don’t log: common/expected; middleware maps to 400)
                 if (spaceId <= 0)
                 {
                     throw new ArgumentException(
@@ -55,7 +56,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     );
                 }
 
-                // Time the repository call; warn if slow (threshold tuned to your SLO)
+                // Time the repository call; warn if slow
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var booths = await _boothRepository.GetAllBoothsBySpaceAsync(spaceId);
                 sw.Stop();
@@ -66,10 +67,16 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 diag.Set("BoothCount", booths?.Count ?? 0);
 
                 // Optional: surface slow path without spamming (Warning = unexpected but not fatal)
-                if (sw.ElapsedMilliseconds > 500)
-                    log.Warn("Slow repository call fetching booths (ElapsedMs={ElapsedMs})", sw.ElapsedMilliseconds);
+                if (sw.ElapsedMilliseconds > ErrorMessages.SlowRepositoryThresholdMs)
+                {
+                    log.Warn(
+                        ErrorMessages.SlowRepositoryCallMessage,
+                        "Fetching booths",
+                        sw.ElapsedMilliseconds
+                    );
+                }
 
-                // Not found is an expected branch → throw; GlobalException will log once and return 404
+                // Not found is an expected branch -> throw; GlobalException will log once and return 404
                 if (booths is null || booths.Count == 0)
                 {
                     throw new ResourceNotFoundException(
@@ -80,11 +87,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                         )
                     );
                 }
-                log.Info("info with Severity level 1");
-                log.Warn("Warning with severity level 2");
-                log.Error("Error with severity level 3");
-                log.Error(new ResourceNotFoundException("Invalid Operation Exception"), "Specific Resource Not Found");
-
+                
 
                 // Success: no extra Info log — the middleware will emit:
                 // "HTTP GET /api/space/{spaceId}/booths responded 200 in {Elapsed} ms"
