@@ -16,6 +16,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         /// returns that existing order summary.
         /// </summary>
         Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req);
+
+        Task<CreatePaymentIntentResponse> CreatePaymentIntentAsync(int spaceId, string orderId, CreatePaymentIntentRequest req);
+        Task<ConfirmPaymentIntentResponse> ConfirmPaymentIntentAsync(int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req);
+        Task<InvoiceListResponse?> GetInvoicesByOrderAsync(int spaceId, string orderId);
+
     }
 
 }

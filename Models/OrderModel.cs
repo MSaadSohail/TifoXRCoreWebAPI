@@ -155,4 +155,43 @@
         public string Currency { get; init; } = default!;
     }
 
+    // --- Payment Intents (create/confirm) ---
+    public sealed class CreatePaymentIntentRequest
+    {
+        public string IdempotencyKey { get; init; } = default!;
+        public string Gateway { get; init; } = default!; // "paypal" | "stripe" | "crypto_wallet"
+        public long? AmountMinor { get; init; }          // defaults to order.TotalNetAmount if null
+        public string? Currency { get; init; }           // defaults to order currency
+    }
+
+    public sealed class CreatePaymentIntentResponse
+    {
+        public string PaymentIntentId { get; init; } = default!;
+        public int PaymentGatewayId { get; init; }
+        public int StatusId { get; init; }
+        public string? ClientSecret { get; init; }       // Stripe
+        public string? ProviderIntentId { get; init; }   // Stripe PI, PayPal Order
+        public string? ApproveLink { get; init; }        // PayPal approval URL (if applicable)
+    }
+
+    public sealed class ConfirmPaymentIntentRequest
+    {
+        public string IdempotencyKey { get; init; } = default!;
+        public string? ProviderIntentId { get; init; }   // e.g., PayPal order token
+    }
+
+    public sealed class ConfirmPaymentIntentResponse
+    {
+        public string OrderId { get; init; } = default!;
+        public string PaymentIntentId { get; init; } = default!;
+        public string? ProviderChargeId { get; init; }
+        public int PaymentStatusId { get; init; }
+    }
+
+    // --- Invoices ---
+    public sealed class InvoiceListResponse
+    {
+        public string OrderId { get; init; } = default!;
+        public List<InvoiceSummaryDto> Invoices { get; init; } = new();
+    }
 }

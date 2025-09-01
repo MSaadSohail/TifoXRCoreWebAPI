@@ -7,11 +7,10 @@
 
 using GMS.TifoXRCoreWebAPI.Data;
 using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Utilities;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
+
 // Serilog
 using Serilog;
 using Serilog.Context;
@@ -20,6 +19,7 @@ using System.Data.Common;
 using System.Reflection;
 using TifoXRCoreWebAPI.Utilities.Infrastructure;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+using TifoXRCoreWebAPI.Utilities.PaymentGateways;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,7 +47,7 @@ app.Run();
 
 #region HELPERS
 
-static void ConfigureServices(IServiceCollection services, IConfiguration config)
+static void ConfigureServices(IServiceCollection services,  IConfiguration config)
 {
     // MVC + Swagger
     services.AddControllers();
@@ -78,6 +78,8 @@ static void ConfigureServices(IServiceCollection services, IConfiguration config
         providerInvariant.Contains("SqlClient", StringComparison.OrdinalIgnoreCase)
             ? new SqlServerDialect()
             : new MySqlDialect());
+
+    services.AddSingleton<IPayPalClientFactory, PayPalClientFactory>();
 
     // ---- Auto-register repositories: I{Name} -> {Name} ----
     RegisterRepositories(services, Assembly.GetExecutingAssembly());
