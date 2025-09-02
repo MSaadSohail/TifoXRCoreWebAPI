@@ -911,7 +911,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task GrantEntitlementsAsync(string orderId)
         {
-            const int GrantedStatus = 1;  // entitlement.status for "granted"
+            const int GrantedStatus = 2;  // entitlement.status for "granted"
             const int OrderStatusPaid = 3;
 
             // Idempotent grant: insert entitlements for all order lines of a PAID order
