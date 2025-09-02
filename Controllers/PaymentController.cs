@@ -144,7 +144,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         /// <summary>
         /// POST /api/space/{spaceId}/payments/refunds
-        /// Creates a refund (no idempotency key in DTO, Teleport-style CreatedAtAction).
+        /// Creates a refund (no idempotency key in DTO.
         /// </summary>
         [HttpPost("{spaceId}/payments/refunds")]
         [ProducesResponseType(typeof(PaymentRefundData), StatusCodes.Status201Created)]

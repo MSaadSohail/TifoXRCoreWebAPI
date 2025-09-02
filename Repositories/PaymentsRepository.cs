@@ -281,7 +281,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             try
             {
-                // Safe de-dup WITHOUT idempotency_key (Teleport-style simplicity)
+                // Safe de-dup WITHOUT idempotency_key
                 const string selExisting = @"
                     SELECT
                         r.id,
