@@ -2,14 +2,16 @@
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using TifoXRCoreWebAPI.Services;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [ApiController]
     [Route("api/space/{spaceId:int}/orders")]
-    public class OrdersController(IOrderRepository repo) : ControllerBase
+    public class OrdersController(IOrderRepository repo, IPaymentService payments) : ControllerBase
     {
         private readonly IOrderRepository _repo = repo;
+        private readonly IPaymentService _payments = payments;
 
         [HttpGet("{orderId}")]
         public async Task<IActionResult> GetOrder(int spaceId, string orderId)
@@ -50,8 +52,9 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> Create(int spaceId, [FromBody] CreateOrderRequest req)
         {
             if (req is null) return BadRequest("Body is required.");
-            // Prefer path spaceId; ignore/override any body space id to avoid leakage
+
             var resp = await _repo.CreateOrderAsync(spaceId, req);
+
             return Ok(resp);
         }
 
@@ -62,7 +65,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
             if (req is null) return BadRequest("Body is required.");
 
-            var resp = await _repo.CreatePaymentIntentAsync(spaceId, orderId, req);
+            var resp = await _payments.CreateIntentAsync(spaceId, orderId, req);
             return Ok(resp);
         }
 
@@ -74,8 +77,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             if (string.IsNullOrWhiteSpace(intentId)) return BadRequest("intentId is required.");
             if (req is null) return BadRequest("Body is required.");
 
-            var resp = await _repo.ConfirmPaymentIntentAsync(spaceId, orderId, intentId, req);
+            var resp = await _payments.CaptureAsync(spaceId, orderId, intentId, req);
             return Ok(resp);
-        } 
+        }
+
+        [HttpPost("{orderId}/payment-intents/{intentId}/capture")]
+        public async Task<IActionResult> CapturePaymentIntent(
+            int spaceId, string orderId, string intentId, [FromBody] ConfirmPaymentIntentRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (string.IsNullOrWhiteSpace(intentId)) return BadRequest("intentId is required.");
+            if (req is null) return BadRequest("Body is required.");
+
+            var result = await _payments.CaptureAsync(spaceId, orderId, intentId, req);
+            return Ok(result);
+        }
     }
 }

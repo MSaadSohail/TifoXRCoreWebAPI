@@ -17,9 +17,13 @@ using Serilog.Context;
 using Serilog.Events;
 using System.Data.Common;
 using System.Reflection;
+using GMS.TifoXRCoreWebAPI.Application.Payments;
+using TifoXRCoreWebAPI.Services;
 using TifoXRCoreWebAPI.Utilities.Infrastructure;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 using TifoXRCoreWebAPI.Utilities.PaymentGateways;
+using TifoXRCoreWebAPI.Application.Gateways;
+using GMS.TifoXRCoreWebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -80,6 +84,17 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
             : new MySqlDialect());
 
     services.AddSingleton<IPayPalClientFactory, PayPalClientFactory>();
+
+    // Gateways
+    services.AddSingleton<IPaymentGateway, PaypalGateway>();
+    services.AddSingleton<IPaymentGatewayFactory, PaymentGatewayFactory>();
+
+    // Services
+    services.AddScoped<IPaymentService, PaymentService>();
+    services.AddScoped<IOrderService, OrderService>();
+
+    // Factory for PayPal SDK (your existing one)
+    services.AddSingleton<IPayPalClientFactory,PayPalClientFactory>();
 
     // ---- Auto-register repositories: I{Name} -> {Name} ----
     RegisterRepositories(services, Assembly.GetExecutingAssembly());
