@@ -1,7 +1,7 @@
 ﻿// Repositories/OrderRepository.cs
-using System.Text.Json;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using System.Text.Json;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
@@ -753,7 +753,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 SELECT id, provider_intent_id
                 FROM payment_intent
                 WHERE order_id = @OrderId AND idempotency_key = @Key
-                LIMIT 1;";
+                LIMIT 1;
+            ";
 
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, sql);
@@ -782,10 +783,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 (id, order_id, payment_gateway_id, status_id, amount, currency_id,
                  client_secret, provider_intent_id, idempotency_key, creation_time, modified_by)
                 VALUES
-                (@Id, @OrderId, @Gw, @Status, @Amt, @Ccy, NULL, @ProvId, @Key, NOW(6), @ModBy);";
+                (@Id, @OrderId, @Gw, @Status, @Amt, @Ccy, NULL, @ProvId, @Key, NOW(6), @ModBy);
+            ";
+            
             var id = Guid.NewGuid().ToString();
+            
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, sql);
+            
             cmd.Parameters.Add(_db.CreateParameter("@Id", id));
             cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
             cmd.Parameters.Add(_db.CreateParameter("@Gw", gatewayId));
@@ -795,14 +800,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@ProvId", providerIntentId));
             cmd.Parameters.Add(_db.CreateParameter("@Key", idempotencyKey));
             cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+            
             await cmd.ExecuteNonQueryAsync();
+            
             return id;
         }
 
-        public async Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string? ProviderIntentId)?> GetIntentContextAsync(string intentId)
+        public async Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string UserId, string? ProviderIntentId)?> GetIntentContextAsync(string intentId)
         {
             const string sql = @"
-                SELECT i.order_id, o.space_id, o.currency_id, o.total_net_amount, i.provider_intent_id
+                SELECT i.order_id, o.space_id, o.currency_id, o.total_net_amount, o.user_id, i.provider_intent_id
                 FROM payment_intent i
                 JOIN `order` o ON o.id = i.order_id
                 WHERE i.id = @IntentId
@@ -818,13 +825,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 SpaceId: r.GetInt32(r.GetOrdinal("space_id")),
                 CurrencyId: r.GetInt32(r.GetOrdinal("currency_id")),
                 TotalNetMinor: r.GetInt64(r.GetOrdinal("total_net_amount")),
-                ProviderIntentId: r.IsDBNull(r.GetOrdinal("provider_intent_id")) ? null : r.GetString(r.GetOrdinal("provider_intent_id"))
+                UserId: r.GetString(r.GetOrdinal("user_id")),
+                ProviderIntentId: r.IsDBNull(r.GetOrdinal("provider_intent_id")) 
+                ? null 
+                : r.GetString(r.GetOrdinal("provider_intent_id"))
             );
         }
 
         public async Task<string> InsertChargeAsync(
             string intentId, int statusId, long amountCapturedMinor, int currencyId,
-            string providerChargeId, DateTime paidAtUtc)
+            string providerChargeId, DateTime paidAtUtc, string userId)
         {
             const string sql = @"
                 INSERT INTO payment_charge
@@ -832,9 +842,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                  payment_datetime, creation_time, modified_by)
                 VALUES
                 (@Id, @IntentId, @Status, @Amt, @Ccy, @ProvCharge, @PaidAt, NOW(6), @ModBy);";
+            
             var id = Guid.NewGuid().ToString();
+            
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, sql);
+            
             cmd.Parameters.Add(_db.CreateParameter("@Id", id));
             cmd.Parameters.Add(_db.CreateParameter("@IntentId", intentId));
             cmd.Parameters.Add(_db.CreateParameter("@Status", statusId));
@@ -843,26 +856,34 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@ProvCharge", providerChargeId));
             cmd.Parameters.Add(_db.CreateParameter("@PaidAt", paidAtUtc));
             cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+            
             await cmd.ExecuteNonQueryAsync();
+            
             return id;
         }
 
         public async Task MarkPaidIfCoveredAsync(string orderId, long amountJustCapturedMinor, int paidStatusId)
         {
             const string sqlGet = @"
-                SELECT total_net_amount FROM `order` WHERE id = @OrderId LIMIT 1;";
+                SELECT total_net_amount FROM `order` WHERE id = @OrderId LIMIT 1;
+            ";
+
             const string sqlSum = @"
                 SELECT COALESCE(SUM(pc.amount_captured),0)
                 FROM payment_charge pc
                 JOIN payment_intent pi ON pi.id = pc.payment_intent_id
-                WHERE pi.order_id = @OrderId;";
+                WHERE pi.order_id = @OrderId;
+            ";
+
             const string sqlUpd = @"
                 UPDATE `order` SET status_id = @PaidStatusId, modified_by = @ModBy
-                WHERE id = @OrderId AND status_id <> @PaidStatusId;";
+                WHERE id = @OrderId AND status_id <> @PaidStatusId;
+            ";
 
             await using var conn = await _db.OpenConnectionAsync();
 
             long totalNet;
+            
             await using (var cmd = _db.CreateCommand(conn, sqlGet))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
@@ -890,41 +911,75 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task GrantEntitlementsAsync(string orderId)
         {
-            // If you have a stored procedure, call it here.
-            // Fallback no-op keeps repo persistence-only.
-            const string sqlProc = "CALL sp_grant_entitlements(@OrderId);"; //FIX ME: Remove stored procedure
+            const int GrantedStatus = 1;  // entitlement.status for "granted"
+            const int OrderStatusPaid = 3;
+
+            // Idempotent grant: insert entitlements for all order lines of a PAID order
+            // that don't already have an entitlement row.
+            const string sql = @"
+                INSERT INTO entitlement
+                    (id, order_line_id, user_id, status, quantity, granted_datetime, revoked_reason, metadata, creation_time, modified_by)
+                SELECT
+                    UUID(),
+                    ol.id,
+                    o.user_id,
+                    @GrantedStatus,
+                    ol.quantity,
+                    NOW(6),
+                    NULL,
+                    ol.metadata,
+                    NOW(6),
+                    @ModBy
+                FROM order_line ol
+                JOIN `order` o
+                  ON o.id = ol.order_id
+                LEFT JOIN entitlement e
+                  ON e.order_line_id = ol.id
+                WHERE ol.order_id = @OrderId
+                  AND o.status_id = @OrderStatusPaid     -- only after the order is paid
+                  AND e.id IS NULL;                      -- idempotent: skip if entitlement already exists
+            ";
 
             await using var conn = await _db.OpenConnectionAsync();
-            try
-            {
-                await using var cmd = _db.CreateCommand(conn, sqlProc);
-                cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
-                await cmd.ExecuteNonQueryAsync();
-            }
-            catch
-            {
-                // Optional: log if SP not present. Business logic can be moved later.
-            }
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+            cmd.Parameters.Add(_db.CreateParameter("@OrderStatusPaid", OrderStatusPaid));
+            cmd.Parameters.Add(_db.CreateParameter("@GrantedStatus", GrantedStatus));
+            cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+            await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task InsertInvoiceFromOrderAsync(string orderId, string chargeId, int gatewayId)
+        public async Task InsertInvoiceFromOrderAsync(int spaceId, string orderId, string chargeId, int gatewayId)
         {
             // Minimal snapshot invoice from order totals; expand as your schema grows
-            const string sqlOrder = @"SELECT currency_id, total_net_amount FROM `order` WHERE id = @OrderId LIMIT 1;";
+            const string sqlOrder = @"
+                SELECT user_id, currency_id, total_net_amount 
+                FROM `order` 
+                WHERE id = @OrderId LIMIT 1;
+            ";
+
             const string sqlInsert = @"
                 INSERT INTO invoice
-                (id, order_id, invoice_number, status_id, currency_id, total_amount, issue_datetime, pdf_url, creation_time, modified_by)
+                (id, order_id, user_id, space_id, invoice_number, status_id, currency_id, total_amount, issue_datetime, pdf_url, modified_by)
                 VALUES
-                (@Id, @OrderId, @No, @Status, @Ccy, @TotalMajor, NOW(6), NULL, NOW(6), @ModBy);";
+                (@Id, @OrderId, @UserId, @SpaceId, @No, @Status, @Ccy, @TotalMajor, NOW(6), NULL, @ModBy);
+            ";
 
             await using var conn = await _db.OpenConnectionAsync();
 
-            int ccyId; long totalMinor;
+            string userId;
+            int ccyId;
+            long totalMinor;
+
             await using (var cmd = _db.CreateCommand(conn, sqlOrder))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+
                 await using var r = await cmd.ExecuteReaderAsync();
+
                 if (!await r.ReadAsync()) return;
+
+                userId = r.GetString(r.GetOrdinal("user_id"));
                 ccyId = r.GetInt32(r.GetOrdinal("currency_id"));
                 totalMinor = r.GetInt64(r.GetOrdinal("total_net_amount"));
             }
@@ -933,17 +988,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             var invoiceNo = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}-{id[..8]}";
             var totalMajor = totalMinor / 100m;
 
-            await using (var ins = _db.CreateCommand(conn, sqlInsert))
-            {
-                ins.Parameters.Add(_db.CreateParameter("@Id", id));
-                ins.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
-                ins.Parameters.Add(_db.CreateParameter("@No", invoiceNo));
-                ins.Parameters.Add(_db.CreateParameter("@Status", 3)); // Paid
-                ins.Parameters.Add(_db.CreateParameter("@Ccy", ccyId));
-                ins.Parameters.Add(_db.CreateParameter("@TotalMajor", totalMajor));
-                ins.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
-                await ins.ExecuteNonQueryAsync();
-            }
+            await using var ins = _db.CreateCommand(conn, sqlInsert);
+
+            ins.Parameters.Add(_db.CreateParameter("@Id", id));
+            ins.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+            ins.Parameters.Add(_db.CreateParameter("@UserId", userId));
+            ins.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+            ins.Parameters.Add(_db.CreateParameter("@No", invoiceNo));
+            ins.Parameters.Add(_db.CreateParameter("@Status", 3)); // Paid  //FIX ME: Update this with actual value being fetched from DB
+            ins.Parameters.Add(_db.CreateParameter("@Ccy", ccyId));
+            ins.Parameters.Add(_db.CreateParameter("@TotalMajor", totalMajor));
+            ins.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+
+            await ins.ExecuteNonQueryAsync();
         }
     }
 }

@@ -3,7 +3,7 @@ using PaypalServerSdk.Standard.Models;
 using TifoXRCoreWebAPI.Utilities.PaymentGateways;
 using PpAppContext = PaypalServerSdk.Standard.Models.OrderApplicationContext;
 
-namespace TifoXRCoreWebAPI.Application.Gateways
+namespace TifoXRCoreWebAPI.Application.PaymentGateways
 {
     public sealed class PaypalGateway : IPaymentGateway
     {

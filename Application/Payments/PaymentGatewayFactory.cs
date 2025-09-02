@@ -1,4 +1,4 @@
-﻿using TifoXRCoreWebAPI.Application.Gateways;
+﻿using TifoXRCoreWebAPI.Application.PaymentGateways;
 
 namespace GMS.TifoXRCoreWebAPI.Application.Payments
 {

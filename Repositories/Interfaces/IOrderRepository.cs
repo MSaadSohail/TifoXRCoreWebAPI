@@ -20,10 +20,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         Task<string> ResolveCurrencyIsoAsync(int currencyId);
         Task<(string Id, string? ProviderIntentId)?> FindPaymentIntentByIdempotencyAsync(string orderId, string idemKey);
         Task<string> InsertPaymentIntentAsync(string orderId, int gatewayId, int statusId, long amountMinor, int currencyId, string providerIntentId, string idempotencyKey);
-        Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string? ProviderIntentId)?> GetIntentContextAsync(string intentId);
-        Task<string> InsertChargeAsync(string intentId, int statusId, long amountCapturedMinor, int currencyId, string providerChargeId, DateTime paidAtUtc);
+        Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string UserId, string? ProviderIntentId)?> GetIntentContextAsync(string intentId);
+        Task<string> InsertChargeAsync(string intentId, int statusId, long amountCapturedMinor, int currencyId, string providerChargeId, DateTime paidAtUtc, string userId);
         Task MarkPaidIfCoveredAsync(string orderId, long amountJustCapturedMinor, int paidStatusId);
         Task GrantEntitlementsAsync(string orderId);
-        Task InsertInvoiceFromOrderAsync(string orderId, string chargeId, int gatewayId);
+        Task InsertInvoiceFromOrderAsync(int spaceId, string orderId, string chargeId, int gatewayId);
     }
 }

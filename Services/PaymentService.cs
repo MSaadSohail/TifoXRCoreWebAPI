@@ -1,7 +1,8 @@
 ﻿// Services/PaymentService.cs
+using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using TifoXRCoreWebAPI.Application.Gateways;
+using TifoXRCoreWebAPI.Application.PaymentGateways;
 using TifoXRCoreWebAPI.Services;
 
 namespace GMS.TifoXRCoreWebAPI.Services
@@ -9,38 +10,30 @@ namespace GMS.TifoXRCoreWebAPI.Services
     /// <summary>
     /// Orchestrates payment gateway calls and persists results through IOrderRepository helpers.
     /// </summary>
-    public sealed class PaymentService : IPaymentService
+    public sealed class PaymentService(IPaymentGateway gateway, IOrderRepository orders) : IPaymentService
     {
         // Status constants (align with your lookup tables)
         private const int StatusRequiresAction = 1; // e.g., "requires_action"
         private const int StatusSucceeded = 3; // e.g., "succeeded"
         private const int OrderStatusPaid = 3; // e.g., "Paid"
 
-        // Currently supported gateway id mapping (expand when you add more gateways)
-        private static int ResolveGatewayId(string gatewayName)
-            => gatewayName.Equals("paypal", StringComparison.OrdinalIgnoreCase) ? 2
-             : throw new InvalidOperationException($"Unsupported gateway '{gatewayName}'.");
-
-        private readonly IPaymentGateway _gateway;
-        private readonly IOrderRepository _orders;
-
-        public PaymentService(IPaymentGateway gateway, IOrderRepository orders)
-        {
-            _gateway = gateway;
-            _orders = orders;
-        }
+        private readonly IPaymentGateway _gateway = gateway;
+        private readonly IOrderRepository _orders = orders;
 
         public async Task<CreatePaymentIntentResponse> CreateIntentAsync(
             int spaceId, string orderId, CreatePaymentIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+            
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
+            
             if (_gateway == null)
                 throw new ArgumentException("Gateway is required.", nameof(req.Gateway));
 
             // 1) Load order context (minimal header)
             var header = await _orders.GetOrderHeaderAsync(orderId); // space, currency, total net
+            
             if (header is null || header.Value.SpaceId != spaceId)
                 throw new InvalidOperationException("Order not found in this space.");
 
@@ -76,7 +69,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 IdempotencyKey: req.IdempotencyKey,
                 CurrencyId: header.Value.CurrencyId,
                 Amount: amountMajor, // major units
-                ReturnUrl: $"https://your.api/return/{req.Gateway}?orderId={orderId}",  //FIX ME: Add mock return url
+                ReturnUrl: $"https://your.api/return/{req.Gateway}?orderId={orderId}",  //FIX ME: Add mock return url if required
                 CancelUrl: $"https://your.app/cancel"));
 
             if (string.IsNullOrWhiteSpace(created.ProviderIntentId))
@@ -108,11 +101,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
             int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+            
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
             // 1) Intent + Order context
             var ctx = await _orders.GetIntentContextAsync(intentId);
+            
             if (ctx is null || ctx.Value.OrderId != orderId || ctx.Value.SpaceId != spaceId)
                 throw new InvalidOperationException("payment_intent not found for this order/space.");
 
@@ -121,6 +116,17 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
             // NOTE: If you later store gateway_id on the intent, resolve the gateway from the repo/context.
             // For now, we only support PayPal here.
+
+            var status = await _gateway.GetIntentAsync(providerIntentId);
+
+            if (status is null || !string.Equals(status.Status, "APPROVED", StringComparison.OrdinalIgnoreCase))
+            {
+                // throw a user-meaningful exception the controller can map to 409/400
+                throw new InvalidOperationException(
+                    GlobalException.FormatExceptionMessage(
+                    "PAYMENT_REQUIRES_APPROVAL",
+                    nameof(CaptureAsync)));
+            }
 
             // 2) Capture
             var cap = await _gateway.CaptureAsync(new CaptureGatewayRequest(
@@ -136,12 +142,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 amountCapturedMinor: amountMinor,
                 currencyId: ctx.Value.CurrencyId,
                 providerChargeId: cap.ProviderChargeId,
-                paidAtUtc: DateTime.UtcNow);
+                paidAtUtc: DateTime.UtcNow,
+                userId: ctx.Value.UserId);
 
             // Mark order paid if fully covered, grant entitlements, snapshot invoice
             await _orders.MarkPaidIfCoveredAsync(orderId, amountMinor, OrderStatusPaid);
             await _orders.GrantEntitlementsAsync(orderId);
-            await _orders.InsertInvoiceFromOrderAsync(orderId, chargeId, gatewayId: 2 /* PayPal */);
+            await _orders.InsertInvoiceFromOrderAsync(spaceId, orderId, chargeId, gatewayId: 2 /* PayPal */);
 
             return new ConfirmPaymentIntentResponse
             {

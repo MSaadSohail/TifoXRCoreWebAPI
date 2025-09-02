@@ -1,4 +1,4 @@
-﻿namespace TifoXRCoreWebAPI.Application.Gateways
+﻿namespace TifoXRCoreWebAPI.Application.PaymentGateways
 {
     public interface IPaymentGateway
     {

@@ -22,7 +22,7 @@ using TifoXRCoreWebAPI.Services;
 using TifoXRCoreWebAPI.Utilities.Infrastructure;
 using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 using TifoXRCoreWebAPI.Utilities.PaymentGateways;
-using TifoXRCoreWebAPI.Application.Gateways;
+using TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -87,7 +87,7 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     // Gateways
     services.AddSingleton<IPaymentGateway, PaypalGateway>();
-    services.AddSingleton<IPaymentGatewayFactory, PaymentGatewayFactory>();
+    //services.AddSingleton<IPaymentGatewayFactory, PaymentGatewayFactory>();
 
     // Services
     services.AddScoped<IPaymentService, PaymentService>();
