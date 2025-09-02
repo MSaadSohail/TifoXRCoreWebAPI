@@ -17,13 +17,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
     public class EntityController : ControllerBase
     {
         private readonly IEntityRepository _repo;
-        private readonly ILogger<EntityController> _logger;
 
-        public EntityController(IEntityRepository repo,
-                                ILogger<EntityController> logger)
+        public EntityController(IEntityRepository repo)
         {
             _repo = repo;
-            _logger = logger;
         }
 
         // GET
