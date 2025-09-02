@@ -918,26 +918,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             // that don't already have an entitlement row.
             const string sql = @"
                 INSERT INTO entitlement
-                    (id, order_line_id, user_id, status, quantity, granted_datetime, revoked_reason, metadata, creation_time, modified_by)
-                SELECT
-                    UUID(),
-                    ol.id,
-                    o.user_id,
-                    @GrantedStatus,
-                    ol.quantity,
-                    NOW(6),
-                    NULL,
-                    ol.metadata,
-                    NOW(6),
-                    @ModBy
+                    (id, order_line_id, user_id, status, quantity, granted_datetime, 
+                    revoked_reason, metadata, creation_time, modified_by)
+                SELECT UUID(), ol.id, o.user_id, @GrantedStatus, ol.quantity, NOW(6), 
+                    NULL, ol.metadata, NOW(6), @ModBy
                 FROM order_line ol
-                JOIN `order` o
-                  ON o.id = ol.order_id
-                LEFT JOIN entitlement e
-                  ON e.order_line_id = ol.id
+                JOIN `order` o ON o.id = ol.order_id
+                LEFT JOIN entitlement e ON e.order_line_id = ol.id
                 WHERE ol.order_id = @OrderId
-                  AND o.status_id = @OrderStatusPaid     -- only after the order is paid
-                  AND e.id IS NULL;                      -- idempotent: skip if entitlement already exists
+                    AND o.status_id = @OrderStatusPaid
+                    AND e.id IS NULL;
             ";
 
             await using var conn = await _db.OpenConnectionAsync();
@@ -951,56 +941,135 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task InsertInvoiceFromOrderAsync(int spaceId, string orderId, string chargeId, int gatewayId)
         {
-            // Minimal snapshot invoice from order totals; expand as your schema grows
-            const string sqlOrder = @"
-                SELECT user_id, currency_id, total_net_amount 
-                FROM `order` 
-                WHERE id = @OrderId LIMIT 1;
-            ";
+            const int InvoiceStatusPaid = 3;
+            const decimal MinorDivisor = 100m;
+            int? TaxItemTypeId = null;
+            int? FeeItemTypeId = null;
 
-            const string sqlInsert = @"
+            const string sqlOrderSnapshot = @"
+                SELECT
+                  o.user_id, o.space_id, o.currency_id, o.remarks,
+                  COALESCE((SELECT SUM(ol.unit_amount * ol.quantity) FROM order_line ol WHERE ol.order_id=o.id),0) AS subtotal_major,
+                  COALESCE((SELECT SUM(CASE WHEN oa.amount < 0 THEN (-oa.amount)/@MinorDiv ELSE 0 END) FROM order_adjustment oa WHERE oa.order_id=o.id),0) AS discount_major,
+                  COALESCE((SELECT SUM(CASE WHEN (@TaxTypeId IS NOT NULL AND oa.item_type_id=@TaxTypeId) OR (@TaxTypeId IS NULL AND oa.code LIKE 'TAX_%') THEN oa.amount/@MinorDiv ELSE 0 END)
+                            FROM order_adjustment oa WHERE oa.order_id=o.id),0) AS tax_major,
+                  COALESCE((SELECT SUM(CASE WHEN (@FeeTypeId IS NOT NULL AND oa.item_type_id=@FeeTypeId) OR (@FeeTypeId IS NULL AND oa.code LIKE 'FEE_%') THEN oa.amount/@MinorDiv ELSE 0 END)
+                            FROM order_adjustment oa WHERE oa.order_id=o.id),0) AS fee_major
+                FROM `order` o
+                WHERE o.id=@OrderId AND o.space_id=@SpaceId
+                LIMIT 1;";
+
+            const string sqlChargeSnapshot = @"
+                SELECT pc.provider_charge_id, pi.payment_gateway_id
+                FROM payment_charge pc
+                JOIN payment_intent pi ON pi.id = pc.payment_intent_id
+                WHERE pc.id=@ChargeId
+                LIMIT 1;";
+
+            const string sqlInsertInvoice = @"
                 INSERT INTO invoice
-                (id, order_id, user_id, space_id, invoice_number, status_id, currency_id, total_amount, issue_datetime, pdf_url, modified_by)
+                (id, invoice_number, user_id, order_id, subscription_id,
+                 status_id, payment_charge_id, payment_gateway_id, provider_charge_id,
+                 space_id, issue_datetime, currency_id,
+                 subtotal_amount, discount_amount, tax_amount, fee_amount, total_amount,
+                 bill_to_name, bill_to_email, notes, pdf_url, metadata,
+                 creation_time, modified_by)
                 VALUES
-                (@Id, @OrderId, @UserId, @SpaceId, @No, @Status, @Ccy, @TotalMajor, NOW(6), NULL, @ModBy);
-            ";
+                (@Id, @No, @UserId, @OrderId, NULL,
+                 @Status, @ChargeId, @GatewayId, @ProvChargeId,
+                 @SpaceId, NOW(6), @CurrencyId,
+                 @Subtotal, @Discount, @Tax, @Fee, @Total,
+                 @BillToName, @BillToEmail, @Notes, NULL, @Metadata,
+                 NOW(6), @ModBy);";
 
             await using var conn = await _db.OpenConnectionAsync();
 
-            string userId;
-            int ccyId;
-            long totalMinor;
+            string userId; int spaceIdDb; int currencyId; string? notes;
+            decimal subtotal, discount, tax, fee;
 
-            await using (var cmd = _db.CreateCommand(conn, sqlOrder))
+            await using (var cmd = _db.CreateCommand(conn, sqlOrderSnapshot))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                cmd.Parameters.Add(_db.CreateParameter("@MinorDiv", MinorDivisor));
+                cmd.Parameters.Add(_db.CreateParameter("@TaxTypeId", (object?)TaxItemTypeId ?? DBNull.Value));
+                cmd.Parameters.Add(_db.CreateParameter("@FeeTypeId", (object?)FeeItemTypeId ?? DBNull.Value));
 
                 await using var r = await cmd.ExecuteReaderAsync();
-
-                if (!await r.ReadAsync()) return;
+                
+                if (!await r.ReadAsync())
+                    throw new InvalidOperationException($"Order '{orderId}' not found in space '{spaceId}'.");
 
                 userId = r.GetString(r.GetOrdinal("user_id"));
-                ccyId = r.GetInt32(r.GetOrdinal("currency_id"));
-                totalMinor = r.GetInt64(r.GetOrdinal("total_net_amount"));
+                spaceIdDb = r.GetInt32(r.GetOrdinal("space_id"));
+                currencyId = r.GetInt32(r.GetOrdinal("currency_id"));
+                notes = r.IsDBNull(r.GetOrdinal("remarks")) 
+                    ? null 
+                    : r.GetString(r.GetOrdinal("remarks"));
+
+                subtotal = r.GetDecimal(r.GetOrdinal("subtotal_major"));
+                discount = r.GetDecimal(r.GetOrdinal("discount_major"));
+                tax = r.GetDecimal(r.GetOrdinal("tax_major"));
+                fee = r.GetDecimal(r.GetOrdinal("fee_major"));
             }
 
-            var id = Guid.NewGuid().ToString();
-            var invoiceNo = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}-{id[..8]}";
-            var totalMajor = totalMinor / 100m;
+            string? providerChargeId = null;
+            int gatewayIdFromDb = gatewayId;
 
-            await using var ins = _db.CreateCommand(conn, sqlInsert);
+            await using (var cmd = _db.CreateCommand(conn, sqlChargeSnapshot))
+            {
+                cmd.Parameters.Add(_db.CreateParameter("@ChargeId", chargeId));
+                await using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    providerChargeId = r.IsDBNull(r.GetOrdinal("provider_charge_id")) ? null : r.GetString(r.GetOrdinal("provider_charge_id"));
+                    if (!r.IsDBNull(r.GetOrdinal("payment_gateway_id"))) gatewayIdFromDb = r.GetInt32(r.GetOrdinal("payment_gateway_id"));
+                }
+            }
 
-            ins.Parameters.Add(_db.CreateParameter("@Id", id));
-            ins.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
-            ins.Parameters.Add(_db.CreateParameter("@UserId", userId));
-            ins.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
-            ins.Parameters.Add(_db.CreateParameter("@No", invoiceNo));
-            ins.Parameters.Add(_db.CreateParameter("@Status", 3)); // Paid  //FIX ME: Update this with actual value being fetched from DB
-            ins.Parameters.Add(_db.CreateParameter("@Ccy", ccyId));
-            ins.Parameters.Add(_db.CreateParameter("@TotalMajor", totalMajor));
-            ins.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+            var total = subtotal - discount + tax + fee;
+            var invoiceId = Guid.NewGuid().ToString();
+            var invoiceNo = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}-{invoiceId[..8]}";
+            var billToName = userId;
+            string? billToEmail = null;
 
-            await ins.ExecuteNonQueryAsync();
+            var metadata = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                source = "auto_from_order",
+                orderId,
+                chargeId,
+                spaceId = spaceIdDb,
+                currencyId,
+                snapshotAt = DateTime.UtcNow
+            });
+
+            await using (var ins = _db.CreateCommand(conn, sqlInsertInvoice))
+            {
+                ins.Parameters.Add(_db.CreateParameter("@Id", invoiceId));
+                ins.Parameters.Add(_db.CreateParameter("@No", invoiceNo));
+                ins.Parameters.Add(_db.CreateParameter("@UserId", userId));
+                ins.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                ins.Parameters.Add(_db.CreateParameter("@Status", InvoiceStatusPaid));
+                ins.Parameters.Add(_db.CreateParameter("@ChargeId", chargeId));
+                ins.Parameters.Add(_db.CreateParameter("@GatewayId", gatewayIdFromDb));
+                ins.Parameters.Add(_db.CreateParameter("@ProvChargeId", (object?)providerChargeId ?? DBNull.Value));
+                ins.Parameters.Add(_db.CreateParameter("@SpaceId", spaceIdDb));
+                ins.Parameters.Add(_db.CreateParameter("@CurrencyId", currencyId));
+
+                ins.Parameters.Add(_db.CreateParameter("@Subtotal", subtotal));
+                ins.Parameters.Add(_db.CreateParameter("@Discount", discount));
+                ins.Parameters.Add(_db.CreateParameter("@Tax", tax));
+                ins.Parameters.Add(_db.CreateParameter("@Fee", fee));
+                ins.Parameters.Add(_db.CreateParameter("@Total", total));
+
+                ins.Parameters.Add(_db.CreateParameter("@BillToName", billToName));
+                ins.Parameters.Add(_db.CreateParameter("@BillToEmail", (object?)billToEmail ?? DBNull.Value));
+                ins.Parameters.Add(_db.CreateParameter("@Notes", (object?)notes ?? DBNull.Value));
+                ins.Parameters.Add(_db.CreateParameter("@Metadata", metadata));
+                ins.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+
+                await ins.ExecuteNonQueryAsync();
+            }
         }
     }
 }
