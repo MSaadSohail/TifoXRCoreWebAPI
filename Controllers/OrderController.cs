@@ -80,17 +80,5 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var resp = await _payments.CaptureAsync(spaceId, orderId, intentId, req);
             return Ok(resp);
         }
-
-        [HttpPost("{orderId}/payment-intents/{intentId}/capture")]
-        public async Task<IActionResult> CapturePaymentIntent(
-            int spaceId, string orderId, string intentId, [FromBody] ConfirmPaymentIntentRequest req)
-        {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (string.IsNullOrWhiteSpace(intentId)) return BadRequest("intentId is required.");
-            if (req is null) return BadRequest("Body is required.");
-
-            var result = await _payments.CaptureAsync(spaceId, orderId, intentId, req);
-            return Ok(result);
-        }
     }
 }
