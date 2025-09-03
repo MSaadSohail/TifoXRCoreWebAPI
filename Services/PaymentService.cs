@@ -69,7 +69,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 IdempotencyKey: req.IdempotencyKey,
                 CurrencyId: header.Value.CurrencyId,
                 Amount: amountMajor, // major units
-                ReturnUrl: $"https://your.api/return/{req.Gateway}?orderId={orderId}",  //FIX ME: Add mock return url if required
+                ReturnUrl: $"https://localhost:7017/api/space/{spaceId}/orders/{orderId}/payments/paypal/return",
                 CancelUrl: $"https://your.app/cancel"));
 
             if (string.IsNullOrWhiteSpace(created.ProviderIntentId))

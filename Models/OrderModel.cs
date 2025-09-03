@@ -191,4 +191,26 @@
         public string? RevokedReason { get; init; }
         public string? MetadataJson { get; init; }
     }
+
+    // -------------------
+    // Request/Response
+    // -------------------
+    public sealed class ReconcileRequest
+    {
+        public string? ProviderIntentId { get; init; }     // e.g., PayPal token from client (optional)
+        public string? IntentId { get; init; }             // your internal payment_intent.id (optional)
+        public string? IdempotencyKey { get; init; }       // required if AttemptCaptureIfApproved = true
+        public bool AttemptCaptureIfApproved { get; init; } = false;
+    }
+
+    public sealed class VerifyPaymentResponse
+    {
+        public string OrderId { get; init; } = default!;
+        public bool IsPaid { get; init; }
+        public long CapturedMinor { get; init; }
+        public long TotalNetMinor { get; init; }
+        public bool HasEntitlements { get; init; }
+        public bool HasInvoice { get; init; }
+        public List<string> Missing { get; init; } = new();
+    }
 }

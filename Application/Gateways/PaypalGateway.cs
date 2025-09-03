@@ -62,7 +62,8 @@ namespace TifoXRCoreWebAPI.Application.PaymentGateways
                 .SelectMany(u => u.Payments?.Captures ?? Enumerable.Empty<OrdersCapture>())
                 .FirstOrDefault();
 
-            if (cap is null) throw new InvalidOperationException("Capture not returned by PayPal.");
+            if (cap is null) 
+                throw new InvalidOperationException("Capture not returned by PayPal.");
             
             var amount = decimal.Parse(cap.Amount?.MValue ?? "0.00", System.Globalization.CultureInfo.InvariantCulture);
             var iso = cap.Amount?.CurrencyCode ?? "USD";
