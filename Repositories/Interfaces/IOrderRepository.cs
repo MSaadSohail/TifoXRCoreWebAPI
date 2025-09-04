@@ -12,6 +12,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         Task<List<EntitlementDto>?> GetEntitlementsByOrderAsync(int spaceId, string orderId);
         Task<InvoiceListResponse?> GetInvoicesByOrderAsync(int spaceId, string orderId);
 
+        Task<(string IntentId, int StatusId, string IdempotencyKey, string? ProviderIntentId, int PaymentGatewayId, long AmountMinor, int CurrencyId)?>
+        GetPendingIntentForOrderAsync(string orderId);
+
+        Task<string?> FindLatestOrderIdWithPendingIntentAsync(int spaceId, string userId, int itemTypeId, int itemRefId);
+
         // Commands (orders)
         Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req);
 

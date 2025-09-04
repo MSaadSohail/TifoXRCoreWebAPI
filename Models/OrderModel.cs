@@ -213,4 +213,17 @@
         public bool HasInvoice { get; init; }
         public List<string> Missing { get; init; } = new();
     }
+
+    public sealed class PendingIntentResponse
+    {
+        public bool Found { get; init; }
+        public string? OrderId { get; init; }
+        public string? PaymentIntentId { get; init; }
+        public int? StatusId { get; init; }            // 1=require_action, 2=processing
+        public string? IdempotencyKey { get; init; }   // <- critical: reuse this
+        public string? ProviderIntentId { get; init; } // PayPal order token (EC-XXXX)
+        public int? PaymentGatewayId { get; init; }
+        public long? AmountMinor { get; init; }
+        public int? CurrencyId { get; init; }
+    }
 }

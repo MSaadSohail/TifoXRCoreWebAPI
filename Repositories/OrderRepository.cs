@@ -479,6 +479,62 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return new InvoiceListResponse { Invoices = list };
         }
 
+        public async Task<(string IntentId, int StatusId, string IdempotencyKey, string? ProviderIntentId, int PaymentGatewayId, long AmountMinor, int CurrencyId)?>
+            GetPendingIntentForOrderAsync(string orderId)
+        {
+            const string sql = @"
+                SELECT pi.id, pi.status_id, pi.idempotency_key, pi.provider_intent_id,
+                       pi.payment_gateway_id, pi.amount, pi.currency_id
+                FROM payment_intent pi
+                WHERE pi.order_id = @OrderId
+                  AND pi.status_id IN (1,2)          -- 1 = requires_action, 2 = processing
+                ORDER BY pi.creation_time DESC
+                LIMIT 1;";
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return null;
+
+            return (
+                IntentId: r.GetString(r.GetOrdinal("id")),
+                StatusId: r.GetInt32(r.GetOrdinal("status_id")),
+                IdempotencyKey: r.GetString(r.GetOrdinal("idempotency_key")),
+                ProviderIntentId: r.IsDBNull(r.GetOrdinal("provider_intent_id")) ? null : r.GetString(r.GetOrdinal("provider_intent_id")),
+                PaymentGatewayId: r.GetInt32(r.GetOrdinal("payment_gateway_id")),
+                AmountMinor: r.GetInt64(r.GetOrdinal("amount")),
+                CurrencyId: r.GetInt32(r.GetOrdinal("currency_id"))
+            );
+        }
+
+        // Finds the newest order for (user,item) that still has a pending intent (1,2)
+        public async Task<string?> FindLatestOrderIdWithPendingIntentAsync(int spaceId, string userId, int itemTypeId, int itemRefId)
+        {
+            const string sql = @"
+                SELECT o.id
+                FROM `order` o
+                JOIN order_line ol ON ol.order_id = o.id
+                JOIN payment_intent pi ON pi.order_id = o.id AND pi.status_id IN (1,2)
+                WHERE o.space_id = @SpaceId
+                  AND o.user_id = @UserId
+                  AND ol.item_type_id = @ItemTypeId
+                  AND ol.item_ref_id = @ItemRefId
+                ORDER BY pi.creation_time DESC
+                LIMIT 1;";
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@UserId", userId));
+            cmd.Parameters.Add(_db.CreateParameter("@ItemTypeId", itemTypeId));
+            cmd.Parameters.Add(_db.CreateParameter("@ItemRefId", itemRefId));
+
+            var o = await cmd.ExecuteScalarAsync();
+            return o is null || o == DBNull.Value ? null : Convert.ToString(o);
+        }
+
         // -----------------------
         // Commands (orders)
         // -----------------------
@@ -709,6 +765,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
         // --------------------------------------------------
         // Persistence helpers used by PaymentService only

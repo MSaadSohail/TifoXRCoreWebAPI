@@ -251,6 +251,72 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return Ok(resp);
         }
 
+        // -----------------------------------------------------------------
+        // A) Find pending intent for a specific ORDER (status 1 or 2)
+        // -----------------------------------------------------------------
+        // GET /api/space/{spaceId}/orders/{orderId}/payment-intents/pending
+        [HttpGet("{orderId}/payment-intents/pending")]
+        public async Task<IActionResult> GetPendingIntentForOrder(int spaceId, string orderId)
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+
+            // validate order belongs to this space
+            var order = await _repo.GetOrderAsync(spaceId, orderId);
+            if (order is null) return NotFound();
+
+            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
+            if (pi is null) return Ok(new PendingIntentResponse { Found = false });
+
+            return Ok(new PendingIntentResponse
+            {
+                Found = true,
+                OrderId = orderId,
+                PaymentIntentId = pi?.IntentId,
+                StatusId = pi?.StatusId,
+                IdempotencyKey = pi?.IdempotencyKey,         // Unity can reuse this key
+                ProviderIntentId = pi?.ProviderIntentId,
+                PaymentGatewayId = pi?.PaymentGatewayId,
+                AmountMinor = pi?.AmountMinor,
+                CurrencyId = pi?.CurrencyId
+            });
+        }
+
+        // -----------------------------------------------------------------
+        // B) Find pending intent for USER + ITEM (status 1 or 2)
+        //    Use when Unity no longer has orderId after a restart.
+        // -----------------------------------------------------------------
+        // GET /api/space/{spaceId}/orders/pending-intent/by-item?userId=...&itemTypeId=...&itemRefId=...
+        [HttpGet("pending-intent/by-item")]
+        public async Task<IActionResult> FindPendingIntentByItem(
+            int spaceId,
+            [FromQuery] string userId,
+            [FromQuery] int itemTypeId,
+            [FromQuery] int itemRefId)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+
+            var orderId = await _repo.FindLatestOrderIdWithPendingIntentAsync(spaceId, userId, itemTypeId, itemRefId);
+            if (string.IsNullOrWhiteSpace(orderId))
+                return Ok(new PendingIntentResponse { Found = false });
+
+            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
+            if (pi is null)
+                return Ok(new PendingIntentResponse { Found = false });
+
+            return Ok(new PendingIntentResponse
+            {
+                Found = true,
+                OrderId = orderId,
+                PaymentIntentId = pi?.IntentId,
+                StatusId = pi?.StatusId,
+                IdempotencyKey = pi?.IdempotencyKey,         // Unity should pass this back into CreatePaymentIntent
+                ProviderIntentId = pi?.ProviderIntentId,
+                PaymentGatewayId = pi?.PaymentGatewayId,
+                AmountMinor = pi?.AmountMinor,
+                CurrencyId = pi?.CurrencyId
+            });
+        }
+
         [HttpPost]
         public async Task<IActionResult> Create(int spaceId, [FromBody] CreateOrderRequest req)
         {
