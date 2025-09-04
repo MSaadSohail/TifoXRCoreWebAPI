@@ -53,19 +53,19 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public required string MediaLink { get; set; }
     }
 
-    public class MediaLocalizationDeleteDto
-    {
-        /// <summary>
-        /// List of media entries (corresponding or thumbnail) and the locales to delete.
-        /// </summary>
-        public List<MediaLocales> Media { get; set; }
-    }
+    //public class MediaLocalizationDeleteDto
+    //{
+    //    /// <summary>
+    //    /// List of media entries (corresponding or thumbnail) and the locales to delete.
+    //    /// </summary>
+    //    public List<MediaLocales> Media { get; set; }
+    //}
 
-    public class MediaLocales
-    {
-        /// <summary>ID of the media (must match this portal's corresponding or thumbnail media).</summary>
-        public string MediaId { get; set; }
-        /// <summary>Locale IDs to delete for this media.</summary>
-        public List<string> LocaleIds { get; set; }
-    }
+    //public class MediaLocales
+    //{
+    //    /// <summary>ID of the media (must match this portal's corresponding or thumbnail media).</summary>
+    //    public string MediaId { get; set; }
+    //    /// <summary>Locale IDs to delete for this media.</summary>
+    //    public List<string> LocaleIds { get; set; }
+    //}
 }

@@ -6,15 +6,17 @@
 // <summary>Unit tests for TeleportTableController covering endpoint behavior.</summary>
 
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+using System.Data;
+
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Moq;
-using System.Data;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -85,7 +87,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             if (repoReturnsNull)
             {
-                await Assert.ThrowsAsync<KeyNotFoundException>(
+                await Assert.ThrowsAsync<ResourceNotFoundException>(
                     () => sut.GetTeleportTablesBySpace(spaceId)
                 );
                 repo.Verify(r => r.GetTeleportTableBySpaceAsync(spaceId), Times.Once);
@@ -259,7 +261,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             if (repoReturnsNull)
             {
-                await Assert.ThrowsAsync<KeyNotFoundException>(
+                await Assert.ThrowsAsync<ResourceNotFoundException>(
                     () => sut.UpdateTeleportTableById(spaceId, tableId, defaultDto)
                 );
             }
@@ -480,7 +482,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             repo.Setup(r => r.DeleteTeleportTableAsync(1, 2)).ReturnsAsync(false);
 
             // ACT & ASSERT
-            await Assert.ThrowsAsync<KeyNotFoundException>(
+            await Assert.ThrowsAsync<ResourceNotFoundException>(
                 () => sut.DeleteTeleportTable(1, 2)
             );
         }
@@ -500,6 +502,168 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ASSERT
             result.Should().BeOfType<NoContentResult>();
         }
+
+        // DELETE /api/space/{spaceId}/teleport_tables
+
+        /// <summary>
+        /// Happy path for bulk deletion of teleport tables by space.  
+        /// Verifies a 200 OK with the exact success message and asserts the repository is invoked once
+        /// with the provided spaceId. Parametrized to cover both zero-deletion and multi-row deletion
+        /// responses so the message format stays stable across counts.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(5)]
+        [InlineData(27)]
+        public async Task DeleteBySpace_Ok(int deletedCount)
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteTeleportTablesBySpaceAsync(10))
+                .ReturnsAsync(deletedCount);
+
+            // ACT
+            var result = await sut.DeleteTeleportTablesBySpace(10);
+
+            // ASSERT
+            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.StatusCode.Should().Be(StatusCodes.Status200OK);
+
+            var expected = new { message = $"Teleport Tables Records Deleted: {deletedCount}." };
+            ok.Value.Should().BeEquivalentTo(expected);
+
+            repo.Verify(r => r.DeleteTeleportTablesBySpaceAsync(10), Times.Once);
+        }
+
+        /// <summary>
+        /// Input validation for the spaceId route parameter.  
+        /// Ensures zero/negative ids cause an ArgumentException and guarantees the repository
+        /// is never called, protecting downstream layers from invalid inputs at the controller boundary.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(-42)]
+        public async Task DeleteBySpace_BadId(int spaceId)
+        {
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.DeleteTeleportTablesBySpace(spaceId));
+
+            repo.Verify(r => r.DeleteTeleportTablesBySpaceAsync(It.IsAny<int>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Repository failure propagation for bulk deletion.  
+        /// Confirms unexpected exceptions thrown by the repository bubble up, allowing global
+        /// exception middleware to render a consistent 5xx response with diagnostic context.
+        /// </summary>
+        [Fact]
+        public async Task DeleteBySpace_RepoThrows()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteTeleportTablesBySpaceAsync(It.IsAny<int>()))
+                .ThrowsAsync(new Exception("Simulated repo failure"));
+
+            // ACT & ASSERT
+            var ex = await Assert.ThrowsAsync<Exception>(() => sut.DeleteTeleportTablesBySpace(7));
+            ex.Message.Should().Be("Simulated repo failure");
+        }
+
+        // DELETE /api/space/{spaceId}/teleport_table/{tableId}/button/{buttonId}
+
+        /// <summary>
+        /// Happy path: deletes a specific button and returns 200 OK with the success message.
+        /// Verifies the repository is called once with (buttonId, tableId) and the response body matches the controller’s format.
+        /// </summary>
+        [Fact]
+        public async Task DeleteBtn_Ok()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteTeleportTableButtonAsync(3, 2)).ReturnsAsync(true);
+
+            // ACT
+            var result = await sut.DeleteTeleportTableButton(1, 2, 3);
+
+            // ASSERT
+            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.StatusCode.Should().Be(StatusCodes.Status200OK);
+            ok.Value.Should().BeEquivalentTo(new { message = "Teleport Table deleted successfully." });
+            repo.Verify(r => r.DeleteTeleportTableButtonAsync(3, 2), Times.Once);
+        }
+
+        /// <summary>
+        /// Input guard: zero/negative spaceId should throw ArgumentException and never hit the repository.
+        /// Ensures invalid route params are rejected at the controller boundary.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(-42)]
+        public async Task DeleteBtn_BadSpaceId(int spaceId)
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.DeleteTeleportTableButton(spaceId, 2, 3));
+            repo.Verify(r => r.DeleteTeleportTableButtonAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Input guard: zero/negative tableId should throw ArgumentException and avoid repository invocation.
+        /// Protects downstream logic from invalid identifiers.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(-5)]
+        public async Task DeleteBtn_BadTableId(int tableId)
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.DeleteTeleportTableButton(1, tableId, 3));
+            repo.Verify(r => r.DeleteTeleportTableButtonAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Input guard: zero/negative buttonId should throw ArgumentException and prevent repository calls.
+        /// Ensures clear, consistent validation for the button identifier.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(-9)]
+        public async Task DeleteBtn_BadButtonId(int buttonId)
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.DeleteTeleportTableButton(1, 2, buttonId));
+            repo.Verify(r => r.DeleteTeleportTableButtonAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        /// <summary>
+        /// Not-found path: when the repository reports false (no row affected), the controller throws ResourceNotFoundException.
+        /// Confirms proper 404 semantics and a single repository invocation with (buttonId, tableId).
+        /// </summary>
+        [Fact]
+        public async Task DeleteBtn_NotFound()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteTeleportTableButtonAsync(999, 2)).ReturnsAsync(false);
+
+            // ACT & ASSERT
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.DeleteTeleportTableButton(1, 2, 999));
+            repo.Verify(r => r.DeleteTeleportTableButtonAsync(999, 2), Times.Once);
+        }
+
+        /// <summary>
+        /// Failure propagation: if the repository throws, the exception is surfaced for global middleware handling.
+        /// Ensures consistent 5xx responses and preserves diagnostic detail.
+        /// </summary>
+        [Fact]
+        public async Task DeleteBtn_RepoThrows()
+        {
+            // ARRANGE
+            repo.Setup(r => r.DeleteTeleportTableButtonAsync(It.IsAny<int>(), It.IsAny<int>()))
+                .ThrowsAsync(new Exception("Simulated repo failure"));
+
+            // ACT & ASSERT
+            var ex = await Assert.ThrowsAsync<Exception>(() => sut.DeleteTeleportTableButton(1, 2, 3));
+            ex.Message.Should().Be("Simulated repo failure");
+        }
+
+
 
         #endregion
     }

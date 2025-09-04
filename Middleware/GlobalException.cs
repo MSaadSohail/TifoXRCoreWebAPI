@@ -2,23 +2,27 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Saad Sohail</author>
-// <date>08/04/2025</date>
-// <summary>Middleware Class to global exception handling</summary>
-
-using System.Data;
-using System.Net;
-using System.Text.Json;
-using System.ComponentModel.DataAnnotations;
+// <date>08/19/2025</date>
+// <summary>Middleware Class for global exception handling with structured logging</summary>
 
 using GMS.TifoXRCoreWebAPI.Errors;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface; // IAppLogger<T>
+using Microsoft.Extensions.Logging;
+using System.ComponentModel.DataAnnotations;
+using System.Data;
+using System.IO;
+using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace GMS.TifoXRCoreWebAPI.Middleware
 {
-    public class GlobalException(RequestDelegate next, ILogger<GlobalException> logger, IHostEnvironment env)
+    // Conventional middleware (primary constructor). Do NOT implement IMiddleware.
+    public class GlobalException(RequestDelegate next, IAppLogger<GlobalException> logger, IHostEnvironment env)
     {
         private readonly RequestDelegate _next = next;
-        private readonly ILogger<GlobalException> _logger = logger;
+        private readonly IAppLogger<GlobalException> _logger = logger;
         private readonly IHostEnvironment _env = env;
 
         private static JsonSerializerOptions JsonOptions { get; } = new()
@@ -26,12 +30,7 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        /// <summary>
-        /// Middleware entry point. Invoked automatically by the ASP.NET Core pipeline for every HTTP request.
-        /// Executes the next middleware/component, and catches any unhandled exceptions.
-        /// If an exception occurs, handles it via HandleExceptionAsync and returns a standardized error response.
-        /// </summary>
-        public async Task InvokeAsync(HttpContext context)
+        public async Task Invoke(HttpContext context)
         {
             try
             {
@@ -43,28 +42,49 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
             }
         }
 
-        ///<summary>
-        /// Middleware entry point for handling HTTP requests.
-        /// Executes the next middleware in the pipeline and catches any unhandled exceptions.
-        /// If an exception occurs, it delegates error handling to <see cref="HandleExceptionAsync"/> 
-        /// to return a standardized error response.
-        /// </summary>
-        /// <param name="context">The current HTTP context.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
+        // --- Core exception handling (structured + safe) ---
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             var (code, status, message) = GetErrorInfo(exception);
             var traceId = context.TraceIdentifier;
-            string requestBody = await ReadRequestBodyAsync(context);
 
-            _logger.LogError(
-                exception,
-                "Exception caught in GlobalExceptionMiddleware. Path: {Path}, Query: {QueryString}, Body: {Body}",
-                context.Request.Path,
-                context.Request.QueryString,
-                requestBody
-            );
+            // Always log one structured error event
+            using (_logger.WithProperties(new
+            {
+                Outcome = "Failed",
+                StatusCode = status,
+                ErrorCode = code,
+                CorrelationId = traceId,
+                RequestMethod = context.Request?.Method,
+                RequestPath = context.Request?.Path.Value,
+                UserAgent = SafeUserAgent(context),
+                QueryStringLength = context.Request?.QueryString.Value?.Length ?? 0
+            }))
+            {
+                _logger.Error(
+                    exception,
+                    "Unhandled exception processing {RequestMethod} {RequestPath}",
+                    context.Request?.Method,
+                    context.Request?.Path.Value
+                );
 
+                // Optional debug-only previews (safe/redacted/capped)
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    var (bodyPreview, bodyLen) = await ReadRequestBodyPreviewAsync(context);
+                    if (bodyLen > 0)
+                        _logger.Debug("RequestBodyPreview len={Length} {Preview}", bodyLen, bodyPreview);
+
+                    var qs = context.Request?.QueryString.Value ?? string.Empty;
+                    if (!string.IsNullOrEmpty(qs))
+                    {
+                        var redactedQs = RedactQueryString(qs);
+                        _logger.Debug("QueryStringPreview len={Length} {Preview}", qs.Length, redactedQs);
+                    }
+                }
+            }
+
+            // Standardized error response
             var response = new ErrorResponse
             {
                 Code = code,
@@ -75,141 +95,140 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = status;
-
             await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));
         }
 
-        /// <summary>
-        /// Maps an exception to a standardized error code, HTTP status code, and user-friendly error message.
-        /// Inspects the exception type and returns a tuple containing the appropriate error code, HTTP status, and message
-        /// for consistent error responses throughout the API.
-        /// </summary>
+        // --- Exception → error code/status/message mapping ---
         private static (int code, int status, string message) GetErrorInfo(Exception exception)
         {
             int code = (int)ErrorCodes.InternalServerError;
             int status = (int)HttpStatusCode.InternalServerError;
-            string message;
 
             switch (exception)
             {
                 case ArgumentNullException:
-                    code = (int)ErrorCodes.MissingParameter;
-                    status = StatusCodes.Status400BadRequest;
-                    break;
+                    code = (int)ErrorCodes.MissingParameter; status = StatusCodes.Status400BadRequest; break;
                 case ArgumentException:
-                    code = (int)ErrorCodes.InvalidParameter;
-                    status = StatusCodes.Status400BadRequest;
-                    break;
+                    code = (int)ErrorCodes.InvalidParameter; status = StatusCodes.Status400BadRequest; break;
                 case FormatException:
-                    code = (int)ErrorCodes.InvalidFormat;
-                    status = StatusCodes.Status400BadRequest;
-                    break;
+                    code = (int)ErrorCodes.InvalidFormat; status = StatusCodes.Status400BadRequest; break;
                 case ValidationException:
-                    code = (int)ErrorCodes.ValidationFailed;
-                    status = StatusCodes.Status422UnprocessableEntity;
-                    break;
+                    code = (int)ErrorCodes.ValidationFailed; status = StatusCodes.Status422UnprocessableEntity; break;
                 case KeyNotFoundException:
-                    code = (int)ErrorCodes.NotFound;
-                    status = StatusCodes.Status404NotFound;
-                    break;
+                    code = (int)ErrorCodes.NotFound; status = StatusCodes.Status404NotFound; break;
                 case NotSupportedException:
-                    code = (int)ErrorCodes.MethodNotAllowed;
-                    status = StatusCodes.Status405MethodNotAllowed;
-                    break;
+                    code = (int)ErrorCodes.MethodNotAllowed; status = StatusCodes.Status405MethodNotAllowed; break;
                 case UnauthorizedAccessException:
-                    code = (int)ErrorCodes.AccessDenied;
-                    status = StatusCodes.Status403Forbidden;
-                    break;
+                    code = (int)ErrorCodes.AccessDenied; status = StatusCodes.Status403Forbidden; break;
                 case InvalidOperationException:
-                    code = (int)ErrorCodes.StateNotPermitted;
-                    status = StatusCodes.Status409Conflict;
-                    break;
+                    code = (int)ErrorCodes.StateNotPermitted; status = StatusCodes.Status409Conflict; break;
                 case TimeoutException:
-                    code = (int)ErrorCodes.Timeout;
-                    status = StatusCodes.Status504GatewayTimeout;
-                    break;
+                    code = (int)ErrorCodes.Timeout; status = StatusCodes.Status504GatewayTimeout; break;
                 case DBConcurrencyException:
-                    code = (int)ErrorCodes.Conflict;
-                    status = StatusCodes.Status409Conflict;
-                    break;
+                    code = (int)ErrorCodes.Conflict; status = StatusCodes.Status409Conflict; break;
                 case DataException:
-                    code = (int)ErrorCodes.DatabaseError;
-                    status = StatusCodes.Status500InternalServerError;
-                    break;
+                    code = (int)ErrorCodes.DatabaseError; status = StatusCodes.Status500InternalServerError; break;
                 case NotImplementedException:
-                    code = (int)ErrorCodes.NotImplemented;
-                    status = StatusCodes.Status501NotImplemented;
-                    break;
+                    code = (int)ErrorCodes.NotImplemented; status = StatusCodes.Status501NotImplemented; break;
                 case HttpRequestException:
-                    code = (int)ErrorCodes.DependencyFailure;
-                    status = StatusCodes.Status502BadGateway;
-                    break;
+                    code = (int)ErrorCodes.DependencyFailure; status = StatusCodes.Status502BadGateway; break;
                 case ResourceNotFoundException:
-                    code = (int)ErrorCodes.NotFound;
-                    status = StatusCodes.Status404NotFound;
-                    break;
+                    code = (int)ErrorCodes.NotFound; status = StatusCodes.Status404NotFound; break;
                 case ConflictException:
-                    code = (int)ErrorCodes.Conflict;
-                    status = StatusCodes.Status409Conflict;
-                    break;
+                    code = (int)ErrorCodes.Conflict; status = StatusCodes.Status409Conflict; break;
             }
 
-            message = ErrorMessages.Messages.TryGetValue(code, out var msg) 
-                ? msg 
+            var message = ErrorMessages.Messages.TryGetValue(code, out var msg)
+                ? msg
                 : ErrorMessages.Messages[(int)ErrorCodes.InternalServerError];
-            
+
             return (code, status, message);
         }
 
-        /// <summary>
-        /// Reads the request body as a string for logging purposes.
-        /// Resets the stream position before and after reading to avoid interfering with downstream middleware.
-        /// Returns an empty string if the request body is empty or not seekable.
-        /// </summary>
-        private static async Task<string> ReadRequestBodyAsync(HttpContext context)
+        // --- Safe, capped, redacted request body preview (JSON only) ---
+        private static async Task<(string? preview, int length)> ReadRequestBodyPreviewAsync(HttpContext context)
         {
-            if (context.Request.ContentLength > 0 && context.Request.Body.CanSeek)
+            var req = context.Request;
+
+            if (!(req.ContentLength > 0)) return (null, 0);
+
+            var ct = req.ContentType ?? string.Empty;
+            if (!ct.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+                return (null, (int)(req.ContentLength ?? 0));
+
+            try
             {
-                context.Request.Body.Position = 0;
-                using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
-                string body = await reader.ReadToEndAsync();
-                context.Request.Body.Position = 0;
-                return body;
+                req.EnableBuffering();
+                req.Body.Position = 0;
+                using var reader = new StreamReader(req.Body, leaveOpen: true);
+                string json = await reader.ReadToEndAsync();
+                req.Body.Position = 0;
+
+                var redacted = RedactJson(json);
+                const int cap = 2048;
+                var trimmed = redacted.Length > cap ? redacted[..cap] : redacted;
+
+                return (trimmed, json.Length);
             }
-            return string.Empty;
+            catch
+            {
+                return (null, (int)(req.ContentLength ?? 0));
+            }
         }
 
-        /// <summary>
-        /// Formats an exception message for logging or debugging purposes.
-        /// Includes the method name, issue description, optional parameters, and extra details.
-        /// <param name="issue">A short description of the issue or exception.</param>
-        /// <param name="methodName">The name of the method where the exception occurred.</param>
-        /// <param name="parameters">Optional parameters related to the exception context (default: null).</param>
-        /// <param name="extra">Optional extra details to include in the message (default: null).</param>
-        /// </summary>
-        public static string FormatExceptionMessage(
-            string issue,
-            string methodName,
-            object? parameters = null,
-            string? extra = null)
+        // --- Redactors ---
+        private static string RedactJson(string s)
         {
-            var paramStr = parameters == null 
-                ? "" 
-                : $" | Params: {JsonSerializer.Serialize(parameters)}";
+            // naive key-based redactions; extend with your patterns as needed
+            s = Regex.Replace(s, "\"password\"\\s*:\\s*\".*?\"", "\"password\":\"***\"", RegexOptions.IgnoreCase);
+            s = Regex.Replace(s, "\"token\"\\s*:\\s*\".*?\"", "\"token\":\"***\"", RegexOptions.IgnoreCase);
+            s = Regex.Replace(s, "\"authorization\"\\s*:\\s*\".*?\"", "\"authorization\":\"***\"", RegexOptions.IgnoreCase);
+            s = Regex.Replace(s, "\"secret\"\\s*:\\s*\".*?\"", "\"secret\":\"***\"", RegexOptions.IgnoreCase);
+            return s;
+        }
 
-            var extraStr = string.IsNullOrEmpty(extra) 
-                ? "" 
-                : $" | Details: {extra}";
+        private static string RedactQueryString(string qs)
+        {
+            if (string.IsNullOrEmpty(qs)) return qs;
 
+            // Replace values for common sensitive keys; keeps separators & keys intact.
+            // Pattern captures optional separator, the key, and the value; replacement keeps sep+key and masks value.
+            return Regex.Replace(
+                qs,
+                "([?&])?(password|token|authorization|secret)=([^&]*)",
+                m =>
+                {
+                    var sep = m.Groups[1].Success ? m.Groups[1].Value : "";
+                    var key = m.Groups[2].Value;
+                    return $"{sep}{key}=***";
+                },
+                RegexOptions.IgnoreCase);
+        }
+
+        private static string SafeUserAgent(HttpContext ctx)
+        {
+            var ua = ctx.Request?.Headers.UserAgent.ToString() ?? string.Empty;
+            const int cap = 256;
+            return ua.Length > cap ? ua[..cap] : ua;
+        }
+
+        // --- Your original formatters (kept) ---
+        public static string FormatExceptionMessage(string issue, string methodName, object? parameters = null, string? extra = null)
+        {
+            var paramStr = parameters == null ? "" : $" | Params: {JsonSerializer.Serialize(parameters)}";
+            var extraStr = string.IsNullOrEmpty(extra) ? "" : $" | Details: {extra}";
             return $"Method: [{methodName}]{paramStr}{extraStr} | Issue: {issue}";
         }
+
+        public static string FormatExceptionMessage(string errorMessage, params object[] args)
+            => string.Format(errorMessage, args);
     }
 
     public class ErrorResponse
     {
         public int Code { get; set; }
-        public string ErrorMessage { get; set; }
-        public string TraceId { get; set; }
+        public string ErrorMessage { get; set; } = "";
+        public string TraceId { get; set; } = "";
         public string? Details { get; set; }
     }
 }

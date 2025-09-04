@@ -210,7 +210,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     )
                 );
 
-            return Ok(new { message = "Teleport Table deleted successfully." });
+            return NoContent();
         }
 
         /// <summary>

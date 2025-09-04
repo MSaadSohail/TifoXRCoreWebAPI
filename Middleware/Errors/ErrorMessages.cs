@@ -49,6 +49,13 @@ namespace GMS.TifoXRCoreWebAPI.Errors
             [502] = "External dependency/service failed.",
             [503] = "The service is temporarily unavailable.",
             [504] = "The request timed out.",
+
+
         };
+        // Performance thresholds & messages
+        public const int SlowRepositoryThresholdMs = 500;
+
+        public const string SlowRepositoryCallMessage =
+            "Slow repository call detected: {Operation} took {ElapsedMs} ms";
     }
 }
