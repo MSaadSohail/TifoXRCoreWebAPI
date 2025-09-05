@@ -14,5 +14,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         Task<SpaceData> CreateSpaceAsync(Space spaceDto);
         Task<SpaceData> UpdateSpaceAsync(int id, Space spaceDto);
 
+        Task<bool> DeleteSpaceAsync(int id);
+
     }
 }

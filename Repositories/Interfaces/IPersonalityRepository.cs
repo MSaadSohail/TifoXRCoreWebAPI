@@ -13,6 +13,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         Task<PersonalityData?> GetPersonalityByIdAsync(int id);
         Task<PersonalityData> CreatePersonalityAsync(PersonalityCreateDto dto);
 
+        Task<PersonalityData> UpdatePersonalityAsync(int id, PersonalityUpdateDto dto);
+
+        Task<bool> DeletePersonalityAsync(int id);
+
     }
 
 }

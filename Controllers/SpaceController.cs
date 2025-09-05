@@ -7,6 +7,7 @@
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -143,6 +144,26 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             return Ok(updated);
         }
+        // DELETE: api/spaces/{id}
+        [HttpDelete("{id:int}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<IActionResult> DeleteSpace(int id)
+        {
+            var ok = await _spaceRepo.DeleteSpaceAsync(id);
+
+            if (!ok)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        $"Space with ID {id} not found.",
+                        nameof(DeleteSpace),
+                        new { id }
+                    )
+                );
+
+            return NoContent();
+        }
+
 
 
     }

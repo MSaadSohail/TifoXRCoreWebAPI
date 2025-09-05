@@ -41,17 +41,17 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public MediaUpdateDto? Media { get; set; }
     }
 
-    //public class PersonalityUpdateDto
-    //{
-    //    public string Name { get; set; }
-    //    public int? SportId { get; set; }
-    //    public int? EntityId { get; set; }
-    //    public int SpaceId { get; set; } // Needed for media and i18n
-    //    public string? ModifiedBy { get; set; }
+    public class PersonalityUpdateDto
+    {
+        public string Name { get; set; }
+        public int? SportId { get; set; }
+        public int? EntityId { get; set; }
+        public int SpaceId { get; set; } // Needed for media and i18n
+        public string? ModifiedBy { get; set; }
 
-    //    public LocalizedPairs LocalizedCountry { get; set; } = new();
-    //    public LocalizedPairs LocalizedBio { get; set; } = new();
+        public LocalizedPairs LocalizedCountry { get; set; } = new();
+        public LocalizedPairs LocalizedBio { get; set; } = new();
 
-    //    public MediaUpdateDto? Media { get; set; }
-    //}
+        public MediaUpdateDto? Media { get; set; }
     }
+}

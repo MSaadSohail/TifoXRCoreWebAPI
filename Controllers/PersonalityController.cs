@@ -87,6 +87,63 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return CreatedAtAction(nameof(GetPersonalityById), new { id = created.Id }, created);
         }
 
+        // PUT: api/personality/{id}
+        [HttpPut("api/personality/{id}")]
+        public async Task<IActionResult> UpdatePersonality(int id, [FromBody] PersonalityUpdateDto dto)
+        {
+            if (dto is null)
+                throw new ArgumentNullException(
+                    nameof(dto),
+                    GlobalException.FormatExceptionMessage(
+                        "DTO cannot be null.",
+                        nameof(UpdatePersonality),
+                        new { id }
+                    )
+                );
+
+            if (!ModelState.IsValid)
+                throw new ArgumentException(
+                    GlobalException.FormatExceptionMessage(
+                        "Model validation failed.",
+                        nameof(UpdatePersonality),
+                        new { id, errors = ModelState }
+                    )
+                );
+
+            var updated = await _personalityRepository.UpdatePersonalityAsync(id, dto);
+
+            if (updated is null)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        $"Personality with ID {id} not found.",
+                        nameof(UpdatePersonality),
+                        new { id }
+                    )
+                );
+
+            return Ok(updated);
+        }
+
+        // DELETE: {id}
+        [HttpDelete("api/personality/{id:int}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var ok = await _personalityRepository.DeletePersonalityAsync(id);
+
+            if (!ok)
+                throw new ResourceNotFoundException(
+                    GlobalException.FormatExceptionMessage(
+                        $"Personality with ID {id} not found.",
+                        nameof(Delete),
+                        new { id }
+                    )
+                );
+
+            return NoContent();
+        }
+
 
     }
 

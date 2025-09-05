@@ -14,6 +14,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalUpdateDto
     {
+        public int PortalTypeId { get; set; }
         public int? EventId { get; set; }
         public required LocalizedPairs LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
