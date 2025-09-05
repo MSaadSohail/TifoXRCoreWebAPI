@@ -1,6 +1,5 @@
-﻿using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
-
-namespace TifoXRCoreWebAPI.Utilities.Infrastructure
+﻿
+namespace GMS.TifoXRCoreWebAPI.Utilities.Infrastructure
 {
     public sealed class MySqlDialect : ISqlDialect
     {

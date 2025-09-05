@@ -1,8 +1,7 @@
 ﻿using System.Data.Common;
 using System.Reflection;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
 
-namespace TifoXRCoreWebAPI.Utilities.Infrastructure
+namespace GMS.TifoXRCoreWebAPI.Utilities.Infrastructure
 {
     public sealed class DefaultDbProvider(DbProviderOptions options) : IDbProvider
     {

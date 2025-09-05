@@ -1,6 +1,6 @@
 ﻿using GMS.TifoXRCoreWebAPI.Models;
 
-namespace TifoXRCoreWebAPI.Services
+namespace GMS.TifoXRCoreWebAPI.Services
 {
     public interface IPaymentService
     {

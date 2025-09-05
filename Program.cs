@@ -5,25 +5,21 @@
 // <date>08/19/2025</date>
 // <summary>Initializes and configures the ASP.NET Core Web API application with Serilog host logging</summary>
 
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+//
 using GMS.TifoXRCoreWebAPI.Data;
 using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Services;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
-
 // Serilog
 using Serilog;
 using Serilog.Context;
 using Serilog.Events;
 using System.Data.Common;
 using System.Reflection;
-using GMS.TifoXRCoreWebAPI.Application.Payments;
-using TifoXRCoreWebAPI.Services;
-using TifoXRCoreWebAPI.Utilities.Infrastructure;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
-using TifoXRCoreWebAPI.Utilities.PaymentGateways;
-using TifoXRCoreWebAPI.Application.PaymentGateways;
-using GMS.TifoXRCoreWebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,10 +49,15 @@ app.Run();
 
 static void ConfigureServices(IServiceCollection services,  IConfiguration config)
 {
-    // MVC + Swagger
+    #region MVC + Swagger
+
     services.AddControllers();
     services.AddEndpointsApiExplorer();
     services.AddSwaggerGen();
+
+    #endregion
+
+    #region DB CONNECTION POOLING
 
     // ---- Database: EF Core (Pomelo/MySqlConnector) ----
     var dsn = config.GetConnectionString("DefaultConnection")
@@ -83,31 +84,45 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
             ? new SqlServerDialect()
             : new MySqlDialect());
 
-    services.AddSingleton<IPayPalClientFactory, PayPalClientFactory>();
+    #endregion
 
-    // Gateways
+    #region PAYMENT GATEWAYS
+
+    // Bind PayPal: ClientId / Secret / Environment
+    services.Configure<PayPalOptions>(config.GetSection("PayPal"));
+
+    // Register gateways (add Stripe/Crypto in the same pattern when you create them)
     services.AddSingleton<IPaymentGateway, PaypalGateway>();
-    //services.AddSingleton<IPaymentGatewayFactory, PaymentGatewayFactory>();
+
+    // Resolver/Registry
+    services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayRegistry>();
 
     // Services
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();
 
-    // Factory for PayPal SDK (your existing one)
-    services.AddSingleton<IPayPalClientFactory,PayPalClientFactory>();
+    #endregion
 
+    #region REPOS
     // ---- Auto-register repositories: I{Name} -> {Name} ----
     RegisterRepositories(services, Assembly.GetExecutingAssembly());
 
-    // ---- CORS ----
+    #endregion
+
+    #region CORS
     services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
             policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
     });
+
+    #endregion
+
+    #region LOGGER
+    
     services.AddSingleton(typeof(GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface.IAppLogger<>), typeof(GMS.TifoXRCoreWebAPI.Utilities.Logger.AppLogger<>));
 
-    // NOTE: Removed AppLogger.Initialize(...) — Serilog is now the host logger via UseSerilog().
+    #endregion
 }
 
 static void ConfigurePipeline(WebApplication app, IWebHostEnvironment env)

@@ -1,8 +1,9 @@
 ﻿// Repositories/OrderRepository.cs
+using System.Text.Json;
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using System.Text.Json;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface; // IDbProvider
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
@@ -80,6 +81,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
                 cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 if (!await r.ReadAsync())
@@ -134,6 +136,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await using (var cmd = _db.CreateCommand(conn, sqlLines))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 var o_id = r.GetOrdinal("id");
@@ -171,6 +174,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await using (var cmd = _db.CreateCommand(conn, sqlAdjust))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 var o_id = r.GetOrdinal("id");
@@ -198,6 +202,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             // 4) Payment Intents
             var intentsById = new Dictionary<string, PaymentIntentDto>();
+            
             await using (var cmd = _db.CreateCommand(conn, sqlIntents))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
@@ -233,6 +238,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await using (var cmd = _db.CreateCommand(conn, sqlCharges))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 var o_id = r.GetOrdinal("id");
@@ -307,6 +313,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await using (var cmd = _db.CreateCommand(conn, sqlEntitlements))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 var o_id = r.GetOrdinal("id");
@@ -338,6 +345,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await using (var cmd = _db.CreateCommand(conn, sqlInvoices))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 var o_id = r.GetOrdinal("id");
@@ -371,13 +379,20 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task<List<EntitlementDto>?> GetEntitlementsByOrderAsync(int spaceId, string orderId)
         {
-            const string sqlOrderExists = @"SELECT 1 FROM `order` WHERE id = @OrderId AND space_id = @SpaceId;";
+            const string sqlOrderExists = @"
+                SELECT 1 
+                FROM `order` 
+                WHERE id = @OrderId 
+                    AND space_id = @SpaceId;
+            ";
+            
             const string sqlEntitlements = @"
                 SELECT e.id, e.order_line_id, e.user_id, e.status, e.quantity, e.granted_datetime, e.revoked_reason, e.metadata
                 FROM entitlement e
                 INNER JOIN order_line ol ON e.order_line_id = ol.id
                 WHERE ol.order_id = @OrderId
-                ORDER BY e.creation_time;";
+                ORDER BY e.creation_time;
+            ";
 
             await using var conn = await _db.OpenConnectionAsync();
 
@@ -426,12 +441,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task<InvoiceListResponse?> GetInvoicesByOrderAsync(int spaceId, string orderId)
         {
-            const string sqlOrderExists = @"SELECT 1 FROM `order` WHERE id = @OrderId AND space_id = @SpaceId;";
+            const string sqlOrderExists = @"
+                SELECT 1 
+                FROM `order` 
+                WHERE id = @OrderId 
+                    AND space_id = @SpaceId;
+            ";
+            
             const string sqlInvoices = @"
                 SELECT id, invoice_number, status_id, currency_id, total_amount, issue_datetime, pdf_url
                 FROM invoice
                 WHERE order_id = @OrderId
-                ORDER BY issue_datetime;";
+                ORDER BY issue_datetime;
+            ";
 
             await using var conn = await _db.OpenConnectionAsync();
 
@@ -445,9 +467,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
 
             var list = new List<InvoiceSummaryDto>();
+            
             await using (var cmd = _db.CreateCommand(conn, sqlInvoices))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+                
                 await using var r = await cmd.ExecuteReaderAsync();
 
                 var o_id = r.GetOrdinal("id");
@@ -479,7 +503,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return new InvoiceListResponse { Invoices = list };
         }
 
-        public async Task<(string IntentId, int StatusId, string IdempotencyKey, string? ProviderIntentId, int PaymentGatewayId, long AmountMinor, int CurrencyId)?>
+        public async Task<(string IntentId, int StatusId, string IdempotencyKey, 
+            string? ProviderIntentId, int PaymentGatewayId, long AmountMinor, 
+            int CurrencyId)?>
             GetPendingIntentForOrderAsync(string orderId)
         {
             const string sql = @"
@@ -492,10 +518,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 LIMIT 1;";
 
             await using var conn = await _db.OpenConnectionAsync();
+            
             await using var cmd = _db.CreateCommand(conn, sql);
+            
             cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
 
             await using var r = await cmd.ExecuteReaderAsync();
+            
             if (!await r.ReadAsync()) return null;
 
             return (
@@ -525,14 +554,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 LIMIT 1;";
 
             await using var conn = await _db.OpenConnectionAsync();
+            
             await using var cmd = _db.CreateCommand(conn, sql);
+            
             cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
             cmd.Parameters.Add(_db.CreateParameter("@UserId", userId));
             cmd.Parameters.Add(_db.CreateParameter("@ItemTypeId", itemTypeId));
             cmd.Parameters.Add(_db.CreateParameter("@ItemRefId", itemRefId));
 
             var o = await cmd.ExecuteScalarAsync();
-            return o is null || o == DBNull.Value ? null : Convert.ToString(o);
+            
+            return o is null || o == DBNull.Value 
+                ? null 
+                : Convert.ToString(o);
         }
 
         // -----------------------
@@ -771,24 +805,34 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         // Persistence helpers used by PaymentService only
         // --------------------------------------------------
 
-        public async Task<(int SpaceId, int CurrencyId, long TotalNetMinor)?> GetOrderHeaderAsync(string orderId)
+        public async Task<(int SpaceId, int CurrencyId, long TotalNetMinor, 
+            int? GatewayPreferredId)?> 
+            GetOrderHeaderAsync(string orderId)
         {
             const string sql = @"
-                SELECT space_id, currency_id, total_net_amount
+                SELECT space_id, currency_id, total_net_amount, gateway_preferred_id
                 FROM `order`
                 WHERE id = @OrderId
-                LIMIT 1;";
+                LIMIT 1;
+            ";
+
             await using var conn = await _db.OpenConnectionAsync();
+            
             await using var cmd = _db.CreateCommand(conn, sql);
+            
             cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
 
             await using var r = await cmd.ExecuteReaderAsync();
+            
             if (!await r.ReadAsync()) return null;
 
             return (
                 SpaceId: r.GetInt32(r.GetOrdinal("space_id")),
                 CurrencyId: r.GetInt32(r.GetOrdinal("currency_id")),
-                TotalNetMinor: r.GetInt64(r.GetOrdinal("total_net_amount"))
+                TotalNetMinor: r.GetInt64(r.GetOrdinal("total_net_amount")),
+                GatewayPreferredId: r.IsDBNull(r.GetOrdinal("gateway_preferred_id")) 
+                    ? null 
+                    : r.GetInt32(r.GetOrdinal("gateway_preferred_id"))
             );
         }
 
@@ -863,18 +907,25 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return id;
         }
 
-        public async Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string UserId, string? ProviderIntentId)?> GetIntentContextAsync(string intentId)
+        public async Task<(string OrderId, int SpaceId, int CurrencyId, 
+            long TotalNetMinor, string UserId, string? ProviderIntentId, int GatewayId)?> 
+            GetIntentContextAsync(string intentId)
         {
             const string sql = @"
-                SELECT i.order_id, o.space_id, o.currency_id, o.total_net_amount, o.user_id, i.provider_intent_id
+                SELECT i.order_id, o.space_id, o.currency_id, o.total_net_amount, 
+                    o.user_id, i.provider_intent_id, i.payment_gateway_id
                 FROM payment_intent i
                 JOIN `order` o ON o.id = i.order_id
                 WHERE i.id = @IntentId
                 LIMIT 1;";
+            
             await using var conn = await _db.OpenConnectionAsync();
+            
             await using var cmd = _db.CreateCommand(conn, sql);
             cmd.Parameters.Add(_db.CreateParameter("@IntentId", intentId));
+            
             await using var r = await cmd.ExecuteReaderAsync();
+            
             if (!await r.ReadAsync()) return null;
 
             return (
@@ -885,7 +936,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 UserId: r.GetString(r.GetOrdinal("user_id")),
                 ProviderIntentId: r.IsDBNull(r.GetOrdinal("provider_intent_id")) 
                 ? null 
-                : r.GetString(r.GetOrdinal("provider_intent_id"))
+                : r.GetString(r.GetOrdinal("provider_intent_id")),
+                GatewayId: r.GetInt32(r.GetOrdinal("payment_gateway_id"))
             );
         }
 

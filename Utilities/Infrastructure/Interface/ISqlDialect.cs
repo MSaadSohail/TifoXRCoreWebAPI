@@ -1,4 +1,4 @@
-﻿namespace TifoXRCoreWebAPI.Utilities.Infrastructure.Interface
+﻿namespace GMS.TifoXRCoreWebAPI.Utilities.Infrastructure
 {
     public interface ISqlDialect
     {

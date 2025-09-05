@@ -7,9 +7,8 @@
 // Thin wrapper over Serilog to keep old call sites working.
 // IMPORTANT: Do NOT configure Serilog here. Host config lives in Program.cs + appsettings.
 // <summary>Thin wrapper over ILogger<T> with structured-scope helpers</summary>
+
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
-using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Utilities.Logger
 {

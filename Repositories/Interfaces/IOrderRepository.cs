@@ -21,11 +21,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req);
 
         // Commands/Queries (payments) — persistence helpers used by PaymentService
-        Task<(int SpaceId, int CurrencyId, long TotalNetMinor)?> GetOrderHeaderAsync(string orderId);
+        Task<(int SpaceId, int CurrencyId, long TotalNetMinor, int? GatewayPreferredId)?> GetOrderHeaderAsync(string orderId);
         Task<string> ResolveCurrencyIsoAsync(int currencyId);
         Task<(string Id, string? ProviderIntentId)?> FindPaymentIntentByIdempotencyAsync(string orderId, string idemKey);
         Task<string> InsertPaymentIntentAsync(string orderId, int gatewayId, int statusId, long amountMinor, int currencyId, string providerIntentId, string idempotencyKey);
-        Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string UserId, string? ProviderIntentId)?> GetIntentContextAsync(string intentId);
+        Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string UserId, string? ProviderIntentId, int GatewayId)?> GetIntentContextAsync(string intentId);
         Task<string> InsertChargeAsync(string intentId, int statusId, long amountCapturedMinor, int currencyId, string providerChargeId, DateTime paidAtUtc, string userId);
         Task MarkPaidIfCoveredAsync(string orderId, long amountJustCapturedMinor, int paidStatusId);
         Task GrantEntitlementsAsync(string orderId);

@@ -1,4 +1,4 @@
-﻿namespace TifoXRCoreWebAPI.Utilities.Infrastructure
+﻿namespace GMS.TifoXRCoreWebAPI.Utilities.Infrastructure
 {
     public sealed class DbProviderOptions
     {
