@@ -1,6 +1,5 @@
 ﻿namespace GMS.TifoXRCoreWebAPI.Models
 {
-
     public sealed class OrderDto
     {
         public string Id { get; init; } = default!;
@@ -9,11 +8,14 @@
         public int TransactionTypeId { get; init; }
         public int CurrencyId { get; init; }
         public int StatusId { get; init; }
+
+        // all minor units
         public long TotalGrossAmount { get; init; }
         public long TotalDiscountAmount { get; init; }
         public long TotalTaxAmount { get; init; }
         public long TotalFeeAmount { get; init; }
         public long TotalNetAmount { get; init; }
+
         public string? ChangeReason { get; init; }
         public string? OriginalOrderId { get; init; }
         public string SessionId { get; init; } = default!;
@@ -21,7 +23,7 @@
         public DateTime OrderDateTime { get; init; }
         public string? Remarks { get; init; }
 
-        public List<OrderLineDto> Lines { get; init; } = new();
+        public List<OrderLineDto> LineItems { get; init; } = new();
         public List<OrderAdjustmentDto> Adjustments { get; init; } = new();
         public List<PaymentIntentDto> PaymentIntents { get; init; } = new();
         public List<EntitlementDto> Entitlements { get; init; } = new();
@@ -32,11 +34,11 @@
     {
         public string Id { get; init; } = default!;
         public int ItemTypeId { get; init; }
-        public string ItemRefId { get; init; } = default!; // CHAR(36) in schema
+        public string ItemRefId { get; init; } = default!;
         public int? EntityId { get; init; }
         public int? ShopId { get; init; }
         public int Quantity { get; init; }
-        public decimal UnitAmount { get; init; }
+        public long UnitAmountMinor { get; init; }
         public int CurrencyId { get; init; }
         public string? MetadataJson { get; init; }
     }
@@ -47,7 +49,7 @@
         public string? OrderLineId { get; init; }
         public int ItemTypeId { get; init; }
         public string? Code { get; init; }
-        public long Amount { get; init; }
+        public long AmountMinor { get; init; }
         public string? DescriptionKey { get; init; }
         public string? MetadataJson { get; init; }
     }
@@ -57,11 +59,10 @@
         public string Id { get; init; } = default!;
         public int PaymentGatewayId { get; init; }
         public int StatusId { get; init; }
-        public long Amount { get; init; }
+        public long AmountMinor { get; init; }       // << renamed from Amount
         public int CurrencyId { get; init; }
         public string? ClientSecret { get; init; }
         public string? ProviderIntentId { get; init; }
-
         public List<PaymentChargeDto> Charges { get; init; } = new();
     }
 
@@ -69,13 +70,12 @@
     {
         public string Id { get; init; } = default!;
         public int StatusId { get; init; }
-        public long AmountCaptured { get; init; }
+        public long AmountCapturedMinor { get; init; } // << renamed from AmountCaptured
         public int CurrencyId { get; init; }
         public string? ProviderChargeId { get; init; }
-        public long? GatewayFeeAmount { get; init; }
+        public long? GatewayFeeAmountMinor { get; init; } // optional; minor units if you expose it
         public decimal? ExchangeRate { get; init; }
         public DateTime PaymentDateTime { get; init; }
-
         public List<PaymentRefundDto> Refunds { get; init; } = new();
     }
 
@@ -83,11 +83,101 @@
     {
         public string Id { get; init; } = default!;
         public int StatusId { get; init; }
-        public long Amount { get; init; }
+        public long AmountMinor { get; init; }       // << renamed from Amount
         public int CurrencyId { get; init; }
         public string? ProviderRefundId { get; init; }
         public string? Reason { get; init; }
         public DateTime RefundDateTime { get; init; }
+    }
+
+    public sealed class InvoiceSummaryDto
+    {
+        public string Id { get; init; } = default!;
+        public string InvoiceNumber { get; init; } = default!;
+        public int StatusId { get; init; }
+        public int CurrencyId { get; init; }
+        public long TotalAmountMinor { get; init; }  // << was decimal TotalAmount
+        public DateTime IssueDateTime { get; init; }
+        public string? PdfUrl { get; init; }
+    }
+
+    // --- Create Order (client -> API) ---
+    public sealed class CreateOrderRequest
+    {
+        public string IdempotencyKey { get; init; } = default!;
+        public string UserId { get; init; } = default!;
+        public int CurrencyId { get; init; }          // << was string Currency (ISO)
+        public int TransactionTypeId { get; init; } = 1;
+        public string? SessionId { get; init; }
+        public List<CreateOrderLineRequest> LineItems { get; init; } = new();
+        public List<CreateOrderAdjustmentRequest>? Adjustments { get; init; } = new();
+        public string? Remarks { get; init; }
+    }
+
+    public sealed class CreateOrderLineRequest
+    {
+        public int ItemTypeId { get; init; }
+        public int ItemRefId { get; init; } = default!;
+        public int Quantity { get; init; }
+        public long UnitAmountMinor { get; init; }
+        public object? Metadata { get; init; }
+        public int? EntityId { get; init; }
+        public int? ShopId { get; init; }
+    }
+
+    public sealed class CreateOrderAdjustmentRequest
+    {
+        public int ItemTypeId { get; init; }    //FIX ME: TBD
+        public string? OrderLineItemId { get; init; }
+        public string? Code { get; init; }
+        public long AmountMinor { get; init; }       // negative for discounts
+        public string? DescriptionKey { get; init; }
+        public object? Metadata { get; init; }
+    }
+
+    public sealed class CreateOrderResponse
+    {
+        public string OrderId { get; init; } = default!;
+        public long TotalNetMinor { get; init; }
+        public int CurrencyId { get; init; }         // << was string Currency
+    }
+
+    // --- Payment Intents ---
+    public sealed class CreatePaymentIntentRequest
+    {
+        public string IdempotencyKey { get; init; } = default!;
+        public int Gateway { get; init; } = default!; // "paypal" etc.
+        public long? AmountMinor { get; init; }          // defaults to order total if null
+    }
+
+    public sealed class CreatePaymentIntentResponse
+    {
+        public string PaymentIntentId { get; init; } = default!;
+        public int PaymentGatewayId { get; init; }
+        public int StatusId { get; init; }
+        public string? ClientSecret { get; init; }
+        public string? ProviderIntentId { get; init; }
+        public string? ApproveLink { get; init; }
+    }
+
+    public sealed class ConfirmPaymentIntentRequest
+    {
+        public string IdempotencyKey { get; init; } = default!;
+        public string? ProviderIntentId { get; init; }
+    }
+
+    public sealed class ConfirmPaymentIntentResponse
+    {
+        public string OrderId { get; init; } = default!;
+        public string PaymentIntentId { get; init; } = default!;
+        public string? ProviderChargeId { get; init; }
+        public int PaymentStatusId { get; init; }
+    }
+
+    public sealed class InvoiceListResponse
+    {
+        public string OrderId { get; init; } = default!;
+        public List<InvoiceSummaryDto> Invoices { get; init; } = new();
     }
 
     public sealed class EntitlementDto
@@ -102,96 +192,38 @@
         public string? MetadataJson { get; init; }
     }
 
-    public sealed class InvoiceSummaryDto
+    // -------------------
+    // Request/Response
+    // -------------------
+    public sealed class ReconcileRequest
     {
-        public string Id { get; init; } = default!;
-        public string InvoiceNumber { get; init; } = default!;
-        public int StatusId { get; init; }
-        public int CurrencyId { get; init; }
-        public decimal TotalAmount { get; init; }
-        public DateTime IssueDateTime { get; init; }
-        public string? PdfUrl { get; init; }
+        public string? ProviderIntentId { get; init; }     // e.g., PayPal token from client (optional)
+        public string? IntentId { get; init; }             // your internal payment_intent.id (optional)
+        public string? IdempotencyKey { get; init; }       // required if AttemptCaptureIfApproved = true
+        public bool AttemptCaptureIfApproved { get; init; } = false;
     }
 
-
-
-    public sealed class CreateOrderRequest
-    {
-        public string IdempotencyKey { get; init; } = default!;
-        public string UserId { get; init; } = default!;
-        public string Currency { get; init; } = "USD"; // e.g., "USD"
-        public int TransactionTypeId { get; init; } = 1; // purchase
-        public List<CreateOrderLineRequest> Lines { get; init; } = new();
-        public List<CreateOrderAdjustmentRequest>? Adjustments { get; init; } = new();
-        public string? Remarks { get; init; }
-        public string? SessionId { get; init; } // optional; will auto-generate if not provided
-    }
-
-    public sealed class CreateOrderLineRequest
-    {
-        public int ItemTypeId { get; init; }
-        public string ItemRefId { get; init; } = default!;   // CHAR(36) in schema is fine for "1"
-        public int Quantity { get; init; }
-        public long UnitAmountMinor { get; init; } // e.g., 10000 for $100.00
-        public object? Metadata { get; init; }  // serialized to JSON
-        public int? EntityId { get; init; }
-        public int? ShopId { get; init; }
-    }
-
-    public sealed class CreateOrderAdjustmentRequest
-    {
-        public int ItemTypeId { get; init; }
-        public string? OrderLineId { get; init; }  // optional link to a line
-        public string? Code { get; init; } // e.g., "TAX5", "FEE1", "PROMO10"
-        public long AmountMinor { get; init; }   // negative = discount
-        public string? DescriptionKey { get; init; }
-        public object? Metadata { get; init; } // serialized to JSON
-    }
-
-    public sealed class CreateOrderResponse
+    public sealed class VerifyPaymentResponse
     {
         public string OrderId { get; init; } = default!;
+        public bool IsPaid { get; init; }
+        public long CapturedMinor { get; init; }
         public long TotalNetMinor { get; init; }
-        public string Currency { get; init; } = default!;
+        public bool HasEntitlements { get; init; }
+        public bool HasInvoice { get; init; }
+        public List<string> Missing { get; init; } = new();
     }
 
-    // --- Payment Intents (create/confirm) ---
-    public sealed class CreatePaymentIntentRequest
+    public sealed class PendingIntentResponse
     {
-        public string IdempotencyKey { get; init; } = default!;
-        public string Gateway { get; init; } = default!; // "paypal" | "stripe" | "crypto_wallet"
-        public long? AmountMinor { get; init; }          // defaults to order.TotalNetAmount if null
-        public string? Currency { get; init; }           // defaults to order currency
-    }
-
-    public sealed class CreatePaymentIntentResponse
-    {
-        public string PaymentIntentId { get; init; } = default!;
-        public int PaymentGatewayId { get; init; }
-        public int StatusId { get; init; }
-        public string? ClientSecret { get; init; }       // Stripe
-        public string? ProviderIntentId { get; init; }   // Stripe PI, PayPal Order
-        public string? ApproveLink { get; init; }        // PayPal approval URL (if applicable)
-    }
-
-    public sealed class ConfirmPaymentIntentRequest
-    {
-        public string IdempotencyKey { get; init; } = default!;
-        public string? ProviderIntentId { get; init; }   // e.g., PayPal order token
-    }
-
-    public sealed class ConfirmPaymentIntentResponse
-    {
-        public string OrderId { get; init; } = default!;
-        public string PaymentIntentId { get; init; } = default!;
-        public string? ProviderChargeId { get; init; }
-        public int PaymentStatusId { get; init; }
-    }
-
-    // --- Invoices ---
-    public sealed class InvoiceListResponse
-    {
-        public string OrderId { get; init; } = default!;
-        public List<InvoiceSummaryDto> Invoices { get; init; } = new();
+        public bool Found { get; init; }
+        public string? OrderId { get; init; }
+        public string? PaymentIntentId { get; init; }
+        public int? StatusId { get; init; }            // 1=require_action, 2=processing
+        public string? IdempotencyKey { get; init; }   // <- critical: reuse this
+        public string? ProviderIntentId { get; init; } // PayPal order token (EC-XXXX)
+        public int? PaymentGatewayId { get; init; }
+        public long? AmountMinor { get; init; }
+        public int? CurrencyId { get; init; }
     }
 }

@@ -5,16 +5,16 @@
 // <date>08/26/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
-
+using Microsoft.AspNetCore.Mvc;
+//
+using Serilog;
+//
 using GMS.TifoXRCoreWebAPI.Errors;
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using GMS.TifoXRCoreWebAPI.Utilities.Logger;
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
-using Microsoft.AspNetCore.Mvc;
-using Serilog;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -88,15 +88,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     );
                 }
                 
-
                 // Success: no extra Info log — the middleware will emit:
                 // "HTTP GET /api/space/{spaceId}/booths responded 200 in {Elapsed} ms"
                 // enriched with SpaceId, BoothCount, RepoDurationMs
                 return Ok(booths);
             }
         }
-
-
 
         [HttpPut("{spaceId}/booth/{boothId}")]
         [ProducesResponseType(typeof(Response), StatusCodes.Status200OK)]
