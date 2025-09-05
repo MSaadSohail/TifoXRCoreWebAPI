@@ -1,46 +1,38 @@
-﻿// © 2025 Global Mobile Software LLC. All rights reserved.
-// Author: Urvashi Dhingra
-// Date: 08/19/2025
-// Summary:
-// Generic schema helpers for repository tests. Each method returns an empty
-// DataTable with the exact columns/types expected by the repository code.
+﻿// <copyright file="TeleportGetSchema.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Urvashi Dhingra</author>
+// <date>08/15/2025</date>
+// <summary>Helper class that builds an empty DataTable schema matching the expected SELECT aliases for GetTeleportTableBySpaceAsync.</summary>
 
 using System.Data;
 
-namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Schemas
+namespace TifoXRCoreWebAPI.Tests.TestDoubles.Schemas
 {
-    public static class TeleportSchema
+    /// <summary>
+    /// Builds the exact columns that GetTeleportTableBySpaceAsync expects from its SELECT aliases.
+    /// Use this to produce a DataTable and then call CreateDataReader() for a fresh reader per test.
+    /// </summary>
+    public static class TeleportGetSchema
     {
-        /// <summary>
-        /// Schema for the SELECT used by TeleportTableRepository.GetTeleportTableBySpaceAsync.
-        /// </summary>
-        public static DataTable CreateTeleportSelectSchema()
+        public static DataTable CreateEmptySchema()
         {
             var t = new DataTable();
-
-            // Table fields
             t.Columns.Add("table_id", typeof(int));
             t.Columns.Add("space_id", typeof(int));
             t.Columns.Add("is_active", typeof(bool));
             t.Columns.Add("table_name_key", typeof(string));
             t.Columns.Add("table_locale_id", typeof(string));
             t.Columns.Add("table_localized_value", typeof(string));
-
-            // Button fields
             t.Columns.Add("button_id", typeof(int));
             t.Columns.Add("button_name_key", typeof(string));
             t.Columns.Add("button_is_active", typeof(bool));
-
-            // Map spot fields
             t.Columns.Add("map_spot_id", typeof(int));
             t.Columns.Add("map_spot_x", typeof(decimal));
             t.Columns.Add("map_spot_y", typeof(decimal));
             t.Columns.Add("map_spot_z", typeof(decimal));
-
-            // Button i18n fields
             t.Columns.Add("button_locale_id", typeof(string));
             t.Columns.Add("button_localized_value", typeof(string));
-
             return t;
         }
     }

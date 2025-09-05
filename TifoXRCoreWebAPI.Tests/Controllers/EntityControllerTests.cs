@@ -26,6 +26,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
     public class EntityControllerTests
     {
         private readonly Mock<IEntityRepository> repo;
+        private readonly Mock<ILogger<EntityController>> logger;
         private readonly EntityController sut;
         private readonly EntityDtoBuilder dtoBuilder;
 
@@ -35,7 +36,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public EntityControllerTests()
         {
             repo = new Mock<IEntityRepository>();
-            sut = new EntityController(repo.Object);
+            logger = new Mock<ILogger<EntityController>>();
+            sut = new EntityController(repo.Object, logger.Object);
             dtoBuilder = new EntityDtoBuilder();
         }
 
