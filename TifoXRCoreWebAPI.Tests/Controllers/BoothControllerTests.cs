@@ -57,11 +57,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             log.Setup(l => l.IsEnabled(It.IsAny<LogLevel>())).Returns(false);
             log.Setup(l => l.WithProperties(It.IsAny<(string, object)[]>()))
                .Returns(Mock.Of<IDisposable>());
-            // (optional) If you verify calls later, keep these lines; otherwise not required:
-            // log.Setup(l => l.Info(It.IsAny<string>(), It.IsAny<object[]>()));
-            // log.Setup(l => l.Warn(It.IsAny<string>(), It.IsAny<object[]>()));
-            // log.Setup(l => l.Error(It.IsAny<string>(), It.IsAny<object[]>()));
-            // log.Setup(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>(), It.IsAny<object[]>()));
+
         }
 
         // ---------- helpers ----------
