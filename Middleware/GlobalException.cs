@@ -5,7 +5,7 @@
 // <date>08/19/2025</date>
 // <summary>Middleware Class for global exception handling with structured logging</summary>
 
-using GMS.TifoXRCoreWebAPI.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface; // IAppLogger<T>
 using Microsoft.Extensions.Logging;
@@ -138,9 +138,7 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
                     code = (int)ErrorCodes.Conflict; status = StatusCodes.Status409Conflict; break;
             }
 
-            var message = ErrorMessages.Messages.TryGetValue(code, out var msg)
-                ? msg
-                : ErrorMessages.Messages[(int)ErrorCodes.InternalServerError];
+            var message = ErrorService.Resolve((ErrorCodes)code).Template;
 
             return (code, status, message);
         }

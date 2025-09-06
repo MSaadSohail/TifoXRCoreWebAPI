@@ -1,15 +1,15 @@
 ﻿// <copyright file="BoothController.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Syed Hussain</author>
-// <date>08/26/2025</date>
+// <author>Urvashi Dhingra</author>
+// <date>09/05/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
 //
 using Serilog;
 //
-using GMS.TifoXRCoreWebAPI.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
@@ -25,6 +25,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
     public class BoothController(IBoothRepository boothRepository) : ControllerBase
     {
         private readonly IBoothRepository _boothRepository = boothRepository;
+
+        #region GET
 
         /// <summary>
         /// GET /api/space/{spaceId}/booths
@@ -46,14 +48,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 // Validate (don’t log: common/expected; middleware maps to 400)
                 if (spaceId <= 0)
                 {
-                    throw new ArgumentException(
-                        GlobalException.FormatExceptionMessage(
-                            "spaceId must be a positive integer.",
-                            nameof(GetAllBoothsBySpace),
-                            new { spaceId }
-                        ),
-                        nameof(spaceId)
-                    );
+                    throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(GetAllBoothsBySpace),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
                 }
 
                 // Time the repository call; warn if slow
@@ -67,25 +67,23 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 diag.Set("BoothCount", booths?.Count ?? 0);
 
                 // Optional: surface slow path without spamming (Warning = unexpected but not fatal)
-                if (sw.ElapsedMilliseconds > ErrorMessages.SlowRepositoryThresholdMs)
-                {
-                    log.Warn(
-                        ErrorMessages.SlowRepositoryCallMessage,
-                        "Fetching booths",
-                        sw.ElapsedMilliseconds
-                    );
-                }
+                //if (sw.ElapsedMilliseconds > ErrorMessages.SlowRepositoryThresholdMs)
+                //{
+                //    log.Warn(
+                //        ErrorMessages.SlowRepositoryCallMessage,
+                //        "Fetching booths",
+                //        sw.ElapsedMilliseconds
+                //    );
+                //}
 
                 // Not found is an expected branch -> throw; GlobalException will log once and return 404
                 if (booths is null || booths.Count == 0)
                 {
-                    throw new ResourceNotFoundException(
-                        GlobalException.FormatExceptionMessage(
-                            "No booths found for the specified space.",
-                            nameof(GetAllBoothsBySpace),
-                            new { spaceId }
-                        )
-                    );
+                    throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(GetAllBoothsBySpace),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId });
                 }
                 
                 // Success: no extra Info log — the middleware will emit:
@@ -95,6 +93,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             }
         }
 
+        #endregion
+
+        #region PUT
+
+        /// <summary>
+        /// PUT /api/space/{spaceId}/booth/{boothId}
+        /// Updates a booth (e.g., name, localization, map spot).
+        /// </summary>
         [HttpPut("{spaceId}/booth/{boothId}")]
         [ProducesResponseType(typeof(Response), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -106,49 +112,43 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] BoothUpdateDto dto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(UpdateBooth),
-                        new { spaceId, boothId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(UpdateBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId });
 
             if (boothId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "boothId must be a positive integer.",
-                        nameof(UpdateBooth),
-                        new { spaceId, boothId }
-                    ),
-                    nameof(boothId)
-                );
-
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(UpdateBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId });
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(UpdateBooth),
-                        new { spaceId, boothId }
-                    )
-                );
+                throw ErrorService.Log(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateBooth),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, boothId });
 
             var updated = await _boothRepository.UpdateBoothAsync(spaceId, boothId, dto);
 
             if (updated is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Booth not found.",
-                        nameof(UpdateBooth),
-                        new { spaceId, boothId }
-                    )
-                );
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(UpdateBooth),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId });
 
             return Ok(new Response { Booth = updated });
         }
 
+        #endregion
+
+        #region POST
 
         /// <summary>
         /// POST /api/space/{spaceId}/booth
@@ -163,35 +163,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] BoothCreateDto boothDto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(CreateBooth),
-                        new { spaceId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(CreateBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
             if (boothDto is null)
-                throw new ArgumentNullException(
-                    nameof(boothDto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(CreateBooth),
-                        new { spaceId }
-                    )
-                );
+                throw ErrorService.Log(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateBooth),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(boothDto),
+                    parameters: new { spaceId });
 
             var createdBooth = await _boothRepository.CreateBoothAsync(spaceId, boothDto);
 
             if (createdBooth is null)
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                        "Creation failed.",
-                        nameof(CreateBooth),
-                        new { spaceId }
-                    )
-                );
+                throw ErrorService.Log(
+                    ErrorType.InvalidOperation,
+                    nameof(CreateBooth),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { spaceId });
 
             // If you have GET-by-id, prefer CreatedAtAction(nameof(GetBoothById), new { spaceId, boothId = createdBooth.Id }, ...)
             return CreatedAtAction(
@@ -201,7 +195,9 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             );
         }
 
+        #endregion
 
+        #region DELETE
 
         /// <summary>
         /// DELETE /api/space/{spaceId}/booth/{boothId}
@@ -221,38 +217,33 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteBoothCascade([FromRoute] int spaceId, [FromRoute] int boothId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeleteBoothCascade),
-                        new { spaceId, boothId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothCascade),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId });
 
             if (boothId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "boothId must be a positive integer.",
-                        nameof(DeleteBoothCascade),
-                        new { spaceId, boothId }
-                    ),
-                    nameof(boothId)
-                );
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothCascade),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId });
 
             var success = await _boothRepository.DeleteBoothCascadeAsync(spaceId, boothId);
 
             if (!success)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Booth not found.",
-                        nameof(DeleteBoothCascade),
-                        new { spaceId, boothId }
-                    )
-                );
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(DeleteBoothCascade),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId });
 
             return NoContent();
         }
 
+        #endregion
     }
 }

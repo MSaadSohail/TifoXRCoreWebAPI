@@ -1,4 +1,5 @@
 ﻿// Controllers/OrdersController.cs
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -17,11 +18,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> GetOrder(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                return BadRequest("orderId is required.");
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(GetOrder),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
+
 
             var dto = await _repo.GetOrderAsync(spaceId, orderId);
             if (dto is null)
-                return NotFound();
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(GetOrder),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             return Ok(dto);
         }
@@ -30,11 +41,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> GetEntitlements(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                return BadRequest("orderId is required.");
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(GetEntitlements),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
 
             var result = await _repo.GetEntitlementsByOrderAsync(spaceId, orderId);
             if (result is null)
-                return NotFound(); // order not found in this space
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(GetEntitlements),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             return Ok(result); // possibly empty list
         }
@@ -42,9 +62,22 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [HttpGet("{orderId}/invoices")]
         public async Task<IActionResult> GetInvoices(int spaceId, string orderId)
         {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(GetInvoices),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
+
             var resp = await _repo.GetInvoicesByOrderAsync(spaceId, orderId);
-            if (resp is null) return NotFound();
+
+            if (resp is null)
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(GetInvoices),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
             return Ok(resp);
         }
 
@@ -58,10 +91,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> Verify(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                return BadRequest("orderId is required.");
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(Verify),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
 
             var dto = await _repo.GetOrderAsync(spaceId, orderId); // aggregates order, intents, charges, entitlements, invoices
-            if (dto is null) return NotFound();
+            if (dto is null)
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(Verify),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             var capturedMinor = dto.PaymentIntents
                                    .SelectMany(i => i.Charges)
@@ -104,13 +147,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] ReconcileRequest body)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                return BadRequest("orderId is required.");
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(Reconcile),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
+
             if (body is null)
-                return BadRequest("Body is required.");
+                throw ErrorService.Log(
+                    ErrorType.ArgumentNull,
+                    nameof(Reconcile),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(body),
+                    parameters: new { spaceId, orderId });
 
             // 0) DB fast-path
             var before = await _repo.GetOrderAsync(spaceId, orderId);
-            if (before is null) return NotFound();
+            if (before is null)
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(Reconcile),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             var alreadyCaptured = before.PaymentIntents.SelectMany(i => i.Charges)
                                                        .Sum(c => c.AmountCapturedMinor);
@@ -182,7 +241,13 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             // 3) Re-read authoritative state and respond
             var after = await _repo.GetOrderAsync(spaceId, orderId); // aggregate re-check
-            if (after is null) return NotFound();
+
+            if (after is null)
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(Reconcile),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             var capMinor = after.PaymentIntents.SelectMany(i => i.Charges).Sum(c => c.AmountCapturedMinor);
             var isPaid = capMinor >= after.TotalNetAmount;
@@ -221,11 +286,30 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromQuery] string token,
             [FromQuery] string? state = null)
         {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (string.IsNullOrWhiteSpace(token)) return BadRequest("token is required.");
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(PaypalReturn),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
+
+            if (string.IsNullOrWhiteSpace(token))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(PaypalReturn),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(token),
+                    parameters: new { spaceId, orderId });
+
 
             var order = await _repo.GetOrderAsync(spaceId, orderId);
-            if (order is null) return NotFound();
+            if (order is null)
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(PaypalReturn),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             var intent = order.PaymentIntents.FirstOrDefault(i =>
                 string.Equals(i.ProviderIntentId, token, StringComparison.OrdinalIgnoreCase));
@@ -258,11 +342,22 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [HttpGet("{orderId}/payment-intents/pending")]
         public async Task<IActionResult> GetPendingIntentForOrder(int spaceId, string orderId)
         {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(GetPendingIntentForOrder),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
 
             // validate order belongs to this space
             var order = await _repo.GetOrderAsync(spaceId, orderId);
-            if (order is null) return NotFound();
+            if (order is null)
+                throw ErrorService.Log(
+                    ErrorType.NotFound,
+                    nameof(GetPendingIntentForOrder),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, orderId });
 
             var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
             if (pi is null) return Ok(new PendingIntentResponse { Found = false });
@@ -293,7 +388,13 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromQuery] int itemTypeId,
             [FromQuery] int itemRefId)
         {
-            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+            if (string.IsNullOrWhiteSpace(userId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(FindPendingIntentByItem),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(userId),
+                    parameters: new { spaceId, itemTypeId, itemRefId });
 
             var orderId = await _repo.FindLatestOrderIdWithPendingIntentAsync(spaceId, userId, itemTypeId, itemRefId);
             if (string.IsNullOrWhiteSpace(orderId))
@@ -320,7 +421,13 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(int spaceId, [FromBody] CreateOrderRequest req)
         {
-            if (req is null) return BadRequest("Body is required.");
+            if (req is null)
+                throw ErrorService.Log(
+                    ErrorType.ArgumentNull,
+                    nameof(Create),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(req),
+                    parameters: new { spaceId });
 
             var resp = await _repo.CreateOrderAsync(spaceId, req);
 
@@ -331,8 +438,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> CreatePaymentIntent(
             int spaceId, string orderId, [FromBody] CreatePaymentIntentRequest req)
         {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(CreatePaymentIntent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
+
+            if (req is null)
+                throw ErrorService.Log(
+                    ErrorType.ArgumentNull,
+                    nameof(CreatePaymentIntent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(req),
+                    parameters: new { spaceId, orderId });
 
             var resp = await _payments.CreateIntentAsync(spaceId, orderId, req);
             return Ok(resp);
@@ -343,9 +463,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> ConfirmPaymentIntent(
             int spaceId, string orderId, string intentId, [FromBody] ConfirmPaymentIntentRequest req)
         {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (string.IsNullOrWhiteSpace(intentId)) return BadRequest("intentId is required.");
-            if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(ConfirmPaymentIntent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(orderId),
+                    parameters: new { spaceId });
+
+            if (string.IsNullOrWhiteSpace(intentId))
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(ConfirmPaymentIntent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(intentId),
+                    parameters: new { spaceId, orderId });
+
+            if (req is null)
+                throw ErrorService.Log(
+                    ErrorType.ArgumentNull,
+                    nameof(ConfirmPaymentIntent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(req),
+                    parameters: new { spaceId, orderId, intentId });
 
             var resp = await _payments.CaptureAsync(spaceId, orderId, intentId, req);
             return Ok(resp);

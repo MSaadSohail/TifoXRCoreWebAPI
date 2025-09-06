@@ -5,6 +5,7 @@
 // <date>07/23/2025</date>
 // <summary>Controller to handle Metrics</summary>
 using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -34,26 +35,22 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] List<BoothActivity> boothActivityList)
         {
             if (boothActivityList is null || boothActivityList.Count == 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "boothActivityList cannot be null or empty.",
-                        nameof(AddUserBoothActivities),
-                        new { count = boothActivityList?.Count }
-                    ),
-                    nameof(boothActivityList)
-                );
+                throw ErrorService.Log(
+                    ErrorType.Argument,
+                    nameof(AddUserBoothActivities),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(boothActivityList),
+                    parameters: new { count = boothActivityList?.Count });
 
 
             var createdRecords = await _boothActivityRepository.AddUserBoothActivitiesAsync(boothActivityList);
 
             if (createdRecords is null)
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                        "Creation failed.",
-                        nameof(AddUserBoothActivities),
-                        new { requested = boothActivityList.Count }
-                    )
-                );
+                throw ErrorService.Log(
+                    ErrorType.InvalidOperation,
+                    nameof(AddUserBoothActivities),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { requested = boothActivityList.Count });
 
             return Ok(createdRecords);
         }
