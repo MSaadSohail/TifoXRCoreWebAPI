@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Logging;
 using System.Globalization;
 using PaypalServerSdk.Standard;
 using PaypalServerSdk.Standard.Authentication;
@@ -38,8 +37,10 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
         public async Task<CreateGatewayIntentResult> CreateIntentAsync(CreateGatewayIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
+
             if (string.IsNullOrWhiteSpace(req.ReturnUrl) || string.IsNullOrWhiteSpace(req.CancelUrl))
                 throw new ArgumentException("ReturnUrl and CancelUrl are required.");
 
