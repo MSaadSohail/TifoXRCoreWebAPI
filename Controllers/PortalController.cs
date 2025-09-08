@@ -45,7 +45,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var portals = await _portalRepository.GetPortalsBySpaceAsync(spaceId);
 
-            // Not found (404) – same pattern used in TeleportTableController
             if (portals == null || portals.Count == 0)
                 throw ErrorService.Log(
                     ErrorType.NotFound,

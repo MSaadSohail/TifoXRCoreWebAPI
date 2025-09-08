@@ -1,7 +1,7 @@
 ﻿// <copyright file="ErrorService.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Saad Sohail</author>
+// <author>Urvashi Dhingra</author>
 // <date>09/05/2025</date>
 // <summary>Unified logging/exception service</summary>
 
