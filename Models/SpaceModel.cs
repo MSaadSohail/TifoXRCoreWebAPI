@@ -37,6 +37,4 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
         public LocalizedPairs LocalizedDescription { get; set; }
     }
-
-
 }

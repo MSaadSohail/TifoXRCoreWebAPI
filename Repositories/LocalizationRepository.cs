@@ -5,9 +5,10 @@
 // <date>07/31/2025</date>
 // <summary>Class to handle localization SQL side</summary>
 
-using GMS.TifoXRCoreWebAPI.Models.Common;
 using MySqlConnector;
 using System.Data;
+//
+using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories

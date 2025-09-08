@@ -5,16 +5,15 @@
 // <date>08/19/2025</date>
 // <summary>Middleware Class for global exception handling with structured logging</summary>
 
-using GMS.TifoXRCoreWebAPI.Errors;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface; // IAppLogger<T>
-using Microsoft.Extensions.Logging;
-using System.ComponentModel.DataAnnotations;
-using System.Data;
-using System.IO;
 using System.Net;
+using System.Data;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.ComponentModel.DataAnnotations;
+//
+using GMS.TifoXRCoreWebAPI.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Middleware
 {

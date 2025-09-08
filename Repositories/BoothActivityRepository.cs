@@ -4,20 +4,17 @@
 // <author></author>
 // <date>07/28/2025</date>
 // <summary>Class to handle booth activity SQL side</summary>
+
 using MySqlConnector;
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class BoothActivityRepository : IBoothActivityRepository
+    public class BoothActivityRepository(IConfiguration configuration) : IBoothActivityRepository
     {
-        private readonly string _connectionString;
-
-        public BoothActivityRepository(IConfiguration configuration)
-        {
-            _connectionString = configuration.GetConnectionString("DefaultConnection");
-        }
+        private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection");
 
         public async Task<List<BoothActivity>> AddUserBoothActivitiesAsync(List<BoothActivity> boothActivityList)
         {

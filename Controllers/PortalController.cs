@@ -6,7 +6,7 @@
 // <summary>Controller to handle portal routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
-
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Middleware;

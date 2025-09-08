@@ -4,10 +4,12 @@
 // <author>Saad Sohail</author>
 // <date>07/23/2025</date>
 // <summary>Controller to handle Metrics</summary>
+
+using Microsoft.AspNetCore.Mvc;
+//
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using Microsoft.AspNetCore.Mvc;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
