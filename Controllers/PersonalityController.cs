@@ -1,8 +1,8 @@
 ﻿// <copyright file="PersonalityController.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Urvashi Dhingra</author>
-// <date>09/05/2025</date>
+// <author>Syed Hussain</author>
+// <date>07/23/2025</date>
 // <summary>Personality HTTP methods</summary>
 
 using GMS.TifoXRCoreWebAPI.Middleware;

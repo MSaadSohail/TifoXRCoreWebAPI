@@ -1,8 +1,8 @@
 ﻿// <copyright file="BoothController.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Urvashi Dhingra</author>
-// <date>09/05/2025</date>
+// <author>Syed Hussain</author>
+// <date>08/26/2025</date>
 // <summary>Controller to handle booth routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
