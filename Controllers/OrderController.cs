@@ -1,4 +1,10 @@
-﻿// Controllers/OrdersController.cs
+﻿// <copyright file="OrderController.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary></summary>
+
 using Microsoft.AspNetCore.Mvc;
 //
 using GMS.TifoXRCoreWebAPI.Models;

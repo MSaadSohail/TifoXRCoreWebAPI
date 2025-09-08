@@ -1,4 +1,11 @@
-﻿namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
+﻿// <copyright file="IPaymentGateway.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>08/02/2025</date>
+// <summary>Interface to handle payment gateways</summary>
+
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 {
     public interface IPaymentGateway
     {

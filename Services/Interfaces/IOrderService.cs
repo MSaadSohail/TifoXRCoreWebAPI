@@ -1,4 +1,11 @@
-﻿using GMS.TifoXRCoreWebAPI.Models;
+﻿// <copyright file="IOrderService.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/08/2025</date>
+// <summary>Add File Summary</summary>
+
+using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {

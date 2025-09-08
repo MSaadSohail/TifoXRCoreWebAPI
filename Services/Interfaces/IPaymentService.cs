@@ -1,4 +1,11 @@
-﻿using GMS.TifoXRCoreWebAPI.Models;
+﻿// <copyright file="IPaymentService.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary>Interface to handle general payment services</summary>
+
+using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {

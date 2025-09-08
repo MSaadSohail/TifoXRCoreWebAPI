@@ -1,4 +1,11 @@
-﻿using GMS.TifoXRCoreWebAPI.Models;
+﻿// <copyright file="OrderService.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary></summary>
+
+using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Services

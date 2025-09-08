@@ -1,4 +1,10 @@
-﻿// Application/PaymentGateways/PaymentGatewayRegistry.cs
+﻿// <copyright file="PaymentGatewayRegistry.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>%UserDisplayName%</author>
+// <date>9/8/2025</date>
+// <summary>Class that handles payment gateway registration</summary>
+
 using System.Collections.Concurrent;
 
 namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways

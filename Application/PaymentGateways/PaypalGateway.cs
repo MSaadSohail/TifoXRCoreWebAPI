@@ -1,4 +1,11 @@
-﻿using Microsoft.Extensions.Options;
+﻿// <copyright file="PaypalGateway.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary></summary>
+
+using Microsoft.Extensions.Options;
 using System.Globalization;
 using PaypalServerSdk.Standard;
 using PaypalServerSdk.Standard.Authentication;
