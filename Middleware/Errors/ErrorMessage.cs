@@ -1,7 +1,7 @@
 ﻿// <copyright file="ErrorMessages.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Saad Sohail</author>
+// <author>Urvashi Dhingra</author>
 // <date>08/04/2025</date>
 // <summary>Class to handle error messages</summary>
 

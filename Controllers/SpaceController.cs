@@ -35,7 +35,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<SpaceData>> GetSpaceById(int id)
         {
             if (id <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetSpaceById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -45,7 +45,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var space = await _spaceRepo.GetSpaceByIdAsync(id);
 
             if (space is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetSpaceById),
                     ErrorMessages.Http.NotFound,
@@ -65,14 +65,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<SpaceData>> CreateSpace([FromBody] Space dto)
         {
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreateSpace),
                     ErrorMessages.Validation.MissingParameter,
                     paramName: nameof(dto));
 
             if (dto.LocalizedDescription is null || dto.LocalizedDescription.Values is null || !dto.LocalizedDescription.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreateSpace),
                     ErrorMessages.Validation.EmptyCollection,
@@ -83,7 +83,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _spaceRepo.CreateSpaceAsync(dto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreateSpace),
                     ErrorMessages.Http.Conflict,
@@ -104,7 +104,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<SpaceData>> UpdateSpaceById(int id, [FromBody] Space spaceDto)
         {
             if (id <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateSpaceById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -112,7 +112,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { id });
 
             if (spaceDto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdateSpaceById),
                     ErrorMessages.Validation.MissingParameter,
@@ -122,7 +122,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             if (spaceDto.LocalizedDescription is null ||
                 spaceDto.LocalizedDescription.Values is null ||
                 !spaceDto.LocalizedDescription.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateSpaceById),
                     ErrorMessages.Validation.EmptyCollection,
@@ -132,7 +132,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _spaceRepo.UpdateSpaceAsync(id, spaceDto);
 
             if (updated is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdateSpaceById),
                     ErrorMessages.Http.NotFound,

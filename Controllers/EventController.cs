@@ -10,7 +10,6 @@ using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -41,7 +40,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EventData>> GetEventDataByID([FromRoute] int event_id)
         {
             if (event_id <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetEventDataByID),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -51,7 +50,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var evt = await _eventRepository.GetEventByIdAsync(event_id);
 
             if (evt is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetEventDataByID),
                     ErrorMessages.Http.NotFound,
@@ -69,7 +68,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EventData>> CreateEvent([FromBody] Event eventDto)
         {
             if (eventDto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreateEvent),
                     ErrorMessages.Validation.MissingParameter,
@@ -78,7 +77,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _eventRepository.CreateEventAsync(eventDto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreateEvent),
                     ErrorMessages.Http.Conflict,
@@ -99,7 +98,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EventData>> UpdateEvent([FromRoute] int eventId, [FromBody] Event dto)
         {
             if (eventId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateEvent),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -107,7 +106,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { eventId });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdateEvent),
                     ErrorMessages.Validation.MissingParameter,
@@ -117,7 +116,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _eventRepository.UpdateEventAsync(eventId, dto);
 
             if (updated is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdateEvent),
                     ErrorMessages.Http.NotFound,

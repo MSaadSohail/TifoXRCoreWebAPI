@@ -21,7 +21,7 @@ namespace GMS.TifoXRCoreWebAPI.Middleware.Errors
 
     public static class ErrorService
     {
-        public static Exception Log(
+        public static Exception Exception(
             ErrorType type,
             string method,
             ErrorMessage message,
@@ -51,7 +51,7 @@ namespace GMS.TifoXRCoreWebAPI.Middleware.Errors
                 parameters
             );
 
-            return type switch
+            var ex = type switch
             {
                 ErrorType.Argument => new ArgumentException(body, paramName),
                 ErrorType.ArgumentNull => new ArgumentNullException(paramName, body),
@@ -59,6 +59,11 @@ namespace GMS.TifoXRCoreWebAPI.Middleware.Errors
                 ErrorType.NotFound => new Middleware.Exceptions.ResourceNotFoundException(body),
                 _ => new Exception(body)
             };
+
+            ex.Data["ErrorCode"] = (int)message.Code; // e.g., 400, 404, 409, 500...
+            ex.Data["UserMessage"] = text;
+
+            return ex;
         }
 
         //CAN BE USED IN FUTURE - KEPT FOR NOW

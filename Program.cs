@@ -85,8 +85,14 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     services.AddSingleton<IPayPalClientFactory, PayPalClientFactory>();
 
+    services.AddHttpClient("Chiliz");
+    services.Configure<ChilizOptions>(config.GetSection("Chiliz"));
+    services.AddSingleton<IChilizClientFactory, ChilizClientFactory>();
+
+
     // Gateways
     services.AddSingleton<IPaymentGateway, PaypalGateway>();
+    services.AddSingleton<IPaymentGateway, ChilizGateway>();
     //services.AddSingleton<IPaymentGatewayFactory, PaymentGatewayFactory>();
 
     // Services

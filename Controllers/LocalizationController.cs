@@ -37,7 +37,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<List<LocalizedPairs>>> GetAllBySpace([FromRoute] int spaceId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetAllBySpace),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -47,7 +47,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var result = await _localizationRepo.GetAllLocalizationsBySpaceAsync(spaceId);
 
             if (result is null || result.Count == 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetAllBySpace),
                     ErrorMessages.Http.NotFound,
@@ -71,7 +71,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromRoute] string key)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetLocalization),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -79,7 +79,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, key });
 
             if (string.IsNullOrWhiteSpace(key))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetLocalization),
                     ErrorMessages.Validation.InvalidFormat,
@@ -89,7 +89,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var result = await _localizationRepo.GetLocalizationByKeyAsync(spaceId, key);
 
             if (result is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetLocalization),
                     ErrorMessages.Http.NotFound,
@@ -115,7 +115,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] LocalizedPairs dto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreateLocalization),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -123,7 +123,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreateLocalization),
                     ErrorMessages.Validation.MissingParameter,
@@ -131,7 +131,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (string.IsNullOrWhiteSpace(dto.Key))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreateLocalization),
                     ErrorMessages.Validation.InvalidFormat,
@@ -139,7 +139,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (dto.Values is null || !dto.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreateLocalization),
                     ErrorMessages.Validation.EmptyCollection,
@@ -149,7 +149,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _localizationRepo.CreateLocalizationAsync(spaceId, dto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreateLocalization),
                     ErrorMessages.Http.Conflict,
@@ -182,7 +182,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] LocalizedPairs dto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateLocalization),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -190,7 +190,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, key });
 
             if (string.IsNullOrWhiteSpace(key))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                      ErrorType.Argument,
                      nameof(UpdateLocalization),
                      ErrorMessages.Validation.InvalidFormat,
@@ -198,7 +198,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                      parameters: new { spaceId });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdateLocalization),
                     ErrorMessages.Validation.MissingParameter,
@@ -206,7 +206,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, key });
 
             if (dto.Values is null || !dto.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateLocalization),
                     ErrorMessages.Validation.EmptyCollection,
@@ -216,7 +216,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _localizationRepo.UpdateLocalizationAsync(spaceId, key, dto);
 
             if (updated is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdateLocalization),
                     ErrorMessages.Http.NotFound,
@@ -244,7 +244,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromRoute] string key)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteLocalization),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -252,7 +252,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, key });
 
             if (string.IsNullOrWhiteSpace(key))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteLocalization),
                     ErrorMessages.Validation.InvalidFormat,
@@ -262,7 +262,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _localizationRepo.DeleteLocalizationAsync(spaceId, key);
 
             if (!ok)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(DeleteLocalization),
                     ErrorMessages.Http.NotFound,

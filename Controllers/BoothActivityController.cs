@@ -35,7 +35,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] List<BoothActivity> boothActivityList)
         {
             if (boothActivityList is null || boothActivityList.Count == 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(AddUserBoothActivities),
                     ErrorMessages.Validation.EmptyCollection,
@@ -46,7 +46,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var createdRecords = await _boothActivityRepository.AddUserBoothActivitiesAsync(boothActivityList);
 
             if (createdRecords is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(AddUserBoothActivities),
                     ErrorMessages.Http.Conflict,

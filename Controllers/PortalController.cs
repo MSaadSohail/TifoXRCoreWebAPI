@@ -36,7 +36,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<List<PortalModel>>> GetPortalsBySpace([FromRoute] int spaceId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPortalsBySpace),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -46,7 +46,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var portals = await _portalRepository.GetPortalsBySpaceAsync(spaceId);
 
             if (portals == null || portals.Count == 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetPortalsBySpace),
                     ErrorMessages.Http.NotFound,
@@ -73,7 +73,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPortalsByBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -81,7 +81,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId });
 
             if (boothId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPortalsByBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -91,7 +91,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var portals = await _portalRepository.GetPortalsByBoothAsync(spaceId, boothId);
 
             if (portals == null || portals.Count == 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetPortalsByBooth),
                     ErrorMessages.Http.NotFound,
@@ -118,7 +118,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPortalById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -126,7 +126,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (portalId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPortalById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -136,7 +136,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var portal = await _portalRepository.GetPortalByIdAsync(spaceId, portalId);
 
             if (portal is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetPortalById),
                     ErrorMessages.Http.NotFound,
@@ -166,7 +166,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreatePortal),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -174,7 +174,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (portalDto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreatePortal),
                     ErrorMessages.Validation.MissingParameter,
@@ -182,7 +182,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (portalDto.LocalizedPairs == null || portalDto.LocalizedPairs.Values == null || portalDto.LocalizedPairs.Values.Count == 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreatePortal),
                     ErrorMessages.Validation.EmptyCollection,
@@ -192,7 +192,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _portalRepository.CreatePortalAsync(spaceId, portalDto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreatePortal),
                     ErrorMessages.Http.Conflict,
@@ -226,7 +226,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] PortalUpdateDto portalDto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortal),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -234,7 +234,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (portalId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortal),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -242,7 +242,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (portalDto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdatePortal),
                     ErrorMessages.Validation.MissingParameter,
@@ -250,7 +250,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (portalDto.LocalizedPairs == null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortal),
                     ErrorMessages.Validation.MissingParameter,
@@ -258,7 +258,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (string.IsNullOrWhiteSpace(portalDto.LocalizedPairs.Key))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortal),
                     ErrorMessages.Validation.InvalidFormat,
@@ -266,7 +266,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (portalDto.LocalizedPairs.Values == null || !portalDto.LocalizedPairs.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortal),
                     ErrorMessages.Validation.EmptyCollection,
@@ -276,7 +276,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _portalRepository.UpdatePortalAsync(spaceId, portalId, portalDto);
 
             if (updated == null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdatePortal),
                     ErrorMessages.Http.NotFound,
@@ -307,7 +307,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -315,7 +315,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (boothId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -323,7 +323,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (portalId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -331,7 +331,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.MissingParameter,
@@ -339,7 +339,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (dto.LocalizedPairs == null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.MissingParameter,
@@ -348,7 +348,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
 
             if (string.IsNullOrWhiteSpace(dto.LocalizedPairs.Key))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.InvalidFormat,
@@ -356,7 +356,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdatePortalData),
                     ErrorMessages.Validation.EmptyCollection,
@@ -366,7 +366,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _portalRepository.UpdatePortalAsync(spaceId, boothId, portalId, dto);
 
             if (updated == null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdatePortalData),
                     ErrorMessages.Http.NotFound,
@@ -396,7 +396,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromRoute] int portalId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeletePortal),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -404,7 +404,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, portalId });
 
             if (portalId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeletePortal),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -414,7 +414,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var deleted = await _portalRepository.DeletePortalAsync(spaceId, portalId);
 
             if (!deleted)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(DeletePortal),
                     ErrorMessages.Http.NotFound,
@@ -443,7 +443,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeletePortalForBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -451,7 +451,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (boothId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeletePortalForBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -459,7 +459,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId, portalId });
 
             if (portalId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeletePortalForBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -469,7 +469,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var deleted = await _portalRepository.DeletePortalAsync(spaceId, boothId, portalId);
 
             if (!deleted)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(DeletePortalForBooth),
                     ErrorMessages.Http.NotFound,

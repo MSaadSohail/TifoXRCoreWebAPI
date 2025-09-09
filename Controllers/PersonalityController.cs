@@ -38,7 +38,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<PersonalityData>> GetPersonalityById(int id)
         {
             if (id <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPersonalityById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -48,7 +48,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var personality = await _personalityRepository.GetPersonalityByIdAsync(id);
 
             if (personality is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetPersonalityById),
                     ErrorMessages.Http.NotFound,
@@ -65,7 +65,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<PersonalityData>> CreatePersonality([FromBody] PersonalityCreateDto dto)
         {
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreatePersonality),
                     ErrorMessages.Validation.MissingParameter,
@@ -76,7 +76,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _personalityRepository.CreatePersonalityAsync(dto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreatePersonality),
                     ErrorMessages.Http.Conflict,

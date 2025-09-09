@@ -18,7 +18,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> GetOrder(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetOrder),
                     ErrorMessages.Validation.MissingParameter,
@@ -28,7 +28,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var dto = await _repo.GetOrderAsync(spaceId, orderId);
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetOrder),
                     ErrorMessages.Http.NotFound,
@@ -41,7 +41,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> GetEntitlements(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetEntitlements),
                     ErrorMessages.Validation.MissingParameter,
@@ -50,7 +50,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var result = await _repo.GetEntitlementsByOrderAsync(spaceId, orderId);
             if (result is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetEntitlements),
                     ErrorMessages.Http.NotFound,
@@ -63,7 +63,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> GetInvoices(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetInvoices),
                     ErrorMessages.Validation.MissingParameter,
@@ -73,7 +73,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var resp = await _repo.GetInvoicesByOrderAsync(spaceId, orderId);
 
             if (resp is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetInvoices),
                     ErrorMessages.Http.NotFound,
@@ -91,7 +91,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> Verify(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(Verify),
                     ErrorMessages.Validation.MissingParameter,
@@ -100,7 +100,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var dto = await _repo.GetOrderAsync(spaceId, orderId); // aggregates order, intents, charges, entitlements, invoices
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(Verify),
                     ErrorMessages.Http.NotFound,
@@ -147,7 +147,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] ReconcileRequest body)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(Reconcile),
                     ErrorMessages.Validation.MissingParameter,
@@ -155,7 +155,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (body is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(Reconcile),
                     ErrorMessages.Validation.MissingParameter,
@@ -165,7 +165,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             // 0) DB fast-path
             var before = await _repo.GetOrderAsync(spaceId, orderId);
             if (before is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(Reconcile),
                     ErrorMessages.Http.NotFound,
@@ -243,7 +243,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var after = await _repo.GetOrderAsync(spaceId, orderId); // aggregate re-check
 
             if (after is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(Reconcile),
                     ErrorMessages.Http.NotFound,
@@ -287,7 +287,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromQuery] string? state = null)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(PaypalReturn),
                     ErrorMessages.Validation.MissingParameter,
@@ -295,7 +295,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (string.IsNullOrWhiteSpace(token))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(PaypalReturn),
                     ErrorMessages.Validation.MissingParameter,
@@ -305,7 +305,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var order = await _repo.GetOrderAsync(spaceId, orderId);
             if (order is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(PaypalReturn),
                     ErrorMessages.Http.NotFound,
@@ -343,7 +343,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> GetPendingIntentForOrder(int spaceId, string orderId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetPendingIntentForOrder),
                     ErrorMessages.Validation.MissingParameter,
@@ -353,7 +353,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             // validate order belongs to this space
             var order = await _repo.GetOrderAsync(spaceId, orderId);
             if (order is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetPendingIntentForOrder),
                     ErrorMessages.Http.NotFound,
@@ -389,7 +389,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromQuery] int itemRefId)
         {
             if (string.IsNullOrWhiteSpace(userId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(FindPendingIntentByItem),
                     ErrorMessages.Validation.MissingParameter,
@@ -422,7 +422,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> Create(int spaceId, [FromBody] CreateOrderRequest req)
         {
             if (req is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(Create),
                     ErrorMessages.Validation.MissingParameter,
@@ -439,7 +439,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             int spaceId, string orderId, [FromBody] CreatePaymentIntentRequest req)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreatePaymentIntent),
                     ErrorMessages.Validation.MissingParameter,
@@ -447,7 +447,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (req is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreatePaymentIntent),
                     ErrorMessages.Validation.MissingParameter,
@@ -464,7 +464,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             int spaceId, string orderId, string intentId, [FromBody] ConfirmPaymentIntentRequest req)
         {
             if (string.IsNullOrWhiteSpace(orderId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(ConfirmPaymentIntent),
                     ErrorMessages.Validation.MissingParameter,
@@ -472,7 +472,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (string.IsNullOrWhiteSpace(intentId))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(ConfirmPaymentIntent),
                     ErrorMessages.Validation.MissingParameter,
@@ -480,7 +480,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, orderId });
 
             if (req is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(ConfirmPaymentIntent),
                     ErrorMessages.Validation.MissingParameter,

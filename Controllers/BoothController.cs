@@ -48,7 +48,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 // Validate (don’t log: common/expected; middleware maps to 400)
                 if (spaceId <= 0)
                 {
-                    throw ErrorService.Log(
+                    throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetAllBoothsBySpace),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -79,7 +79,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 // Not found is an expected branch -> throw; GlobalException will log once and return 404
                 if (booths is null || booths.Count == 0)
                 {
-                    throw ErrorService.Log(
+                    throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetAllBoothsBySpace),
                     ErrorMessages.Http.NotFound,
@@ -112,7 +112,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] BoothUpdateDto dto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -120,14 +120,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId });
 
             if (boothId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
                     paramName: nameof(boothId),
                     parameters: new { spaceId, boothId });
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdateBooth),
                     ErrorMessages.Validation.MissingParameter,
@@ -137,7 +137,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _boothRepository.UpdateBoothAsync(spaceId, boothId, dto);
 
             if (updated is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdateBooth),
                     ErrorMessages.Http.NotFound,
@@ -163,7 +163,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] BoothCreateDto boothDto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreateBooth),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -171,7 +171,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (boothDto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreateBooth),
                     ErrorMessages.Validation.MissingParameter,
@@ -181,7 +181,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var createdBooth = await _boothRepository.CreateBoothAsync(spaceId, boothDto);
 
             if (createdBooth is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreateBooth),
                     ErrorMessages.Http.Conflict,
@@ -217,7 +217,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteBoothCascade([FromRoute] int spaceId, [FromRoute] int boothId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteBoothCascade),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -225,7 +225,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, boothId });
 
             if (boothId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteBoothCascade),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -235,7 +235,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var success = await _boothRepository.DeleteBoothCascadeAsync(spaceId, boothId);
 
             if (!success)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(DeleteBoothCascade),
                     ErrorMessages.Http.NotFound,

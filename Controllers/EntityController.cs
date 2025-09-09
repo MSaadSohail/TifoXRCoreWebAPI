@@ -38,7 +38,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EntityData>> Get(int id)
         {
             if (id <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(Get),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -48,7 +48,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var entity = await _repo.GetByIdAsync(id);
 
             if (entity is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(Get),
                     ErrorMessages.Http.NotFound,
@@ -72,14 +72,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EntityData>> Create([FromBody] Entity dto)
         {
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(Create),
                     ErrorMessages.Validation.MissingParameter,
                     paramName: nameof(dto));
 
             if (dto.LocalizedPairs == null || dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(Create),
                     ErrorMessages.Validation.EmptyCollection,
@@ -89,7 +89,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _repo.CreateAsync(dto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(Create),
                     ErrorMessages.Http.Conflict);
@@ -113,7 +113,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EntityData>> Update(int id, [FromBody] Entity dto)
         {
             if (id <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(Update),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -121,7 +121,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { id });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(Update),
                     ErrorMessages.Validation.MissingParameter,
@@ -129,7 +129,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { id });
 
             if (dto.LocalizedPairs == null || dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(Update),
                     ErrorMessages.Validation.EmptyCollection,
@@ -139,7 +139,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _repo.UpdateAsync(id, dto);
 
             if (updated is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(Update),
                     ErrorMessages.Http.NotFound,

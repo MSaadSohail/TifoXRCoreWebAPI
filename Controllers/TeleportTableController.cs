@@ -35,7 +35,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         {
             if (spaceId <= 0)
                 // Argument validation (Bad Request)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(GetTeleportTablesBySpace),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -46,7 +46,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             // Not found (404)
             if (table is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(GetTeleportTablesBySpace),
                     ErrorMessages.Http.NotFound,
@@ -72,7 +72,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] TeleportTableCreateDto dto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(CreateTeleportTable),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -80,7 +80,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(CreateTeleportTable),
                     ErrorMessages.Validation.MissingParameter,
@@ -90,7 +90,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var created = await _teleportRepository.CreateTeleportTableAsync(spaceId, dto);
 
             if (created is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.InvalidOperation,
                     nameof(CreateTeleportTable),
                     ErrorMessages.Http.Conflict,
@@ -121,7 +121,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] TeleportTableUpdateDto dto)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -129,7 +129,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId });
 
             if (tableId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -137,7 +137,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId });
 
             if (dto is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.ArgumentNull,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Validation.MissingParameter,
@@ -145,7 +145,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId });
 
             if (dto.Buttons is null || !dto.Buttons.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Validation.EmptyCollection,
@@ -153,7 +153,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId });
 
             if (dto.Buttons.Any(b => !b.Id.HasValue || b.Id <= 0))
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Validation.MustHaveValidIds,
@@ -161,7 +161,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId, ids = dto.Buttons.Select(b => b.Id) });
 
             if (dto.LocalizedPairs?.Values is null || !dto.LocalizedPairs.Values.Any())
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Validation.EmptyCollection,
@@ -171,7 +171,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
             if (updated is null)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(UpdateTeleportTableById),
                     ErrorMessages.Http.NotFound,
@@ -195,7 +195,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTable(int spaceId, int tableId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteTeleportTable),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -203,7 +203,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId });
 
             if (tableId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteTeleportTable),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -213,7 +213,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
 
             if (!ok)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(DeleteTeleportTable),
                     ErrorMessages.Http.NotFound,
@@ -232,7 +232,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTablesBySpace(int spaceId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteTeleportTablesBySpace),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -258,7 +258,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTableButton(int spaceId, int tableId, int buttonId)
         {
             if (spaceId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteTeleportTableButton),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -266,7 +266,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId, buttonId });
 
             if (tableId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteTeleportTableButton),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -274,7 +274,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId, tableId, buttonId });
 
             if (buttonId <= 0)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.Argument,
                     nameof(DeleteTeleportTableButton),
                     ErrorMessages.Validation.PositiveIntRequired,
@@ -284,7 +284,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
 
             if (!ok)
-                throw ErrorService.Log(
+                throw ErrorService.Exception(
                     ErrorType.NotFound,
                     nameof(DeleteTeleportTableButton),
                     ErrorMessages.Http.NotFound,
