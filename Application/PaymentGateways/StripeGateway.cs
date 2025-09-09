@@ -6,7 +6,6 @@
 // <summary></summary>
 
 using Microsoft.Extensions.Options;
-using System.ClientModel.Primitives;
 //
 using Stripe;
 using Stripe.Checkout;
@@ -62,8 +61,8 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                 CancelUrl = req.CancelUrl,
 
                 // Use a single “order total” line item; Stripe requires unit_amount in the smallest unit.
-                LineItems = new List<SessionLineItemOptions>
-                {
+                LineItems =
+                [
                     new()
                     {
                         Quantity = 1,
@@ -73,12 +72,12 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                             UnitAmountDecimal = decimal.Round(req.Amount * 100m, 0, MidpointRounding.AwayFromZero),
                             ProductData = new SessionLineItemPriceDataProductDataOptions
                             {
-                                Name = "Order",
+                                Name = "Order",         
                                 Description = "Order total"
                             }
                         }
                     }
-                },
+                ],
 
                 // The key to mirror your PayPal APPROVED->CAPTURE flow:
                 PaymentIntentData = new SessionPaymentIntentDataOptions

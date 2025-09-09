@@ -1186,19 +1186,26 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         }
 
         public async Task<(string OrderId, int SpaceId, int CurrencyId, int GatewayId,
-                  string? ProviderChargeId, long AmountCapturedMinor)?>
+                  string? ProviderChargeId, long AmountCapturedMinor, long TotalRefundedSoFarMinor)?>
         GetChargeContextAsync(string chargeId)
         {
             const string sql = @"
-                SELECT o.id AS order_id, o.space_id, o.currency_id,
-                       pi.payment_gateway_id,
-                       pc.provider_charge_id,
-                       pc.amount_captured
+                SELECT
+                  o.id                                   AS order_id,
+                  o.space_id,
+                  o.currency_id,
+                  pi.payment_gateway_id,
+                  pc.provider_charge_id,
+                  pc.amount_captured                              AS amount_captured_minor,
+                  COALESCE(SUM(pr.amount), 0)                     AS total_refunded_so_far_minor
                 FROM payment_charge pc
                 JOIN payment_intent pi ON pi.id = pc.payment_intent_id
-                JOIN `order` o ON o.id = pi.order_id
+                JOIN `order` o        ON o.id  = pi.order_id
+                LEFT JOIN payment_refund pr ON pr.payment_charge_id = pc.id
+                                           AND pr.status_id = 3      -- succeeded only
                 WHERE pc.id = @ChargeId
-                LIMIT 1;";
+                GROUP BY o.id, o.space_id, o.currency_id, pi.payment_gateway_id, pc.provider_charge_id, pc.amount_captured;
+                ";
             
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, sql);
@@ -1215,7 +1222,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 CurrencyId: r.GetInt32(r.GetOrdinal("currency_id")),
                 GatewayId: r.GetInt32(r.GetOrdinal("payment_gateway_id")),
                 ProviderChargeId: r.IsDBNull(r.GetOrdinal("provider_charge_id")) ? null : r.GetString(r.GetOrdinal("provider_charge_id")),
-                AmountCapturedMinor: r.GetInt64(r.GetOrdinal("amount_captured"))
+                AmountCapturedMinor: r.GetInt64(r.GetOrdinal("amount_captured_minor")),
+                TotalRefundedSoFarMinor: r.GetInt64(r.GetOrdinal("total_refunded_so_far_minor"))
             );
         }
 

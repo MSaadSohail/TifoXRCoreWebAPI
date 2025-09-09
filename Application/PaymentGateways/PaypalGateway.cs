@@ -5,15 +5,15 @@
 // <date>09/02/2025</date>
 // <summary></summary>
 
+using System.Text;
+using System.Text.Json;
+using System.Globalization;
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
 //
 using PaypalServerSdk.Standard;
-using PaypalServerSdk.Standard.Authentication;
 using PaypalServerSdk.Standard.Models;
-using System.Globalization;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
+using PaypalServerSdk.Standard.Authentication;
 using PpAppContext = PaypalServerSdk.Standard.Models.OrderApplicationContext;
 
 namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
@@ -159,21 +159,18 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             if (string.IsNullOrWhiteSpace(req.ProviderChargeId))
                 throw new ArgumentException("ProviderChargeId (PayPal capture id) is required.", nameof(req.ProviderChargeId));
 
-            // PayPal: POST /v2/payments/captures/{capture_id}/refund
             var url = $"{BaseUrl}/v2/payments/captures/{req.ProviderChargeId}/refund";
             var token = await GetAccessTokenAsync();
 
             using var msg = new HttpRequestMessage(HttpMethod.Post, url);
             msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            // Idempotency
             if (!string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 msg.Headers.TryAddWithoutValidation("PayPal-Request-Id", req.IdempotencyKey);
 
-            // If Amount is provided => partial refund; else full refund (empty body allowed by PayPal)
+            // Full refund: NO BODY. Partial refund: include amount.
             if (req.Amount > 0m)
             {
-                var currencyCode = MapCurrencyCode(req.CurrencyId); // implement mapping below
+                var currencyCode = MapCurrencyCode(req.CurrencyId);
                 var payload = new
                 {
                     amount = new
@@ -188,18 +185,39 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             }
 
             using var resp = await _http.SendAsync(msg);
-            resp.EnsureSuccessStatusCode();
 
-            var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
-            var providerRefundId = json.GetProperty("id").GetString()
+            // On 422, surface the PayPal error body so you see the real cause
+            if (!resp.IsSuccessStatusCode)
+            {
+                var raw = await resp.Content.ReadAsStringAsync();
+                _logger.LogWarning("PayPal refund failed: {Status} {Body}", (int)resp.StatusCode, raw);
+
+                // Try to extract a meaningful message from PayPal's error JSON
+                try
+                {
+                    var err = JsonDocument.Parse(raw).RootElement;
+                    var name = err.TryGetProperty("name", out var n) ? n.GetString() : null;
+                    var message = err.TryGetProperty("message", out var m) ? m.GetString() : null;
+                    var details = err.TryGetProperty("details", out var d) ? d.ToString() : null;
+                    throw new InvalidOperationException($"PayPal refund error [{name}]: {message} {details}");
+                }
+                catch
+                {
+                    // if not JSON, throw generic with body
+                    throw new InvalidOperationException($"PayPal refund error: {(int)resp.StatusCode} {raw}");
+                }
+            }
+
+            var ok = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var providerRefundId = ok.GetProperty("id").GetString()
                 ?? throw new InvalidOperationException("PayPal refund response missing id.");
 
-            // Amount in response (major units). For full refunds PayPal returns the capture amount.
+            // Amount (major): for full refunds PayPal returns capture amount
             decimal refundedMajor = req.Amount > 0m
                 ? req.Amount
-                : (json.TryGetProperty("amount", out var amtNode) &&
-                   amtNode.TryGetProperty("value", out var v) &&
-                   decimal.TryParse(v.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                : (ok.TryGetProperty("amount", out var amt) &&
+                   amt.TryGetProperty("value", out var val) &&
+                   decimal.TryParse(val.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                         ? parsed
                         : 0m);
 
@@ -237,9 +255,9 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
         
         private static string MapCurrencyCode(int currencyId) => currencyId switch
         {
-            1 => "USD",
-            2 => "EUR",
-            3 => "GBP",
+            1 => "ACM",
+            2 => "USD",
+            3 => "EUR",
             // TODO: wire to your real currency table
             _ => "USD"
         };

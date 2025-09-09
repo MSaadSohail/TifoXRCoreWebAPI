@@ -26,7 +26,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
 
         // Commands (orders)
         Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req, int? gatewayPreferredId = null);
-        Task<(string OrderId, int SpaceId, int CurrencyId, int GatewayId, string? ProviderChargeId, long AmountCapturedMinor)?>GetChargeContextAsync(string chargeId);
+        Task<(string OrderId, int SpaceId, int CurrencyId, int GatewayId, string? ProviderChargeId, long AmountCapturedMinor, long TotalRefundedSoFarMinor)?>GetChargeContextAsync(string chargeId);
         Task<string> InsertRefundAsync(string chargeId, int statusId, long amountMinor, int currencyId, string providerRefundId, string? reason);
         // Commands/Queries (payments) — persistence helpers used by PaymentService
         Task<(int SpaceId, int CurrencyId, long TotalNetMinor, int? GatewayPreferredId)?> GetOrderHeaderAsync(string orderId);

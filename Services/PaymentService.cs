@@ -25,6 +25,10 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private const int OrderStatusPaid      = 3;  // e.g., "Paid"
         private const int RefundStatusSucceeded = 3;
 
+        private static readonly HashSet<string> StripeAllowedReasons =
+            new(StringComparer.OrdinalIgnoreCase) { "duplicate", "fraudulent", "requested_by_customer" };
+
+
         private readonly IPaymentGatewayResolver _resolver = resolver;
         private readonly IOrderRepository        _orders   = orders;
 
@@ -185,8 +189,38 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
             var gateway = _resolver.GetById(c.GatewayId);
 
+            if (string.Equals(gateway.Name, "stripe", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(req.Reason) && !StripeAllowedReasons.Contains(req.Reason))
+                {
+                    throw new ArgumentException(
+                        "Invalid reason for Stripe refund. Allowed: duplicate, fraudulent, requested_by_customer",
+                        nameof(req.Reason));
+                }
+            }
+
             // 2) Amount: default to full refund if not provided
-            var amountMinor = req.AmountMinor ?? c.AmountCapturedMinor;
+            // If req.AmountMinor is null => full refund => pass req.Amount = 0 so body is omitted
+            var isFull = !req.AmountMinor.HasValue;
+            var amountMinor = isFull ? c.AmountCapturedMinor : req.AmountMinor.Value;
+            if (amountMinor <= 0) throw new ArgumentException("Refund amount must be positive.", nameof(req.AmountMinor));
+
+            // NEW: remaining guardrails
+            var remainingMinor = c.AmountCapturedMinor - c.TotalRefundedSoFarMinor;
+            if (remainingMinor <= 0)
+            {
+                // Everything was already refunded
+                throw new InvalidOperationException("Charge has already been fully refunded.");
+            }
+
+            if(amountMinor > remainingMinor)
+{
+                // Too much requested
+                throw new ArgumentException(
+                    $"Refund amount exceeds remaining refundable amount. Remaining={remainingMinor} minor units.",
+                    nameof(req.AmountMinor));
+            }
+
             var amountMajor = amountMinor / 100m; // TODO: replace 100 with currency minor-unit resolver
 
             // 3) Call provider refund

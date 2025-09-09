@@ -391,5 +391,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             return Ok("Payment Successful. You can return to your space to continue.");
         }
+
+        [HttpPost("{orderId}/charges/{chargeId}/refunds")]
+        public async Task<IActionResult> RefundCharge(
+            int spaceId,
+            string orderId,
+            string chargeId,
+            [FromBody] RefundRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (string.IsNullOrWhiteSpace(chargeId)) return BadRequest("chargeId is required.");
+            if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
+
+            var resp = await _payments.RefundAsync(spaceId, orderId, chargeId, req);
+            return Ok(resp);
+        }
     }
 }
