@@ -21,12 +21,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
 
         Task<(string IntentId, int StatusId, string IdempotencyKey, string? ProviderIntentId, int PaymentGatewayId, long AmountMinor, int CurrencyId)?>
         GetPendingIntentForOrderAsync(string orderId);
-
+        Task UpdatePaymentIntentStatusAsync(string intentId, int statusId);
         Task<string?> FindLatestOrderIdWithPendingIntentAsync(int spaceId, string userId, int itemTypeId, int itemRefId);
 
         // Commands (orders)
         Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req, int? gatewayPreferredId = null);
-
+        Task<(string OrderId, int SpaceId, int CurrencyId, int GatewayId, string? ProviderChargeId, long AmountCapturedMinor)?>GetChargeContextAsync(string chargeId);
+        Task<string> InsertRefundAsync(string chargeId, int statusId, long amountMinor, int currencyId, string providerRefundId, string? reason);
         // Commands/Queries (payments) — persistence helpers used by PaymentService
         Task<(int SpaceId, int CurrencyId, long TotalNetMinor, int? GatewayPreferredId)?> GetOrderHeaderAsync(string orderId);
         Task<string> ResolveCurrencyIsoAsync(int currencyId);

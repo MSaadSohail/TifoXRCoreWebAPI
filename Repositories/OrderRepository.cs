@@ -929,6 +929,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             );
         }
 
+        public async Task UpdatePaymentIntentStatusAsync(string intentId, int statusId)
+        {
+            const string sql = @"
+        UPDATE payment_intent
+        SET status_id = @Status, modified_by = @ModBy
+        WHERE id = @IntentId;
+    ";
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@IntentId", intentId));
+            cmd.Parameters.Add(_db.CreateParameter("@Status", statusId));
+            cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         public async Task<string> InsertChargeAsync(
             string intentId, int statusId, long amountCapturedMinor, int currencyId,
             string providerChargeId, DateTime paidAtUtc, string userId)
@@ -1168,5 +1184,69 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 await ins.ExecuteNonQueryAsync();
             }
         }
+
+        public async Task<(string OrderId, int SpaceId, int CurrencyId, int GatewayId,
+                  string? ProviderChargeId, long AmountCapturedMinor)?>
+        GetChargeContextAsync(string chargeId)
+        {
+            const string sql = @"
+                SELECT o.id AS order_id, o.space_id, o.currency_id,
+                       pi.payment_gateway_id,
+                       pc.provider_charge_id,
+                       pc.amount_captured
+                FROM payment_charge pc
+                JOIN payment_intent pi ON pi.id = pc.payment_intent_id
+                JOIN `order` o ON o.id = pi.order_id
+                WHERE pc.id = @ChargeId
+                LIMIT 1;";
+            
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            
+            cmd.Parameters.Add(_db.CreateParameter("@ChargeId", chargeId));
+            
+            await using var r = await cmd.ExecuteReaderAsync();
+            
+            if (!await r.ReadAsync()) return null;
+
+            return (
+                OrderId: r.GetString(r.GetOrdinal("order_id")),
+                SpaceId: r.GetInt32(r.GetOrdinal("space_id")),
+                CurrencyId: r.GetInt32(r.GetOrdinal("currency_id")),
+                GatewayId: r.GetInt32(r.GetOrdinal("payment_gateway_id")),
+                ProviderChargeId: r.IsDBNull(r.GetOrdinal("provider_charge_id")) ? null : r.GetString(r.GetOrdinal("provider_charge_id")),
+                AmountCapturedMinor: r.GetInt64(r.GetOrdinal("amount_captured"))
+            );
+        }
+
+        public async Task<string> InsertRefundAsync(
+            string chargeId, int statusId, long amountMinor, int currencyId,
+            string providerRefundId, string? reason)
+        {
+            const string sql = @"
+                INSERT INTO payment_refund
+                (id, payment_charge_id, status_id, amount, currency_id,
+                 provider_refund_id, reason, refund_datetime, creation_time, modified_by)
+                VALUES
+                (@Id, @ChargeId, @Status, @Amt, @Ccy, @ProvRefund, @Reason, NOW(6), NOW(6), @ModBy);";
+
+            var id = Guid.NewGuid().ToString();
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+
+            cmd.Parameters.Add(_db.CreateParameter("@Id", id));
+            cmd.Parameters.Add(_db.CreateParameter("@ChargeId", chargeId));
+            cmd.Parameters.Add(_db.CreateParameter("@Status", statusId));
+            cmd.Parameters.Add(_db.CreateParameter("@Amt", amountMinor));
+            cmd.Parameters.Add(_db.CreateParameter("@Ccy", currencyId));
+            cmd.Parameters.Add(_db.CreateParameter("@ProvRefund", providerRefundId));
+            cmd.Parameters.Add(_db.CreateParameter("@Reason", (object?)reason ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+
+            await cmd.ExecuteNonQueryAsync();
+            return id;
+        }
+
     }
 }

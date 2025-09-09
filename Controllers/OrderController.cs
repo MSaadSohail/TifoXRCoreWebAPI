@@ -184,7 +184,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 };
 
                 // Exceptions (e.g., not approved) will bubble as 400/409 via middleware if you map them.
-                await _payments.CaptureAsync(spaceId, orderId, intentId!, confirmReq); // uses your current service
+                await _payments.CaptureAsync(spaceId, orderId, intentId!, confirmReq);
             }
 
             // 3) Re-read authoritative state and respond
@@ -254,8 +254,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ProviderIntentId = token
                 });
 
-            // For a Unity client, return JSON. For web, you could Redirect to a "success" route.
-            return Ok(resp);
+            // For a Unity client, return JSON. For web, Redirect to a "success" route.
+            return Ok("Payment Successful. You can return to your space to continue.");
         }
 
         // -----------------------------------------------------------------
@@ -339,27 +339,24 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         [HttpPost("{orderId}/payment-intents")]
         public async Task<IActionResult> CreatePaymentIntent(
-            int spaceId, 
-            string orderId, 
+            int spaceId,
+            string orderId,
             [FromBody] CreatePaymentIntentRequest req,
-            [FromQuery] int? gatewayId = null)
+            [FromQuery] int gatewayId) // now required in query
         {
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-
             if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
 
+            // Only IdempotencyKey comes from body; gateway comes from query; amount will be taken from order in the service.
             var mergedReq = new CreatePaymentIntentRequest
             {
                 IdempotencyKey = req.IdempotencyKey,
-                AmountMinor = req.AmountMinor,
-                // let query param win if present; otherwise use whatever came from body (could be 0/unspecified)
-                Gateway = (gatewayId.HasValue && gatewayId.Value > 0) 
-                        ? gatewayId.Value 
-                        : req.Gateway
+                //Gateway = gatewayId,      // override any body value
+                //AmountMinor = null        // force service to read from order
             };
 
-            var resp = await _payments.CreateIntentAsync(spaceId, orderId, mergedReq);
-
+            var resp = await _payments.CreateIntentAsync(spaceId, orderId, gatewayId, mergedReq);
             return Ok(resp);
         }
 
@@ -392,7 +389,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ProviderIntentId = sessionId
                 });
 
-            return Ok(resp);
+            return Ok("Payment Successful. You can return to your space to continue.");
         }
     }
 }

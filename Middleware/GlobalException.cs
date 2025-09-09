@@ -31,14 +31,8 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
 
         public async Task Invoke(HttpContext context)
         {
-            try
-            {
-                await _next(context);
-            }
-            catch (Exception ex)
-            {
-                await HandleExceptionAsync(context, ex);
-            }
+            try { await _next(context); }
+            catch (Exception ex) { await HandleExceptionAsync(context, ex); }
         }
 
         // --- Core exception handling (structured + safe) ---
@@ -211,7 +205,6 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
             return ua.Length > cap ? ua[..cap] : ua;
         }
 
-        // --- Your original formatters (kept) ---
         public static string FormatExceptionMessage(string issue, string methodName, object? parameters = null, string? extra = null)
         {
             var paramStr = parameters == null ? "" : $" | Params: {JsonSerializer.Serialize(parameters)}";

@@ -6,11 +6,14 @@
 // <summary></summary>
 
 using Microsoft.Extensions.Options;
-using System.Globalization;
 //
 using PaypalServerSdk.Standard;
 using PaypalServerSdk.Standard.Authentication;
 using PaypalServerSdk.Standard.Models;
+using System.Globalization;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using PpAppContext = PaypalServerSdk.Standard.Models.OrderApplicationContext;
 
 namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
@@ -19,8 +22,16 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
     {
         private readonly PaypalServerSdkClient _sdk;
         private readonly ILogger<PaypalGateway> _logger;
+        private readonly string _clientId;
+        private readonly string _secret;
+        private readonly string _environment;
+        private readonly HttpClient _http = new ();
 
         public string Name => "paypal";
+
+        private string BaseUrl => string.Equals(_environment, "Production", StringComparison.OrdinalIgnoreCase)
+                                ? "https://api-m.paypal.com"
+                                : "https://api-m.sandbox.paypal.com";
 
         public PaypalGateway(IOptions<PayPalOptions> opts, ILogger<PaypalGateway> logger)
         {
@@ -29,6 +40,10 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 
             if (string.IsNullOrWhiteSpace(o.ClientId)) throw new ArgumentException("PayPal ClientId is missing.");
             if (string.IsNullOrWhiteSpace(o.Secret)) throw new ArgumentException("PayPal Secret is missing.");
+
+            _clientId = o.ClientId;
+            _secret = o.Secret;
+            _environment = string.IsNullOrWhiteSpace(o.Environment) ? "Sandbox" : o.Environment;
 
             var env = string.Equals(o.Environment, "Production", StringComparison.OrdinalIgnoreCase)
                 ? PaypalServerSdk.Standard.Environment.Production
@@ -94,7 +109,6 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             return new CreateGatewayIntentResult(providerOrderId, approve);
         }
 
-
         public async Task<CaptureGatewayResult> CaptureAsync(CaptureGatewayRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
@@ -139,7 +153,95 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             return new GatewayIntentStatusResult(providerIntentId, status!.Value.ToString(), approve);
         }
 
-        public Task<RefundGatewayResult> RefundAsync(RefundGatewayRequest req)
-            => throw new NotImplementedException("PayPal refund via capture not implemented yet.");
+        public async Task<RefundGatewayResult> RefundAsync(RefundGatewayRequest req)
+        {
+            if (req is null) throw new ArgumentNullException(nameof(req));
+            if (string.IsNullOrWhiteSpace(req.ProviderChargeId))
+                throw new ArgumentException("ProviderChargeId (PayPal capture id) is required.", nameof(req.ProviderChargeId));
+
+            // PayPal: POST /v2/payments/captures/{capture_id}/refund
+            var url = $"{BaseUrl}/v2/payments/captures/{req.ProviderChargeId}/refund";
+            var token = await GetAccessTokenAsync();
+
+            using var msg = new HttpRequestMessage(HttpMethod.Post, url);
+            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            // Idempotency
+            if (!string.IsNullOrWhiteSpace(req.IdempotencyKey))
+                msg.Headers.TryAddWithoutValidation("PayPal-Request-Id", req.IdempotencyKey);
+
+            // If Amount is provided => partial refund; else full refund (empty body allowed by PayPal)
+            if (req.Amount > 0m)
+            {
+                var currencyCode = MapCurrencyCode(req.CurrencyId); // implement mapping below
+                var payload = new
+                {
+                    amount = new
+                    {
+                        currency_code = currencyCode,
+                        value = decimal.Round(req.Amount, 2, MidpointRounding.AwayFromZero)
+                                    .ToString("0.00", CultureInfo.InvariantCulture)
+                    },
+                    note_to_payer = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason
+                };
+                msg.Content = JsonContent.Create(payload);
+            }
+
+            using var resp = await _http.SendAsync(msg);
+            resp.EnsureSuccessStatusCode();
+
+            var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var providerRefundId = json.GetProperty("id").GetString()
+                ?? throw new InvalidOperationException("PayPal refund response missing id.");
+
+            // Amount in response (major units). For full refunds PayPal returns the capture amount.
+            decimal refundedMajor = req.Amount > 0m
+                ? req.Amount
+                : (json.TryGetProperty("amount", out var amtNode) &&
+                   amtNode.TryGetProperty("value", out var v) &&
+                   decimal.TryParse(v.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                        ? parsed
+                        : 0m);
+
+            return new RefundGatewayResult(
+                ProviderRefundId: providerRefundId,
+                RefundedAmount: refundedMajor,
+                CurrencyId: req.CurrencyId
+            );
+        }
+
+        private async Task<string> GetAccessTokenAsync()
+        {
+            var tokenUrl = $"{BaseUrl}/v1/oauth2/token";
+            var req = new HttpRequestMessage(HttpMethod.Post, tokenUrl);
+
+            var basic = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_clientId}:{_secret}"));
+            
+            req.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
+            req.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("grant_type", "client_credentials")
+            });
+
+            using var resp = await _http.SendAsync(req);
+            resp.EnsureSuccessStatusCode();
+
+            var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var token = json.GetProperty("access_token").GetString();
+            
+            if (string.IsNullOrWhiteSpace(token))
+                throw new InvalidOperationException("PayPal OAuth returned no access_token.");
+
+            return token!;
+        }
+        
+        private static string MapCurrencyCode(int currencyId) => currencyId switch
+        {
+            1 => "USD",
+            2 => "EUR",
+            3 => "GBP",
+            // TODO: wire to your real currency table
+            _ => "USD"
+        };
     }
 }

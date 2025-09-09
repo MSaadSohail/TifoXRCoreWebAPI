@@ -20,14 +20,19 @@ namespace GMS.TifoXRCoreWebAPI.Services
     {
         // Status constants (align with your lookup tables)
         private const int StatusRequiresAction = 1;  // e.g., "requires_action"
+        private const int StatusProcessing     = 2;  // e.g., "in_processing"
         private const int StatusSucceeded      = 3;  // e.g., "succeeded"
         private const int OrderStatusPaid      = 3;  // e.g., "Paid"
+        private const int RefundStatusSucceeded = 3;
 
         private readonly IPaymentGatewayResolver _resolver = resolver;
         private readonly IOrderRepository        _orders   = orders;
 
         public async Task<CreatePaymentIntentResponse> CreateIntentAsync(
-            int spaceId, string orderId, CreatePaymentIntentRequest req)
+            int spaceId, 
+            string orderId,
+            int gatewayId,
+            CreatePaymentIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
@@ -38,18 +43,11 @@ namespace GMS.TifoXRCoreWebAPI.Services
             if (header is not { } h || h.SpaceId != spaceId)
                 throw new InvalidOperationException("Order not found in this space.");
 
-            // 2) Decide gateway (priority: explicit request > order's preferred)
-            //    If your CreatePaymentIntentRequest.Gateway is nullable, replace comparison with: (req.Gateway ?? 0) > 0
-            var gatewayId = req.Gateway > 0
-                ? req.Gateway
-                : h.GatewayPreferredId ?? throw new InvalidOperationException("No payment gateway specified and no order preference found.");
-
             var gateway = _resolver.GetById(gatewayId);
-
-            var amountMinor = req.AmountMinor ?? h.TotalNetMinor;
+            var amountMinor = h.TotalNetMinor;
             var amountMajor = amountMinor / 100m; // TODO: replace 100 with currency minor-unit resolver
 
-            // 3) Idempotency: short-circuit if we’ve already created an intent
+            // 2) Idempotency: short-circuit if we’ve already created an intent
             var existing = await _orders.FindPaymentIntentByIdempotencyAsync(orderId, req.IdempotencyKey);
             if (existing is not null)
             {
@@ -70,7 +68,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 };
             }
 
-            // 4) Create provider intent
+            // 3) Create provider intent
             var created = await gateway.CreateIntentAsync(new CreateGatewayIntentRequest(
                 IdempotencyKey: req.IdempotencyKey,
                 CurrencyId:     h.CurrencyId,
@@ -81,7 +79,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
             if (string.IsNullOrWhiteSpace(created.ProviderIntentId))
                 throw new InvalidOperationException("Gateway did not return a provider intent id.");
 
-            // 5) Persist our intent with the chosen gateway
+            // 4) Persist our intent with the chosen gateway
             var piId = await _orders.InsertPaymentIntentAsync(
                 orderId:          orderId,
                 gatewayId:        gatewayId,
@@ -105,11 +103,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
             int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+            
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
             // 1) Load intent context (includes its recorded gateway id) & validate ownership
             var ctx = await _orders.GetIntentContextAsync(intentId);
+            
             if (ctx is not { } c || c.OrderId != orderId || c.SpaceId != spaceId)
                 throw new InvalidOperationException("payment_intent not found for this order/space.");
 
@@ -120,16 +120,30 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
             // 2) Must be APPROVED before capture (PayPal), other gateways may use different states
             var status = await gateway.GetIntentAsync(providerIntentId);
+
             if (status is null || !string.Equals(status.Status, "APPROVED", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     GlobalException.FormatExceptionMessage("PAYMENT_REQUIRES_APPROVAL", nameof(CaptureAsync)));
             }
 
-            // 3) Capture on the correct gateway
-            var cap = await gateway.CaptureAsync(new CaptureGatewayRequest(
-                IdempotencyKey:   req.IdempotencyKey,
-                ProviderIntentId: providerIntentId));
+            await _orders.UpdatePaymentIntentStatusAsync(intentId, StatusProcessing);
+
+            CaptureGatewayResult cap;
+            try
+            {
+                cap = await gateway.CaptureAsync(new CaptureGatewayRequest(
+                    IdempotencyKey: req.IdempotencyKey,
+                    ProviderIntentId: providerIntentId));
+            }
+            catch
+            {
+                // Roll back to requires_action
+                await _orders.UpdatePaymentIntentStatusAsync(intentId, StatusRequiresAction);
+
+                // Re-throw so global middleware catches and formats it
+                throw;
+            }
 
             var amountMinor = (long)decimal.Round(cap.CapturedAmount * 100m, 0, MidpointRounding.AwayFromZero);
 
@@ -143,6 +157,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 paidAtUtc:           DateTime.UtcNow,
                 userId:              c.UserId);
 
+            await _orders.UpdatePaymentIntentStatusAsync(intentId, StatusSucceeded);
             await _orders.MarkPaidIfCoveredAsync(orderId, amountMinor, OrderStatusPaid);
             await _orders.GrantEntitlementsAsync(orderId);
             await _orders.InsertInvoiceFromOrderAsync(spaceId, orderId, chargeId, gatewayId: c.GatewayId);
@@ -153,6 +168,55 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 PaymentIntentId  = intentId,
                 ProviderChargeId = cap.ProviderChargeId,
                 PaymentStatusId  = StatusSucceeded
+            };
+        }
+
+        public async Task<RefundResponse> RefundAsync(
+            int spaceId, string orderId, string chargeId, RefundRequest req)
+        {
+            if (req is null) throw new ArgumentNullException(nameof(req));
+            if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
+                throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
+
+            // 1) Resolve charge context (gateway, provider charge id, currency, space/order ownership)
+            var ctx = await _orders.GetChargeContextAsync(chargeId);
+            if (ctx is not { } c || c.OrderId != orderId || c.SpaceId != spaceId)
+                throw new InvalidOperationException("payment_charge not found for this order/space.");
+
+            var gateway = _resolver.GetById(c.GatewayId);
+
+            // 2) Amount: default to full refund if not provided
+            var amountMinor = req.AmountMinor ?? c.AmountCapturedMinor;
+            var amountMajor = amountMinor / 100m; // TODO: replace 100 with currency minor-unit resolver
+
+            // 3) Call provider refund
+            var prov = await gateway.RefundAsync(new RefundGatewayRequest(
+                IdempotencyKey: req.IdempotencyKey,
+                ProviderChargeId: c.ProviderChargeId ?? throw new InvalidOperationException("provider_charge_id missing."),
+                Amount: amountMajor,
+                CurrencyId: c.CurrencyId,
+                Reason: req.Reason
+            ));
+
+            // 4) Persist refund row
+            var refundId = await _orders.InsertRefundAsync(
+                chargeId: chargeId,
+                statusId: RefundStatusSucceeded,
+                amountMinor: (long)decimal.Round(prov.RefundedAmount * 100m, 0, MidpointRounding.AwayFromZero),
+                currencyId: c.CurrencyId,
+                providerRefundId: prov.ProviderRefundId,
+                reason: req.Reason
+            );
+
+            return new RefundResponse
+            {
+                OrderId = orderId,
+                ChargeId = chargeId,
+                RefundId = refundId,
+                ProviderRefundId = prov.ProviderRefundId,
+                StatusId = RefundStatusSucceeded,
+                RefundedAmountMinor = (long)decimal.Round(prov.RefundedAmount * 100m, 0, MidpointRounding.AwayFromZero),
+                CurrencyId = c.CurrencyId
             };
         }
     }
