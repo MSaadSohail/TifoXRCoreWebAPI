@@ -578,7 +578,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         // -----------------------
         // Commands (orders)
         // -----------------------
-        public async Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req)
+        public async Task<CreateOrderResponse> CreateOrderAsync(
+            int pathSpaceId, 
+            CreateOrderRequest req,
+            int? gatewayPreferredId)
         {
             const int PendingOrderStatusId = 2; // tune as needed
             const string ModifiedBy = "system";
@@ -638,28 +641,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     };
                 }
 
-                // 1) resolve currency
-                //const string sqlCurrency = @"SELECT id FROM currency WHERE `ISO` = @Iso LIMIT 1;";
-                //int currencyId;
-                
-                //await using (var curCmd = _db.CreateCommand(conn, sqlCurrency))
-                //{
-                //    curCmd.Transaction = tx;
-                    
-                //    var iso = string.IsNullOrWhiteSpace(req.Currency) 
-                //        ? "USD" 
-                //        : req.Currency.Trim().ToUpperInvariant();
-
-                //    curCmd.Parameters.Add(_db.CreateParameter("@Iso", iso));
-                    
-                //    var o = await curCmd.ExecuteScalarAsync();
-                    
-                //    if (o is null || o == DBNull.Value)
-                //        throw new InvalidOperationException($"Unknown currency ISO '{iso}'.");
-                    
-                //    currencyId = Convert.ToInt32(o);
-                //}
-
                 // 2) totals (minor units)
                 long totalGross = 0, totalDiscount = 0, totalTax = 0, totalFees = 0;
                 
@@ -700,7 +681,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     VALUES
                     (@Id, @UserId, @SpaceId, @Trx, @CcyId, @StatusId,
                      @Gross, @Disc, NULL, @Tax, @Fees, @Net,
-                     NULL, @SessionId, NULL, NOW(6), @Remarks, @IdemKey, @ModBy);
+                     NULL, @SessionId, @GatewayPreferredId, NOW(6), @Remarks, @IdemKey, @ModBy);
                 ";
 
                 await using (var cmd = _db.CreateCommand(conn, sqlInsertOrder))
@@ -718,6 +699,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     cmd.Parameters.Add(_db.CreateParameter("@Fees", totalFees));
                     cmd.Parameters.Add(_db.CreateParameter("@Net", totalNet));
                     cmd.Parameters.Add(_db.CreateParameter("@SessionId", sessionId));
+                    cmd.Parameters.Add(_db.CreateParameter("@GatewayPreferredId", (object?)gatewayPreferredId ?? DBNull.Value));
                     cmd.Parameters.Add(_db.CreateParameter("@Remarks", (object?)req.Remarks ?? DBNull.Value));
                     cmd.Parameters.Add(_db.CreateParameter("@IdemKey", req.IdempotencyKey));
                     cmd.Parameters.Add(_db.CreateParameter("@ModBy", ModifiedBy));

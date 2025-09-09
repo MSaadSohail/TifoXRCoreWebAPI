@@ -325,36 +325,73 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create(int spaceId, [FromBody] CreateOrderRequest req)
+        public async Task<IActionResult> Create(
+            int spaceId, 
+            [FromBody] CreateOrderRequest req,
+            [FromQuery] int? gatewayId = null)
         {
             if (req is null) return BadRequest("Body is required.");
 
-            var resp = await _repo.CreateOrderAsync(spaceId, req);
+            var resp = await _repo.CreateOrderAsync(spaceId, req, gatewayId);
 
             return Ok(resp);
         }
 
         [HttpPost("{orderId}/payment-intents")]
         public async Task<IActionResult> CreatePaymentIntent(
-            int spaceId, string orderId, [FromBody] CreatePaymentIntentRequest req)
+            int spaceId, 
+            string orderId, 
+            [FromBody] CreatePaymentIntentRequest req,
+            [FromQuery] int? gatewayId = null)
         {
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+
             if (req is null) return BadRequest("Body is required.");
 
-            var resp = await _payments.CreateIntentAsync(spaceId, orderId, req);
+            var mergedReq = new CreatePaymentIntentRequest
+            {
+                IdempotencyKey = req.IdempotencyKey,
+                AmountMinor = req.AmountMinor,
+                // let query param win if present; otherwise use whatever came from body (could be 0/unspecified)
+                Gateway = (gatewayId.HasValue && gatewayId.Value > 0) 
+                        ? gatewayId.Value 
+                        : req.Gateway
+            };
+
+            var resp = await _payments.CreateIntentAsync(spaceId, orderId, mergedReq);
+
             return Ok(resp);
         }
 
-        [HttpPost("{orderId}/payment-intents/{intentId}/confirm")]
-        [Obsolete("Deprecated on 2025-09-03. Use POST /api/space/{spaceId}/orders/{orderId}/reconcile instead.")]
-        public async Task<IActionResult> ConfirmPaymentIntent(
-            int spaceId, string orderId, string intentId, [FromBody] ConfirmPaymentIntentRequest req)
+        [HttpGet("{orderId}/payments/stripe/return")]
+        public async Task<IActionResult> StripeReturn(
+            int spaceId,
+            string orderId,
+            [FromQuery(Name = "session_id")] string sessionId)
         {
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (string.IsNullOrWhiteSpace(intentId)) return BadRequest("intentId is required.");
-            if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(sessionId)) return BadRequest("session_id is required.");
 
-            var resp = await _payments.CaptureAsync(spaceId, orderId, intentId, req);
+            var order = await _repo.GetOrderAsync(spaceId, orderId);
+            if (order is null) return NotFound();
+
+            // Find the matching intent by provider_intent_id == sessionId
+            var intent = order.PaymentIntents.FirstOrDefault(i =>
+                string.Equals(i.ProviderIntentId, sessionId, StringComparison.OrdinalIgnoreCase));
+
+            if (intent is null)
+                return NotFound(new { message = "payment_intent not found for provided session_id." });
+
+            var idemKey = $"cap::{orderId}::{intent.Id}::{sessionId}";
+
+            var resp = await _payments.CaptureAsync(
+                spaceId, orderId, intent.Id,
+                new ConfirmPaymentIntentRequest
+                {
+                    IdempotencyKey = idemKey,
+                    ProviderIntentId = sessionId
+                });
+
             return Ok(resp);
         }
     }

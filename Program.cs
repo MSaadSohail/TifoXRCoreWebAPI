@@ -88,10 +88,13 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     #region PAYMENT GATEWAYS
 
-    // Bind PayPal: ClientId / Secret / Environment
+    // Bind PayPal/Stripe: ClientId / Secret / Environment
+    services.Configure<PaymentGatewayMapOptions>(config.GetSection("PaymentGateways"));
     services.Configure<PayPalOptions>(config.GetSection("PayPal"));
+    services.Configure<StripeOptions>(config.GetSection("Stripe"));
 
-    // Register gateways (add Stripe/Crypto in the same pattern when you create them)
+    // Register gateways (add Stripe/paypal/Crypto in the same pattern when you create them)
+    services.AddSingleton<IPaymentGateway, StripeGateway>();
     services.AddSingleton<IPaymentGateway, PaypalGateway>();
 
     // Resolver/Registry

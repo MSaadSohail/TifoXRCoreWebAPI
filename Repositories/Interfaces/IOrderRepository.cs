@@ -25,7 +25,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
         Task<string?> FindLatestOrderIdWithPendingIntentAsync(int spaceId, string userId, int itemTypeId, int itemRefId);
 
         // Commands (orders)
-        Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req);
+        Task<CreateOrderResponse> CreateOrderAsync(int pathSpaceId, CreateOrderRequest req, int? gatewayPreferredId = null);
 
         // Commands/Queries (payments) — persistence helpers used by PaymentService
         Task<(int SpaceId, int CurrencyId, long TotalNetMinor, int? GatewayPreferredId)?> GetOrderHeaderAsync(string orderId);

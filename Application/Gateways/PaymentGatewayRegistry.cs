@@ -6,6 +6,7 @@
 // <summary>Class that handles payment gateway registration</summary>
 
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Options;
 
 namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 {
@@ -13,26 +14,31 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
     {
         private readonly ConcurrentDictionary<string, IPaymentGateway> _byName =
             new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<int, IPaymentGateway> _byId =
+            new();
 
-        private readonly ConcurrentDictionary<int, IPaymentGateway> _byId = new();
-
-        public PaymentGatewayRegistry(IEnumerable<IPaymentGateway> gateways)
+        public PaymentGatewayRegistry(
+            IEnumerable<IPaymentGateway> gateways,
+            IOptions<PaymentGatewayMapOptions> mapOptions,
+            ILogger<PaymentGatewayRegistry> logger)
         {
+            // register by name first
             foreach (var g in gateways)
-            {
-                // Map well-known names to ids — align with your lookup table
-                // Example mapping (adjust to your DB):
-                // stripe=1, paypal=2, crypto=3
-                var id = g.Name.ToLowerInvariant() switch
-                {
-                    "stripe" => 1,
-                    "paypal" => 2,
-                    "crypto" => 3,
-                    _ => 0
-                };
+                _byName[g.Name] = g; // e.g., "stripe", "paypal"
 
-                _byName[g.Name] = g;
-                if (id > 0) _byId[id] = g;
+            var map = mapOptions?.Value?.IdToName ?? new();
+
+            // sensible defaults if config missing
+            if (map.Count == 0)
+                map = new() { { 1, "stripe" }, { 2, "paypal" } };
+
+            // bind ids to impls via names
+            foreach (var (id, name) in map)
+            {
+                if (_byName.TryGetValue(name, out var g))
+                    _byId[id] = g;
+                else
+                    logger.LogWarning("Gateway name '{Name}' for id {Id} not registered (missing implementation).", name, id);
             }
         }
 
@@ -47,3 +53,4 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                 : throw new KeyNotFoundException($"Gateway '{name}' not registered.");
     }
 }
+
