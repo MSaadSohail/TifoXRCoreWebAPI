@@ -30,7 +30,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 
             // sensible defaults if config missing
             if (map.Count == 0)
-                map = new() { { 1, "stripe" }, { 2, "paypal" } };
+                map = new() { { 1, "stripe" }, { 2, "paypal" }, { 3, "crypto" } };
 
             // bind ids to impls via names
             foreach (var (id, name) in map)

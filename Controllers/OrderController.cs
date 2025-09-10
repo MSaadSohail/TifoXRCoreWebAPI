@@ -5,20 +5,23 @@
 // <date>09/02/2025</date>
 // <summary></summary>
 
-using Microsoft.AspNetCore.Mvc;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 //
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Services;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [ApiController]
     [Route("api/space/{spaceId:int}/orders")]
-    public class OrdersController(IOrderRepository repo, IPaymentService payments) : ControllerBase
+    public class OrdersController(IOrderRepository repo, IPaymentService payments, IOptions<CryptoChilizOptions> crypto) : ControllerBase
     {
         private readonly IOrderRepository _repo = repo;
         private readonly IPaymentService _payments = payments;
+        private readonly CryptoChilizOptions _crypto= crypto.Value;
 
         [HttpGet("{orderId}")]
         public async Task<IActionResult> GetOrder(int spaceId, string orderId)
@@ -339,26 +342,44 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         [HttpPost("{orderId}/payment-intents")]
         public async Task<IActionResult> CreatePaymentIntent(
-            int spaceId,
-            string orderId,
-            [FromBody] CreatePaymentIntentRequest req,
-            [FromQuery] int gatewayId) // now required in query
+    int spaceId,
+    string orderId,
+    [FromBody] CreatePaymentIntentRequest req,
+    [FromQuery] int gatewayId) // required
         {
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
             if (req is null) return BadRequest("Body is required.");
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
 
-            // Only IdempotencyKey comes from body; gateway comes from query; amount will be taken from order in the service.
-            var mergedReq = new CreatePaymentIntentRequest
-            {
-                IdempotencyKey = req.IdempotencyKey,
-                //Gateway = gatewayId,      // override any body value
-                //AmountMinor = null        // force service to read from order
-            };
+            var mergedReq = new CreatePaymentIntentRequest { IdempotencyKey = req.IdempotencyKey };
 
             var resp = await _payments.CreateIntentAsync(spaceId, orderId, gatewayId, mergedReq);
+
+            // If crypto (gatewayId=3), replace ApproveLink with a one-click action page that opens MetaMask
+            if (gatewayId == 3 && !string.IsNullOrWhiteSpace(resp.ProviderIntentId))
+            {
+                var baseUrl = _crypto.PublicBaseUrl.TrimEnd('/');
+                var actionLink = $"{baseUrl}/pay/crypto/execute" +
+                                 $"?pid={resp.ProviderIntentId}" +
+                                 $"&orderId={orderId}" +
+                                 $"&intentId={resp.PaymentIntentId}";
+
+                return Ok(new
+                {
+                    resp.PaymentIntentId,
+                    resp.PaymentGatewayId,
+                    resp.StatusId,
+                    resp.ClientSecret,
+                    resp.ProviderIntentId,
+                    approveLink = actionLink,   // 👈 consumers can keep using "approveLink"
+                    actionLink                   // 👈 also exposed explicitly
+                });
+            }
+
+            // Non-crypto gateways unchanged
             return Ok(resp);
         }
+
 
         [HttpGet("{orderId}/payments/stripe/return")]
         public async Task<IActionResult> StripeReturn(

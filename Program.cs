@@ -20,6 +20,8 @@ using Serilog.Context;
 using Serilog.Events;
 using System.Data.Common;
 using System.Reflection;
+using Thirdweb;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -92,6 +94,7 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.Configure<PaymentGatewayMapOptions>(config.GetSection("PaymentGateways"));
     services.Configure<PayPalOptions>(config.GetSection("PayPal"));
     services.Configure<StripeOptions>(config.GetSection("Stripe"));
+    services.AddHttpClient(); // for RPC calls
 
     // Register gateways (add Stripe/paypal/Crypto in the same pattern when you create them)
     services.AddSingleton<IPaymentGateway, StripeGateway>();
@@ -103,6 +106,29 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     // Services
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();
+
+    // 1) Bind Crypto/Chiliz options (appsettings: "CryptoChiliz": { ... })
+    services.Configure<CryptoChilizOptions>(config.GetSection("CryptoChiliz"));
+
+    // 2) thirdweb client (server-side) from secret key
+    services.AddSingleton(sp =>
+    {
+        var o = sp.GetRequiredService<IOptions<CryptoChilizOptions>>().Value;
+        return ThirdwebClient.Create(secretKey: o.ThirdwebSecretKey);
+    });
+
+    // 3) Register the Chiliz gateway
+    services.AddSingleton<IPaymentGateway, CryptoChilizGateway>();
+
+    // 4) Ensure gateway id map includes 3 => "crypto" (without clobbering existing)
+    // Ensure gateway id map includes 3 => "crypto"
+    services.PostConfigure<PaymentGatewayMapOptions>(opts =>
+    {
+        if (!opts.IdToName.ContainsKey(1)) opts.IdToName[1] = "stripe";
+        if (!opts.IdToName.ContainsKey(2)) opts.IdToName[2] = "paypal";
+        if (!opts.IdToName.ContainsKey(3)) opts.IdToName[3] = "crypto";
+    });
+
 
     #endregion
 
