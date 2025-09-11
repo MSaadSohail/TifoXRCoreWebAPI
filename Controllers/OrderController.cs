@@ -5,13 +5,13 @@
 // <date>09/02/2025</date>
 // <summary></summary>
 
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 //
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Services;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -342,10 +342,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         [HttpPost("{orderId}/payment-intents")]
         public async Task<IActionResult> CreatePaymentIntent(
-    int spaceId,
-    string orderId,
-    [FromBody] CreatePaymentIntentRequest req,
-    [FromQuery] int gatewayId) // required
+            int spaceId,
+            string orderId,
+            [FromBody] CreatePaymentIntentRequest req,
+            [FromQuery] int gatewayId) // required
         {
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
             if (req is null) return BadRequest("Body is required.");
@@ -359,10 +359,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             if (gatewayId == 3 && !string.IsNullOrWhiteSpace(resp.ProviderIntentId))
             {
                 var baseUrl = _crypto.PublicBaseUrl.TrimEnd('/');
-                var actionLink = $"{baseUrl}/pay/crypto/execute" +
+                var actionLink = $"{baseUrl}/pay/crypto" +
                                  $"?pid={resp.ProviderIntentId}" +
                                  $"&orderId={orderId}" +
-                                 $"&intentId={resp.PaymentIntentId}";
+                                 $"&intentId={resp.PaymentIntentId}&" +
+                                 $"spaceId={spaceId}";
 
                 return Ok(new
                 {
@@ -379,7 +380,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             // Non-crypto gateways unchanged
             return Ok(resp);
         }
-
 
         [HttpGet("{orderId}/payments/stripe/return")]
         public async Task<IActionResult> StripeReturn(
@@ -427,6 +427,59 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var resp = await _payments.RefundAsync(spaceId, orderId, chargeId, req);
             return Ok(resp);
+        }
+
+        // GET prepared payload for a crypto intent (dApp uses this to populate the wallet tx)
+        [HttpGet("{orderId}/payment-intents/{intentId}/crypto/prepared")]
+        public async Task<IActionResult> GetCryptoPrepared(
+            int spaceId, string orderId, string intentId, [FromQuery] string sender)
+        {
+            // Reuse your existing intent context read to ensure space/order ownership
+            var ctx = await _repo.GetIntentContextAsync(intentId);
+            if (ctx is not { } c || c.OrderId != orderId || c.SpaceId != spaceId)
+                return NotFound("payment_intent not found for this order/space.");
+
+            var gw = _payments.GetGatewayById(c.GatewayId);
+            if (gw is not ICryptoGateway crypto)
+                return BadRequest("This payment intent is not a crypto intent.");
+
+            // provider_intent_id is what Crypto gateway tracks internally
+            var pid = c.ProviderIntentId ??
+                      throw new InvalidOperationException("provider_intent_id missing for crypto intent.");
+
+            var prepared = await crypto.GetPreparedJsonAsync(pid, sender);
+            return Content(prepared, "application/json"); // already a JSON string
+        }
+
+        // POST the executed transaction hash (wallet signs & broadcasts, then reports here)
+        public sealed class CryptoTxReport { public string TxHash { get; set; } = default!; }
+
+        [HttpPost("{orderId}/payment-intents/{intentId}/crypto/report-tx")]
+        public async Task<IActionResult> ReportCryptoTx(
+            int spaceId, string orderId, string intentId, [FromBody] CryptoTxReport body)
+        {
+            var ctx = await _repo.GetIntentContextAsync(intentId);
+            if (ctx is not { } c || c.OrderId != orderId || c.SpaceId != spaceId)
+                return NotFound("payment_intent not found for this order/space.");
+
+            var gw = _payments.GetGatewayById(c.GatewayId);
+            if (gw is not ICryptoGateway crypto)
+                return BadRequest("This payment intent is not a crypto intent.");
+
+            var pid = c.ProviderIntentId ??
+                      throw new InvalidOperationException("provider_intent_id missing for crypto intent.");
+
+            await crypto.ReportTxAsync(pid, body.TxHash);
+            return Accepted(); // the dApp can then poll /payment-intents pending status
+        }
+
+        [HttpGet("~/pay/crypto")]
+        [Produces("text/html")]
+        public IActionResult CryptoExecute()
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "wwwroot", "pay", "crypto.html");
+            if (!System.IO.File.Exists(path)) return NotFound();
+            return PhysicalFile(path, "text/html; charset=utf-8");
         }
     }
 }

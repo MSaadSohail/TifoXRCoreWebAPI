@@ -25,12 +25,11 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private const int OrderStatusPaid      = 3;  // e.g., "Paid"
         private const int RefundStatusSucceeded = 3;
 
-        private static readonly HashSet<string> StripeAllowedReasons =
-            new(StringComparer.OrdinalIgnoreCase) { "duplicate", "fraudulent", "requested_by_customer" };
-
-
         private readonly IPaymentGatewayResolver _resolver = resolver;
-        private readonly IOrderRepository        _orders   = orders;
+        private readonly IOrderRepository _orders = orders;
+
+        private static readonly HashSet<string> StripeAllowedReasons = new(StringComparer.OrdinalIgnoreCase) 
+            { "duplicate", "fraudulent", "requested_by_customer" };
 
         public async Task<CreatePaymentIntentResponse> CreateIntentAsync(
             int spaceId, 
@@ -93,13 +92,26 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 providerIntentId: created.ProviderIntentId!,
                 idempotencyKey:   req.IdempotencyKey);
 
+            var approveLink = created.ApproveLink;
+
+            // If this is the crypto gateway, build our unified approve URL with all IDs we now have
+            if (string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseUrl = "https://localhost:7017"; // or your public base
+                approveLink = $"{baseUrl}/pay/crypto.html" +
+                              $"?spaceId={spaceId}&" +
+                              $"orderId={orderId}&" +
+                              $"intentId={piId}&" +
+                              $"pid={created.ProviderIntentId}";
+            }
+
             return new CreatePaymentIntentResponse
             {
-                PaymentIntentId  = piId,
+                PaymentIntentId = piId,
                 PaymentGatewayId = gatewayId,
-                StatusId         = StatusRequiresAction,
+                StatusId = StatusRequiresAction,
                 ProviderIntentId = created.ProviderIntentId,
-                ApproveLink      = created.ApproveLink
+                ApproveLink = approveLink
             };
         }
 
@@ -253,5 +265,9 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 CurrencyId = c.CurrencyId
             };
         }
+
+        public IPaymentGateway GetGatewayByName(string name) => _resolver.GetByName(name);
+
+        public IPaymentGateway GetGatewayById(int gatewayId) => _resolver.GetById(gatewayId);
     }
 }

@@ -1,11 +1,17 @@
-﻿using Microsoft.Extensions.Options;
+﻿// <copyright file="CryptoChilizGateway.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>9/11/2025</date>
+// <summary></summary>
+
+using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
+//
 using Thirdweb;
-using Thirdweb.Bridge;
-using static System.Net.WebRequestMethods;
 
 namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 {
@@ -13,7 +19,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
     /// Chiliz (CHZ) payments via thirdweb Bridge on Spicy testnet.
     /// Flow mirrors PayPal/Stripe: Create -> user approves/executes -> Capture.
     /// </summary>
-    public sealed class CryptoChilizGateway : IPaymentGateway
+    public sealed class CryptoChilizGateway : IPaymentGateway, ICryptoGateway
     {
         private readonly ThirdwebClient _client;
         private readonly CryptoChilizOptions _opts;
@@ -44,25 +50,24 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
         private sealed record IntentState(
             int ChainId,
             string Receiver,
-            System.Numerics.BigInteger AmountWei,
+            BigInteger AmountWei,
             string? Sender,         // set when we prepare
             string? PreparedJson,   // cached prepared payload for that sender
             string Status,          // PENDING | APPROVED | SUCCEEDED | CANCELED
             string? TxHash
         );
 
-        public async Task<CreateGatewayIntentResult> CreateIntentAsync(CreateGatewayIntentRequest req)
+        public Task<CreateGatewayIntentResult> CreateIntentAsync(CreateGatewayIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
-            var wei = System.Numerics.BigInteger.Parse(
-                Thirdweb.Utils.ToWei(req.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            var wei = BigInteger.Parse(
+                Utils.ToWei(req.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture))
             );
 
             var providerIntentId = Guid.NewGuid().ToString("N");
-
 
             _intents[providerIntentId] = new IntentState(
                 ChainId: _opts.ChainId,
@@ -75,10 +80,9 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             );
 
             // Client must append ?sender=0xWallet when fetching prepared payload
-            var approveLink = $"{_opts.PublicBaseUrl}/api/crypto/intents/{providerIntentId}";
-            return new CreateGatewayIntentResult(providerIntentId, approveLink);
+            var approveLink = $"{_opts.PublicBaseUrl}/pay/crypto.html";
+            return Task.FromResult(new CreateGatewayIntentResult(providerIntentId, approveLink));
         }
-
 
         public async Task<GatewayIntentStatusResult?> GetIntentAsync(string providerIntentId)
         {
@@ -95,8 +99,6 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             _intents.TryGetValue(providerIntentId, out s);
             return new GatewayIntentStatusResult(providerIntentId, s?.Status ?? "PENDING", link);
         }
-
-
 
         public async Task<CaptureGatewayResult> CaptureAsync(CaptureGatewayRequest req)
         {
@@ -133,7 +135,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 
         }
 
-        private static decimal WeiToDecimal(System.Numerics.BigInteger wei, int decimals)
+        private static decimal WeiToDecimal(BigInteger wei, int decimals)
         {
             // Avoid overflow by doing decimal division with a decimal constant
             var divisor = decimals switch
@@ -148,7 +150,6 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             return (decimal)wei / divisor;
         }
 
-
         public Task<RefundGatewayResult> RefundAsync(RefundGatewayRequest req)
         {
             // Optional: implement treasury->user CHZ transfer prepare/execute + return tx hash.
@@ -158,8 +159,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
         // ---------- Helpers used by controller endpoints ----------
 
 
-
-        internal async Task ReportTxAsync(string pid, string txHash)
+        public async Task ReportTxAsync(string pid, string txHash)
         {
             if (!_intents.TryGetValue(pid, out var s))
                 throw new InvalidOperationException("Unknown provider intent id.");
@@ -175,9 +175,8 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             _logger.LogInformation("Crypto intent {Pid} verification after report: {Ok}", pid, ok);
         }
 
-
         // in CryptoChilizGateway.cs
-        internal async Task<string> GetPreparedJsonAsync(string pid, string senderAddress)
+        public async Task<string> GetPreparedJsonAsync(string pid, string senderAddress)
         {
             if (!_intents.TryGetValue(pid, out var s))
                 throw new InvalidOperationException("Unknown provider intent id.");
@@ -297,7 +296,6 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             valueHex = "0x" + s.AmountWei.ToString("X"); // hex wei
             return true;
         }
-
 
         private async Task<T?> RpcCallAsync<T>(string method, params object[] parameters)
         {
