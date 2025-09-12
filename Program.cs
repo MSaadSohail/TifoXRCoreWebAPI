@@ -5,14 +5,19 @@
 // <date>08/19/2025</date>
 // <summary>Initializes and configures the ASP.NET Core Web API application with Serilog host logging</summary>
 
+//
+
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
 //
 using GMS.TifoXRCoreWebAPI.Data;
 using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Services;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MySqlConnector;
 // Serilog
 using Serilog;
@@ -21,7 +26,9 @@ using Serilog.Events;
 using System.Data.Common;
 using System.Reflection;
 using Thirdweb;
-using Microsoft.Extensions.Options;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,6 +101,7 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.Configure<PaymentGatewayMapOptions>(config.GetSection("PaymentGateways"));
     services.Configure<PayPalOptions>(config.GetSection("PayPal"));
     services.Configure<StripeOptions>(config.GetSection("Stripe"));
+    services.Configure<CryptoChilizOptions>(config.GetSection("CryptoChiliz"));
     services.AddHttpClient(); // for RPC calls
 
     // Register gateways (add Stripe/paypal/Crypto in the same pattern when you create them)
@@ -102,15 +110,14 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     // Resolver/Registry
     services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayRegistry>();
+    services.AddSingleton<IRefundPolicyResolver, RefundPolicyResolver>();
 
     // Services
+    services.AddScoped<IOrderRepository, OrderRepository>();
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();
 
-    // 1) Bind Crypto/Chiliz options (appsettings: "CryptoChiliz": { ... })
-    services.Configure<CryptoChilizOptions>(config.GetSection("CryptoChiliz"));
-
-    // 2) thirdweb client (server-side) from secret key
+    // thirdweb client (server-side) from secret key
     services.AddSingleton(sp =>
     {
         var o = sp.GetRequiredService<IOptions<CryptoChilizOptions>>().Value;

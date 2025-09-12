@@ -8,7 +8,6 @@
 using System.Text.Json;
 //
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
@@ -16,7 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     /// <summary>
     /// Data-access only. No payment gateway calls here.
     /// </summary>
-    public sealed class OrderRepository(IDbProvider db) : IOrderRepository
+    public sealed partial class OrderRepository(IDbProvider db) : IOrderRepository
     {
         private readonly IDbProvider _db = db;
 

@@ -15,8 +15,10 @@ using PaypalServerSdk.Standard;
 using PaypalServerSdk.Standard.Models;
 using PaypalServerSdk.Standard.Authentication;
 using PpAppContext = PaypalServerSdk.Standard.Models.OrderApplicationContext;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
-namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
+namespace TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
 {
     public sealed class PaypalGateway : IPaymentGateway
     {
@@ -150,7 +152,10 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 
             if (got?.Data is null || status == OrderStatus._Unknown) return null;
 
-            return new GatewayIntentStatusResult(providerIntentId, status!.Value.ToString(), approve);
+            return new GatewayIntentStatusResult(
+                providerIntentId, 
+                PayPalStatusMapper.ToGeneric(status!.Value.ToString()), 
+                approve);
         }
 
         public async Task<RefundGatewayResult> RefundAsync(RefundGatewayRequest req)
@@ -170,7 +175,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             // Full refund: NO BODY. Partial refund: include amount.
             if (req.Amount > 0m)
             {
-                var currencyCode = MapCurrencyCode(req.CurrencyId);
+                var currencyCode = CurrencyMapper.ResolveIso(req.CurrencyId);
                 var payload = new
                 {
                     amount = new
@@ -215,11 +220,11 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             // Amount (major): for full refunds PayPal returns capture amount
             decimal refundedMajor = req.Amount > 0m
                 ? req.Amount
-                : (ok.TryGetProperty("amount", out var amt) &&
+                : ok.TryGetProperty("amount", out var amt) &&
                    amt.TryGetProperty("value", out var val) &&
                    decimal.TryParse(val.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                         ? parsed
-                        : 0m);
+                        : 0m;
 
             return new RefundGatewayResult(
                 ProviderRefundId: providerRefundId,
@@ -252,14 +257,6 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 
             return token!;
         }
-        
-        private static string MapCurrencyCode(int currencyId) => currencyId switch
-        {
-            1 => "ACM",
-            2 => "USD",
-            3 => "EUR",
-            // TODO: wire to your real currency table
-            _ => "USD"
-        };
+       
     }
 }

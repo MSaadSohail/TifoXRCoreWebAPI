@@ -8,7 +8,6 @@
 using MySqlConnector;
 //
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {

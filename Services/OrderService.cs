@@ -6,7 +6,7 @@
 // <summary></summary>
 
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {

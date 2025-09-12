@@ -5,12 +5,14 @@
 // <date>9/9/2025</date>
 // <summary></summary>
 
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using Microsoft.Extensions.Options;
 //
 using Stripe;
 using Stripe.Checkout;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 
-namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
+namespace TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
 {
     /// <summary>
     /// Stripe gateway that mirrors your PayPal pattern:
@@ -51,7 +53,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                 throw new ArgumentException("ReturnUrl and CancelUrl are required.");
 
             // TODO: Resolve CurrencyId -> ISO via your repo helper (for now hard-code "USD" like PayPal).
-            var currencyIso = "USD"; // match your current PayPal stub; replace when you wire ResolveCurrencyIsoAsync
+            var currencyIso = CurrencyMapper.ResolveIso(req.CurrencyId); // match your current PayPal stub; replace when you wire ResolveCurrencyIsoAsync
 
             // Build a Checkout Session with manual capture so it mirrors "approve -> capture"
             var sessionCreate = new SessionCreateOptions
@@ -91,7 +93,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             };
 
             var service = new SessionService(_client);
-            var reqOptions = new Stripe.RequestOptions { IdempotencyKey = req.IdempotencyKey };
+            var reqOptions = new RequestOptions { IdempotencyKey = req.IdempotencyKey };
             var session = await service.CreateAsync(sessionCreate, reqOptions);
 
             if (session == null || string.IsNullOrWhiteSpace(session.Id))
@@ -122,15 +124,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 
             // Map Stripe -> our generic status
             // requires_capture ~= "APPROVED" (authorized and ready to capture)
-            var status = pi.Status switch
-            {
-                "requires_capture" => "APPROVED",
-                "succeeded" => "SUCCEEDED",
-                "processing" => "PROCESSING",
-                "requires_payment_method" or "requires_confirmation" => "REQUIRES_ACTION",
-                "canceled" => "CANCELED",
-                _ => pi.Status?.ToUpperInvariant() ?? "UNKNOWN"
-            };
+            var status = StripeStatusMapper.ToGeneric(pi.Status);
 
             return new GatewayIntentStatusResult(providerIntentId, status, session.Url);
         }
@@ -155,7 +149,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             var cap = await piSvc.CaptureAsync(
                 session.PaymentIntentId,
                 new PaymentIntentCaptureOptions(),
-                new Stripe.RequestOptions { IdempotencyKey = req.IdempotencyKey });
+                new RequestOptions { IdempotencyKey = req.IdempotencyKey });
 
             if (cap.Status is not ("succeeded" or "requires_capture" or "processing"))
             {
@@ -190,7 +184,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                 Reason = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason
             };
 
-            var refund = await refundSvc.CreateAsync(create, new Stripe.RequestOptions
+            var refund = await refundSvc.CreateAsync(create, new RequestOptions
             {
                 IdempotencyKey = req.IdempotencyKey
             });

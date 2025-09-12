@@ -7,12 +7,12 @@
 
 using GMS.TifoXRCoreWebAPI.Models;
 
-namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     /// <summary>
     /// Persistence-only contract. All gateway orchestration stays in the service layer.
     /// </summary>
-    public interface IOrderRepository
+    public partial interface IOrderRepository
     {
         // Queries
         Task<OrderDto?> GetOrderAsync(int spaceId, string orderId);

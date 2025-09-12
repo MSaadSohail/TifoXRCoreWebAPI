@@ -5,7 +5,7 @@
 // <date>9/11/2025</date>
 // <summary></summary>
 
-namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
+namespace TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
 {
     public sealed class CryptoChilizOptions
     {

@@ -7,8 +7,11 @@
 
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
+using GMS.TifoXRCoreWebAPI.Utilities;
+using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {
@@ -16,20 +19,11 @@ namespace GMS.TifoXRCoreWebAPI.Services
     /// Selects the right payment gateway per order/intent and orchestrates persistence.
     /// </summary>
     public sealed class PaymentService(IPaymentGatewayResolver resolver, 
-        IOrderRepository orders) : IPaymentService
+        IOrderRepository orders, IRefundPolicyResolver refundPolicy) : IPaymentService
     {
-        // Status constants (align with your lookup tables)
-        private const int StatusRequiresAction = 1;  // e.g., "requires_action"
-        private const int StatusProcessing     = 2;  // e.g., "in_processing"
-        private const int StatusSucceeded      = 3;  // e.g., "succeeded"
-        private const int OrderStatusPaid      = 3;  // e.g., "Paid"
-        private const int RefundStatusSucceeded = 3;
-
         private readonly IPaymentGatewayResolver _resolver = resolver;
         private readonly IOrderRepository _orders = orders;
-
-        private static readonly HashSet<string> StripeAllowedReasons = new(StringComparer.OrdinalIgnoreCase) 
-            { "duplicate", "fraudulent", "requested_by_customer" };
+        private readonly IRefundPolicyResolver _refundPolicy = refundPolicy;
 
         public async Task<CreatePaymentIntentResponse> CreateIntentAsync(
             int spaceId, 
@@ -38,11 +32,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
             CreatePaymentIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
             // 1) Load minimal header & validate ownership
             var header = await _orders.GetOrderHeaderAsync(orderId);
+
             if (header is not { } h || h.SpaceId != spaceId)
                 throw new InvalidOperationException("Order not found in this space.");
 
@@ -65,7 +61,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 {
                     PaymentIntentId  = existing.Value.Id,
                     PaymentGatewayId = gatewayId,
-                    StatusId         = StatusRequiresAction,
+                    StatusId         = (int)PaymentIntentStatus.RequiresAction,
                     ProviderIntentId = existing.Value.ProviderIntentId,
                     ApproveLink      = approve
                 };
@@ -86,7 +82,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
             var piId = await _orders.InsertPaymentIntentAsync(
                 orderId:          orderId,
                 gatewayId:        gatewayId,
-                statusId:         StatusRequiresAction,
+                statusId:         (int)PaymentIntentStatus.RequiresAction,
                 amountMinor:      amountMinor,
                 currencyId:       h.CurrencyId,
                 providerIntentId: created.ProviderIntentId!,
@@ -109,7 +105,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
             {
                 PaymentIntentId = piId,
                 PaymentGatewayId = gatewayId,
-                StatusId = StatusRequiresAction,
+                StatusId = (int)PaymentIntentStatus.RequiresAction,
                 ProviderIntentId = created.ProviderIntentId,
                 ApproveLink = approveLink
             };
@@ -143,7 +139,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                     GlobalException.FormatExceptionMessage("PAYMENT_REQUIRES_APPROVAL", nameof(CaptureAsync)));
             }
 
-            await _orders.UpdatePaymentIntentStatusAsync(intentId, StatusProcessing);
+            await _orders.UpdatePaymentIntentStatusAsync(intentId, (int)PaymentIntentStatus.Processing);
 
             CaptureGatewayResult cap;
             try
@@ -155,26 +151,26 @@ namespace GMS.TifoXRCoreWebAPI.Services
             catch
             {
                 // Roll back to requires_action
-                await _orders.UpdatePaymentIntentStatusAsync(intentId, StatusRequiresAction);
+                await _orders.UpdatePaymentIntentStatusAsync(intentId, (int)PaymentIntentStatus.RequiresAction);
 
                 // Re-throw so global middleware catches and formats it
                 throw;
             }
 
-            var amountMinor = (long)decimal.Round(cap.CapturedAmount * 100m, 0, MidpointRounding.AwayFromZero);
+            var amountMinor = MoneyConverter.ToMinor(cap.CapturedAmount);
 
             // 4) Persist charge + transitions
             var chargeId = await _orders.InsertChargeAsync(
                 intentId:            intentId,
-                statusId:            StatusSucceeded,
+                statusId: (int)PaymentIntentStatus.Succeeded,
                 amountCapturedMinor: amountMinor,
                 currencyId:          c.CurrencyId,
                 providerChargeId:    cap.ProviderChargeId,
                 paidAtUtc:           DateTime.UtcNow,
                 userId:              c.UserId);
 
-            await _orders.UpdatePaymentIntentStatusAsync(intentId, StatusSucceeded);
-            await _orders.MarkPaidIfCoveredAsync(orderId, amountMinor, OrderStatusPaid);
+            await _orders.UpdatePaymentIntentStatusAsync(intentId, (int)PaymentIntentStatus.Succeeded);
+            await _orders.MarkPaidIfCoveredAsync(orderId, amountMinor, (int)PaymentIntentStatus.Succeeded);
             await _orders.GrantEntitlementsAsync(orderId);
             await _orders.InsertInvoiceFromOrderAsync(spaceId, orderId, chargeId, gatewayId: c.GatewayId);
 
@@ -183,7 +179,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 OrderId          = orderId,
                 PaymentIntentId  = intentId,
                 ProviderChargeId = cap.ProviderChargeId,
-                PaymentStatusId  = StatusSucceeded
+                PaymentStatusId  = (int)PaymentIntentStatus.RequiresAction
             };
         }
 
@@ -191,34 +187,39 @@ namespace GMS.TifoXRCoreWebAPI.Services
             int spaceId, string orderId, string chargeId, RefundRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
             // 1) Resolve charge context (gateway, provider charge id, currency, space/order ownership)
             var ctx = await _orders.GetChargeContextAsync(chargeId);
+
             if (ctx is not { } c || c.OrderId != orderId || c.SpaceId != spaceId)
                 throw new InvalidOperationException("payment_charge not found for this order/space.");
 
             var gateway = _resolver.GetById(c.GatewayId);
 
-            if (string.Equals(gateway.Name, "stripe", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.IsNullOrWhiteSpace(req.Reason) && !StripeAllowedReasons.Contains(req.Reason))
-                {
-                    throw new ArgumentException(
-                        "Invalid reason for Stripe refund. Allowed: duplicate, fraudulent, requested_by_customer",
-                        nameof(req.Reason));
-                }
-            }
+            var policy = _refundPolicy.Resolve(gateway.Name);
+
+            // Validate reason against policy (Stripe: guarded set; others: allow)
+            if (!policy.IsAllowed(req.Reason))
+                throw new ArgumentException("Invalid refund reason for this payment gateway.", nameof(req.Reason));
+
+            // Normalize for provider call (Stripe: lowercased allowed values; others: trimmed/free)
+            var normalizedReason = policy.Normalize(req.Reason);
 
             // 2) Amount: default to full refund if not provided
-            // If req.AmountMinor is null => full refund => pass req.Amount = 0 so body is omitted
+            // If req.AmountMinor is null => full refund => pass req.Amount = 0
+            // so body is omitted
             var isFull = !req.AmountMinor.HasValue;
+
             var amountMinor = isFull ? c.AmountCapturedMinor : req.AmountMinor.Value;
+
             if (amountMinor <= 0) throw new ArgumentException("Refund amount must be positive.", nameof(req.AmountMinor));
 
-            // NEW: remaining guardrails
-            var remainingMinor = c.AmountCapturedMinor - c.TotalRefundedSoFarMinor;
+            // Remaining guardrails
+            var remainingMinor =  c.AmountCapturedMinor - c.TotalRefundedSoFarMinor;
+            
             if (remainingMinor <= 0)
             {
                 // Everything was already refunded
@@ -233,22 +234,23 @@ namespace GMS.TifoXRCoreWebAPI.Services
                     nameof(req.AmountMinor));
             }
 
-            var amountMajor = amountMinor / 100m; // TODO: replace 100 with currency minor-unit resolver
+            var amountMajor = MoneyConverter.ToMajor(amountMinor);
 
             // 3) Call provider refund
             var prov = await gateway.RefundAsync(new RefundGatewayRequest(
                 IdempotencyKey: req.IdempotencyKey,
-                ProviderChargeId: c.ProviderChargeId ?? throw new InvalidOperationException("provider_charge_id missing."),
+                ProviderChargeId: c.ProviderChargeId 
+                ?? throw new InvalidOperationException("provider_charge_id missing."),
                 Amount: amountMajor,
                 CurrencyId: c.CurrencyId,
-                Reason: req.Reason
+                Reason: normalizedReason
             ));
 
             // 4) Persist refund row
             var refundId = await _orders.InsertRefundAsync(
                 chargeId: chargeId,
-                statusId: RefundStatusSucceeded,
-                amountMinor: (long)decimal.Round(prov.RefundedAmount * 100m, 0, MidpointRounding.AwayFromZero),
+                statusId: (int)PaymentIntentStatus.Succeeded,
+                amountMinor: MoneyConverter.ToMinor(prov.RefundedAmount),
                 currencyId: c.CurrencyId,
                 providerRefundId: prov.ProviderRefundId,
                 reason: req.Reason
@@ -260,8 +262,8 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 ChargeId = chargeId,
                 RefundId = refundId,
                 ProviderRefundId = prov.ProviderRefundId,
-                StatusId = RefundStatusSucceeded,
-                RefundedAmountMinor = (long)decimal.Round(prov.RefundedAmount * 100m, 0, MidpointRounding.AwayFromZero),
+                StatusId = (int)PaymentIntentStatus.Succeeded,
+                RefundedAmountMinor = MoneyConverter.ToMinor(prov.RefundedAmount),
                 CurrencyId = c.CurrencyId
             };
         }

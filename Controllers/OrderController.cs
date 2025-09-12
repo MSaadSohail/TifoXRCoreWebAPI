@@ -10,8 +10,9 @@ using Microsoft.Extensions.Options;
 //
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Services;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -55,6 +56,174 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
             var resp = await _repo.GetInvoicesByOrderAsync(spaceId, orderId);
             if (resp is null) return NotFound();
+            return Ok(resp);
+        }
+
+        // -----------------------------------------------------------------
+        // A) Find pending intent for a specific ORDER (status 1 or 2)
+        // -----------------------------------------------------------------
+        // GET /api/space/{spaceId}/orders/{orderId}/payment-intents/pending
+        [HttpGet("{orderId}/payment-intents/pending")]
+        public async Task<IActionResult> GetPendingIntentForOrder(int spaceId, string orderId)
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+
+            // validate order belongs to this space
+            var order = await _repo.GetOrderAsync(spaceId, orderId);
+            if (order is null) return NotFound();
+
+            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
+            if (pi is null) return Ok(new PendingIntentResponse { Found = false });
+
+            return Ok(new PendingIntentResponse
+            {
+                Found = true,
+                OrderId = orderId,
+                PaymentIntentId = pi?.IntentId,
+                StatusId = pi?.StatusId,
+                IdempotencyKey = pi?.IdempotencyKey,         // Unity can reuse this key
+                ProviderIntentId = pi?.ProviderIntentId,
+                PaymentGatewayId = pi?.PaymentGatewayId,
+                AmountMinor = pi?.AmountMinor,
+                CurrencyId = pi?.CurrencyId
+            });
+        }
+
+        // -----------------------------------------------------------------
+        // B) Find pending intent for USER + ITEM (status 1 or 2)
+        //    Use when Unity no longer has orderId after a restart.
+        // -----------------------------------------------------------------
+        // GET /api/space/{spaceId}/orders/pending-intent/by-item?userId=...&itemTypeId=...&itemRefId=...
+        [HttpGet("pending-intent/by-item")]
+        public async Task<IActionResult> FindPendingIntentByItem(
+            int spaceId,
+            [FromQuery] string userId,
+            [FromQuery] int itemTypeId,
+            [FromQuery] int itemRefId)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
+
+            var orderId = await _repo.FindLatestOrderIdWithPendingIntentAsync(spaceId, userId, itemTypeId, itemRefId);
+            if (string.IsNullOrWhiteSpace(orderId))
+                return Ok(new PendingIntentResponse { Found = false });
+
+            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
+            if (pi is null)
+                return Ok(new PendingIntentResponse { Found = false });
+
+            return Ok(new PendingIntentResponse
+            {
+                Found = true,
+                OrderId = orderId,
+                PaymentIntentId = pi?.IntentId,
+                StatusId = pi?.StatusId,
+                IdempotencyKey = pi?.IdempotencyKey,         // Unity should pass this back into CreatePaymentIntent
+                ProviderIntentId = pi?.ProviderIntentId,
+                PaymentGatewayId = pi?.PaymentGatewayId,
+                AmountMinor = pi?.AmountMinor,
+                CurrencyId = pi?.CurrencyId
+            });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(
+            int spaceId, 
+            [FromBody] CreateOrderRequest req,
+            [FromQuery] int? gatewayId = null)
+        {
+            if (req is null) return BadRequest("Body is required.");
+
+            var resp = await _repo.CreateOrderAsync(spaceId, req, gatewayId);
+
+            return Ok(resp);
+        }
+
+        [HttpPost("{orderId}/payment-intents")]
+        public async Task<IActionResult> CreatePaymentIntent(
+            int spaceId,
+            string orderId,
+            [FromBody] CreatePaymentIntentRequest req,
+            [FromQuery] int gatewayId) // required
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
+
+            var mergedReq = new CreatePaymentIntentRequest { IdempotencyKey = req.IdempotencyKey };
+
+            var resp = await _payments.CreateIntentAsync(spaceId, orderId, gatewayId, mergedReq);
+
+            // If crypto (gatewayId=3), replace ApproveLink with a one-click action page that opens MetaMask
+            if (gatewayId == 3 && !string.IsNullOrWhiteSpace(resp.ProviderIntentId))
+            {
+                var baseUrl = _crypto.PublicBaseUrl.TrimEnd('/');
+                var actionLink = $"{baseUrl}/pay/crypto" +
+                                 $"?pid={resp.ProviderIntentId}" +
+                                 $"&orderId={orderId}" +
+                                 $"&intentId={resp.PaymentIntentId}&" +
+                                 $"spaceId={spaceId}";
+
+                return Ok(new
+                {
+                    resp.PaymentIntentId,
+                    resp.PaymentGatewayId,
+                    resp.StatusId,
+                    resp.ClientSecret,
+                    resp.ProviderIntentId,
+                    approveLink = actionLink,   // 👈 consumers can keep using "approveLink"
+                    actionLink                   // 👈 also exposed explicitly
+                });
+            }
+
+            // Non-crypto gateways unchanged
+            return Ok(resp);
+        }
+
+        [HttpGet("{orderId}/payments/stripe/return")]
+        public async Task<IActionResult> StripeReturn(
+            int spaceId,
+            string orderId,
+            [FromQuery(Name = "session_id")] string sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (string.IsNullOrWhiteSpace(sessionId)) return BadRequest("session_id is required.");
+
+            var order = await _repo.GetOrderAsync(spaceId, orderId);
+            if (order is null) return NotFound();
+
+            // Find the matching intent by provider_intent_id == sessionId
+            var intent = order.PaymentIntents.FirstOrDefault(i =>
+                string.Equals(i.ProviderIntentId, sessionId, StringComparison.OrdinalIgnoreCase));
+
+            if (intent is null)
+                return NotFound(new { message = "payment_intent not found for provided session_id." });
+
+            var idemKey = $"cap::{orderId}::{intent.Id}::{sessionId}";
+
+            var resp = await _payments.CaptureAsync(
+                spaceId, orderId, intent.Id,
+                new ConfirmPaymentIntentRequest
+                {
+                    IdempotencyKey = idemKey,
+                    ProviderIntentId = sessionId
+                });
+
+            return Ok("Payment Successful. You can return to your space to continue.");
+        }
+
+        [HttpPost("{orderId}/charges/{chargeId}/refunds")]
+        public async Task<IActionResult> RefundCharge(
+            int spaceId,
+            string orderId,
+            string chargeId,
+            [FromBody] RefundRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
+            if (string.IsNullOrWhiteSpace(chargeId)) return BadRequest("chargeId is required.");
+            if (req is null) return BadRequest("Body is required.");
+            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
+
+            var resp = await _payments.RefundAsync(spaceId, orderId, chargeId, req);
             return Ok(resp);
         }
 
@@ -261,173 +430,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return Ok("Payment Successful. You can return to your space to continue.");
         }
 
-        // -----------------------------------------------------------------
-        // A) Find pending intent for a specific ORDER (status 1 or 2)
-        // -----------------------------------------------------------------
-        // GET /api/space/{spaceId}/orders/{orderId}/payment-intents/pending
-        [HttpGet("{orderId}/payment-intents/pending")]
-        public async Task<IActionResult> GetPendingIntentForOrder(int spaceId, string orderId)
-        {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-
-            // validate order belongs to this space
-            var order = await _repo.GetOrderAsync(spaceId, orderId);
-            if (order is null) return NotFound();
-
-            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
-            if (pi is null) return Ok(new PendingIntentResponse { Found = false });
-
-            return Ok(new PendingIntentResponse
-            {
-                Found = true,
-                OrderId = orderId,
-                PaymentIntentId = pi?.IntentId,
-                StatusId = pi?.StatusId,
-                IdempotencyKey = pi?.IdempotencyKey,         // Unity can reuse this key
-                ProviderIntentId = pi?.ProviderIntentId,
-                PaymentGatewayId = pi?.PaymentGatewayId,
-                AmountMinor = pi?.AmountMinor,
-                CurrencyId = pi?.CurrencyId
-            });
-        }
-
-        // -----------------------------------------------------------------
-        // B) Find pending intent for USER + ITEM (status 1 or 2)
-        //    Use when Unity no longer has orderId after a restart.
-        // -----------------------------------------------------------------
-        // GET /api/space/{spaceId}/orders/pending-intent/by-item?userId=...&itemTypeId=...&itemRefId=...
-        [HttpGet("pending-intent/by-item")]
-        public async Task<IActionResult> FindPendingIntentByItem(
-            int spaceId,
-            [FromQuery] string userId,
-            [FromQuery] int itemTypeId,
-            [FromQuery] int itemRefId)
-        {
-            if (string.IsNullOrWhiteSpace(userId)) return BadRequest("userId is required.");
-
-            var orderId = await _repo.FindLatestOrderIdWithPendingIntentAsync(spaceId, userId, itemTypeId, itemRefId);
-            if (string.IsNullOrWhiteSpace(orderId))
-                return Ok(new PendingIntentResponse { Found = false });
-
-            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
-            if (pi is null)
-                return Ok(new PendingIntentResponse { Found = false });
-
-            return Ok(new PendingIntentResponse
-            {
-                Found = true,
-                OrderId = orderId,
-                PaymentIntentId = pi?.IntentId,
-                StatusId = pi?.StatusId,
-                IdempotencyKey = pi?.IdempotencyKey,         // Unity should pass this back into CreatePaymentIntent
-                ProviderIntentId = pi?.ProviderIntentId,
-                PaymentGatewayId = pi?.PaymentGatewayId,
-                AmountMinor = pi?.AmountMinor,
-                CurrencyId = pi?.CurrencyId
-            });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> Create(
-            int spaceId, 
-            [FromBody] CreateOrderRequest req,
-            [FromQuery] int? gatewayId = null)
-        {
-            if (req is null) return BadRequest("Body is required.");
-
-            var resp = await _repo.CreateOrderAsync(spaceId, req, gatewayId);
-
-            return Ok(resp);
-        }
-
-        [HttpPost("{orderId}/payment-intents")]
-        public async Task<IActionResult> CreatePaymentIntent(
-            int spaceId,
-            string orderId,
-            [FromBody] CreatePaymentIntentRequest req,
-            [FromQuery] int gatewayId) // required
-        {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (req is null) return BadRequest("Body is required.");
-            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
-
-            var mergedReq = new CreatePaymentIntentRequest { IdempotencyKey = req.IdempotencyKey };
-
-            var resp = await _payments.CreateIntentAsync(spaceId, orderId, gatewayId, mergedReq);
-
-            // If crypto (gatewayId=3), replace ApproveLink with a one-click action page that opens MetaMask
-            if (gatewayId == 3 && !string.IsNullOrWhiteSpace(resp.ProviderIntentId))
-            {
-                var baseUrl = _crypto.PublicBaseUrl.TrimEnd('/');
-                var actionLink = $"{baseUrl}/pay/crypto" +
-                                 $"?pid={resp.ProviderIntentId}" +
-                                 $"&orderId={orderId}" +
-                                 $"&intentId={resp.PaymentIntentId}&" +
-                                 $"spaceId={spaceId}";
-
-                return Ok(new
-                {
-                    resp.PaymentIntentId,
-                    resp.PaymentGatewayId,
-                    resp.StatusId,
-                    resp.ClientSecret,
-                    resp.ProviderIntentId,
-                    approveLink = actionLink,   // 👈 consumers can keep using "approveLink"
-                    actionLink                   // 👈 also exposed explicitly
-                });
-            }
-
-            // Non-crypto gateways unchanged
-            return Ok(resp);
-        }
-
-        [HttpGet("{orderId}/payments/stripe/return")]
-        public async Task<IActionResult> StripeReturn(
-            int spaceId,
-            string orderId,
-            [FromQuery(Name = "session_id")] string sessionId)
-        {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (string.IsNullOrWhiteSpace(sessionId)) return BadRequest("session_id is required.");
-
-            var order = await _repo.GetOrderAsync(spaceId, orderId);
-            if (order is null) return NotFound();
-
-            // Find the matching intent by provider_intent_id == sessionId
-            var intent = order.PaymentIntents.FirstOrDefault(i =>
-                string.Equals(i.ProviderIntentId, sessionId, StringComparison.OrdinalIgnoreCase));
-
-            if (intent is null)
-                return NotFound(new { message = "payment_intent not found for provided session_id." });
-
-            var idemKey = $"cap::{orderId}::{intent.Id}::{sessionId}";
-
-            var resp = await _payments.CaptureAsync(
-                spaceId, orderId, intent.Id,
-                new ConfirmPaymentIntentRequest
-                {
-                    IdempotencyKey = idemKey,
-                    ProviderIntentId = sessionId
-                });
-
-            return Ok("Payment Successful. You can return to your space to continue.");
-        }
-
-        [HttpPost("{orderId}/charges/{chargeId}/refunds")]
-        public async Task<IActionResult> RefundCharge(
-            int spaceId,
-            string orderId,
-            string chargeId,
-            [FromBody] RefundRequest req)
-        {
-            if (string.IsNullOrWhiteSpace(orderId)) return BadRequest("orderId is required.");
-            if (string.IsNullOrWhiteSpace(chargeId)) return BadRequest("chargeId is required.");
-            if (req is null) return BadRequest("Body is required.");
-            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) return BadRequest("IdempotencyKey is required.");
-
-            var resp = await _payments.RefundAsync(spaceId, orderId, chargeId, req);
-            return Ok(resp);
-        }
 
         // GET prepared payload for a crypto intent (dApp uses this to populate the wallet tx)
         [HttpGet("{orderId}/payment-intents/{intentId}/crypto/prepared")]

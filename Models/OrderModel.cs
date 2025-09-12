@@ -252,4 +252,21 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int CurrencyId { get; set; }
     }
 
+    public sealed class ReconcileCandidate
+    {
+        public Guid OrderId { get; init; }
+        public int SpaceId { get; init; }
+        public int PaymentGatewayId { get; init; }
+
+        public bool IsPaid { get; init; }
+        public bool HasInvoice { get; init; }
+        public bool HasEntitlements { get; init; }
+
+        public Guid? IntentId { get; init; }
+        public string? ProviderIntentId { get; init; }
+        public Guid? LastChargeId { get; init; }
+
+        public long? ExpectedPaidMinor { get; init; }
+    }
+
 }

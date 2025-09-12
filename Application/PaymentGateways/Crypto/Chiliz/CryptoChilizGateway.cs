@@ -11,9 +11,11 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 //
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+//
 using Thirdweb;
 
-namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
+namespace TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
 {
     /// <summary>
     /// Chiliz (CHZ) payments via thirdweb Bridge on Spicy testnet.
@@ -64,7 +66,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
             var wei = BigInteger.Parse(
-                Utils.ToWei(req.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                Thirdweb.Utils.ToWei(req.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture))
             );
 
             var providerIntentId = Guid.NewGuid().ToString("N");
@@ -203,13 +205,13 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
                 var bridge = await Thirdweb.Bridge.ThirdwebBridge.Create(_client);
                 var prepared = await bridge.Transfer_Prepare(
                     chainId: s.ChainId,
-                    tokenAddress: Thirdweb.Constants.NATIVE_TOKEN_ADDRESS,
+                    tokenAddress: Constants.NATIVE_TOKEN_ADDRESS,
                     transferAmountWei: s.AmountWei,
                     sender: senderAddress,
                     receiver: s.Receiver
                 );
 
-                var json = System.Text.Json.JsonSerializer.Serialize(prepared);
+                var json = JsonSerializer.Serialize(prepared);
                 _intents[pid] = s with { Sender = senderAddress, PreparedJson = json };
                 return json;
             }
@@ -227,7 +229,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
             }
         };
 
-                var json = System.Text.Json.JsonSerializer.Serialize(fallback);
+                var json = JsonSerializer.Serialize(fallback);
                 _intents[pid] = s with { Sender = senderAddress, PreparedJson = json };
                 return json;
             }
