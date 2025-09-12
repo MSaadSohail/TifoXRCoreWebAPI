@@ -29,6 +29,7 @@ using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
+using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -119,6 +120,7 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.AddScoped<IOrderRepository, OrderRepository>();
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();
+    services.AddScoped<IPaymentQueryService, PaymentQueryService>();
 
     // thirdweb client (server-side) from secret key
     services.AddSingleton(sp =>
