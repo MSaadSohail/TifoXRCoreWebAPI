@@ -15,7 +15,7 @@
 
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Constants;
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
 {
     public static class PayPalStatusMapper
     {

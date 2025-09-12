@@ -14,11 +14,10 @@ using Microsoft.Extensions.Options;
 using PaypalServerSdk.Standard;
 using PaypalServerSdk.Standard.Models;
 using PaypalServerSdk.Standard.Authentication;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 using PpAppContext = PaypalServerSdk.Standard.Models.OrderApplicationContext;
-using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
 {
     public sealed class PaypalGateway : IPaymentGateway
     {

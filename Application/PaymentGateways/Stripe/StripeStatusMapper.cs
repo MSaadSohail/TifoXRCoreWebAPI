@@ -15,7 +15,7 @@
 
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Constants;
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
 {
     public static class StripeStatusMapper
     {

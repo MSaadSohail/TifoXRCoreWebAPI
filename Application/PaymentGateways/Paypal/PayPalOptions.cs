@@ -5,7 +5,7 @@
 // <date>09/02/2025</date>
 // <summary></summary>
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal
 {
     public sealed class PayPalOptions
     {

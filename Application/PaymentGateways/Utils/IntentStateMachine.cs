@@ -15,7 +15,7 @@
 
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Utils
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils
 {
     public static class IntentStateMachine
     {

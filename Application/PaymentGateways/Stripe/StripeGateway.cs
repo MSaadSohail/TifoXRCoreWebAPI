@@ -5,14 +5,13 @@
 // <date>9/9/2025</date>
 // <summary></summary>
 
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using Microsoft.Extensions.Options;
 //
 using Stripe;
 using Stripe.Checkout;
-using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
 {
     /// <summary>
     /// Stripe gateway that mirrors your PayPal pattern:

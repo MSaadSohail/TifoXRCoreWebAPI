@@ -5,7 +5,7 @@
 // <date>9/12/2025</date>
 // <summary></summary>
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Utils
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils
 {
     public static class CurrencyMapper
     {

@@ -8,11 +8,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 //
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Services;
-using TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {

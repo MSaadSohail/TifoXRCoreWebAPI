@@ -11,11 +11,9 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 //
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
-//
 using Thirdweb;
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
 {
     /// <summary>
     /// Chiliz (CHZ) payments via thirdweb Bridge on Spicy testnet.

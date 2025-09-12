@@ -5,7 +5,7 @@
 // <date>9/9/2025</date>
 // <summary></summary>
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe
 {
     public sealed class StripeOptions
     {
