@@ -11,7 +11,7 @@ using GMS.TifoXRCoreWebAPI.Utilities;
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
-namespace GMS.TifoXRCoreWebAPI.Services.Payments
+namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
 {
     public sealed class CaptureHandler(IPaymentGatewayResolver resolver, IOrderRepository orders)
     {

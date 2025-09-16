@@ -29,7 +29,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 r.GetInt32(r.GetOrdinal("space_id")),
                 r.GetInt32(r.GetOrdinal("currency_id")),
                 r.GetInt64(r.GetOrdinal("total_net_amount")),
-                r.IsDBNull(r.GetOrdinal("gateway_preferred_id")) ? null : r.GetInt32(r.GetOrdinal("gateway_preferred_id"))
+                r.IsDBNull(r.GetOrdinal("gateway_preferred_id")) 
+                    ? null 
+                    : r.GetInt32(r.GetOrdinal("gateway_preferred_id"))
             );
         }
 
@@ -121,7 +123,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 r.GetInt32(r.GetOrdinal("currency_id")),
                 r.GetInt64(r.GetOrdinal("total_net_amount")),
                 r.GetString(r.GetOrdinal("user_id")),
-                r.IsDBNull(r.GetOrdinal("provider_intent_id")) ? null : r.GetString(r.GetOrdinal("provider_intent_id")),
+                r.IsDBNull(r.GetOrdinal("provider_intent_id")) 
+                    ? null 
+                    : r.GetString(r.GetOrdinal("provider_intent_id")),
                 r.GetInt32(r.GetOrdinal("payment_gateway_id"))
             );
         }
@@ -212,7 +216,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<string?> FindLatestOrderIdWithPendingIntentAsync(
             int spaceId, string userId, int itemTypeId, int itemRefId)
         {
-
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, Intent_FindLatestOrderWithPending);
 
@@ -232,9 +235,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         {
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, Charge_GetContext);
+
             cmd.Parameters.Add(_db.CreateParameter("@ChargeId", chargeId));
 
             await using var r = await cmd.ExecuteReaderAsync();
+
             if (!await r.ReadAsync()) return null;
 
             return (
@@ -242,13 +247,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 SpaceId: r.GetInt32(r.GetOrdinal("space_id")),
                 CurrencyId: r.GetInt32(r.GetOrdinal("currency_id")),
                 GatewayId: r.GetInt32(r.GetOrdinal("payment_gateway_id")),
-                ProviderChargeId: r.IsDBNull(r.GetOrdinal("provider_charge_id")) ? null : r.GetString(r.GetOrdinal("provider_charge_id")),
+                ProviderChargeId: r.IsDBNull(r.GetOrdinal("provider_charge_id")) 
+                    ? null 
+                    : r.GetString(r.GetOrdinal("provider_charge_id")),
                 AmountCapturedMinor: r.GetInt64(r.GetOrdinal("amount_captured_minor")),
                 TotalRefundedSoFarMinor: r.GetInt64(r.GetOrdinal("total_refunded_so_far_minor"))
             );
         }
 
-        // Matches: InsertRefundAsync(string, int, long, int, string, string?)
         public async Task<string> InsertRefundAsync(
             string chargeId, int statusId, long amountMinor, int currencyId,
             string providerRefundId, string? reason)

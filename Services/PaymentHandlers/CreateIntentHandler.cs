@@ -10,7 +10,7 @@ using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
-namespace GMS.TifoXRCoreWebAPI.Services.Payments
+namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
 {
     public sealed class CreateIntentHandler(IPaymentGatewayResolver resolver, IOrderRepository orders)
     {
@@ -20,11 +20,14 @@ namespace GMS.TifoXRCoreWebAPI.Services.Payments
         public async Task<CreatePaymentIntentResponse> ExecuteAsync(
             int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req)
         {
-            if (req is null) throw new ArgumentNullException(nameof(req));
+            if (req is null) 
+                throw new ArgumentNullException(nameof(req));
+
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
-                throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
+                throw new ArgumentException("IdempotencyKey is required: {0}", nameof(req.IdempotencyKey));
 
             var header = await _orders.GetOrderHeaderAsync(orderId);
+
             if (header is not { } h || h.SpaceId != spaceId)
                 throw new InvalidOperationException("Order not found in this space.");
 

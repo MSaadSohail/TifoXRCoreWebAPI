@@ -22,7 +22,7 @@ using GMS.TifoXRCoreWebAPI.Data;
 using GMS.TifoXRCoreWebAPI.Services;
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Repositories;
-using GMS.TifoXRCoreWebAPI.Services.Payments;
+using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;

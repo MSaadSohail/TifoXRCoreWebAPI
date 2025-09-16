@@ -50,7 +50,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                 WHERE (pi.status_id IN (1,2)) OR (o.status_id = 3 AND (IFNULL(inv.cnt,0)=0 OR IFNULL(ent.cnt,0)=0));
             ";
 
-        internal const string sqlOrderSnapshot = @"
+        internal const string Order_Snapshot = @"
                 SELECT
                   o.user_id, o.space_id, o.currency_id, o.remarks,
                   COALESCE((SELECT SUM(ol.unit_amount * ol.quantity) FROM order_line ol WHERE ol.order_id=o.id),0) AS subtotal_major,
@@ -63,14 +63,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                 WHERE o.id=@OrderId AND o.space_id=@SpaceId
                 LIMIT 1;";
 
-        internal const string sqlChargeSnapshot = @"
+        internal const string Charge_Snapshot = @"
                 SELECT pc.provider_charge_id, pi.payment_gateway_id
                 FROM payment_charge pc
                 JOIN payment_intent pi ON pi.id = pc.payment_intent_id
                 WHERE pc.id=@ChargeId
                 LIMIT 1;";
 
-        internal const string sqlInsertInvoice = @"
+        internal const string Invoice_Insert = @"
                 INSERT INTO invoice
                 (id, invoice_number, user_id, order_id, subscription_id,
                  status_id, payment_charge_id, payment_gateway_id, provider_charge_id,
@@ -120,6 +120,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             WHERE pc.id = @ChargeId
             GROUP BY o.id, o.space_id, o.currency_id, pi.payment_gateway_id, pc.provider_charge_id, pc.amount_captured;
         ";
+
+        internal const string Entitlement_Insert = @"
+                INSERT INTO entitlement
+                    (id, order_line_id, user_id, status, quantity, granted_datetime,
+                     revoked_reason, metadata, creation_time, modified_by)
+                SELECT UUID(), ol.id, o.user_id, @GrantedStatus, ol.quantity, NOW(6),
+                       NULL, ol.metadata, NOW(6), @ModBy
+                FROM order_line ol
+                JOIN `order` o ON o.id = ol.order_id
+                LEFT JOIN entitlement e ON e.order_line_id = ol.id
+                WHERE ol.order_id = @OrderId
+                  AND o.status_id = @OrderStatusPaid
+                  AND e.id IS NULL;";
     }
 }
 

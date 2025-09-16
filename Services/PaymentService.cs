@@ -15,15 +15,15 @@ namespace GMS.TifoXRCoreWebAPI.Services
     /// </summary>
     public sealed class PaymentService : IPaymentService
     {
-        private readonly Payments.CreateIntentHandler _create;
-        private readonly Payments.CaptureHandler _capture;
-        private readonly Payments.RefundHandler _refund;
+        private readonly PaymentHandlers.CreateIntentHandler _create;
+        private readonly PaymentHandlers.CaptureHandler _capture;
+        private readonly PaymentHandlers.RefundHandler _refund;
         private readonly IPaymentGatewayResolver _resolver;
 
         public PaymentService(
-            Payments.CreateIntentHandler create,
-            Payments.CaptureHandler capture,
-            Payments.RefundHandler refund,
+            PaymentHandlers.CreateIntentHandler create,
+            PaymentHandlers.CaptureHandler capture,
+            PaymentHandlers.RefundHandler refund,
             IPaymentGatewayResolver resolver)
         {
             _create = create;

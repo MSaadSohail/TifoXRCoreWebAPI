@@ -14,9 +14,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     {
         public async Task InsertInvoiceFromOrderAsync(int spaceId, string orderId, string chargeId, int gatewayId)
         {
-            const int InvoiceStatusPaid = 3;
-            const decimal MinorDivisor = 100m;
-            int? TaxItemTypeId = null;   // if you have a specific type id, set it here
+            const int InvoiceStatusPaid = 3;    //FIX ME: Get from db
+            const decimal MinorDivisor = 100m;  //TODO: Verify in query
+            int? TaxItemTypeId = null;   
             int? FeeItemTypeId = null;
 
             await using var conn = await _db.OpenConnectionAsync();
@@ -25,7 +25,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             string userId; int spaceIdDb; int currencyId; string? notes;
             decimal subtotal, discount, tax, fee;
 
-            await using (var cmd = _db.CreateCommand(conn, sqlOrderSnapshot))
+            await using (var cmd = _db.CreateCommand(conn, Order_Snapshot))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
                 cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
@@ -34,6 +34,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 cmd.Parameters.Add(_db.CreateParameter("@FeeTypeId", (object?)FeeItemTypeId ?? DBNull.Value));
 
                 await using var r = await cmd.ExecuteReaderAsync();
+
                 if (!await r.ReadAsync())
                     throw new InvalidOperationException($"Order '{orderId}' not found in space '{spaceId}'.");
 
@@ -52,14 +53,20 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             string? providerChargeId = null;
             int gatewayIdFromDb = gatewayId;
 
-            await using (var cmd = _db.CreateCommand(conn, sqlChargeSnapshot))
+            await using (var cmd = _db.CreateCommand(conn, Charge_Snapshot))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@ChargeId", chargeId));
+
                 await using var r = await cmd.ExecuteReaderAsync();
+
                 if (await r.ReadAsync())
                 {
-                    providerChargeId = r.IsDBNull(r.GetOrdinal("provider_charge_id")) ? null : r.GetString(r.GetOrdinal("provider_charge_id"));
-                    if (!r.IsDBNull(r.GetOrdinal("payment_gateway_id"))) gatewayIdFromDb = r.GetInt32(r.GetOrdinal("payment_gateway_id"));
+                    providerChargeId = r.IsDBNull(r.GetOrdinal("provider_charge_id")) 
+                        ? null 
+                        : r.GetString(r.GetOrdinal("provider_charge_id"));
+
+                    if (!r.IsDBNull(r.GetOrdinal("payment_gateway_id"))) 
+                        gatewayIdFromDb = r.GetInt32(r.GetOrdinal("payment_gateway_id"));
                 }
             }
 
@@ -72,7 +79,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             string? billToEmail = null;    // populate if you capture emails
             string? metadata = null;       // attach any invoice metadata as JSON if needed
 
-            await using (var cmd = _db.CreateCommand(conn, sqlInsertInvoice))
+            await using (var cmd = _db.CreateCommand(conn, Invoice_Insert))
             {
                 cmd.Parameters.Add(_db.CreateParameter("@Id", invoiceId));
                 cmd.Parameters.Add(_db.CreateParameter("@No", invoiceNo));
@@ -94,6 +101,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 cmd.Parameters.Add(_db.CreateParameter("@Notes", (object?)notes ?? DBNull.Value));
                 cmd.Parameters.Add(_db.CreateParameter("@Metadata", (object?)metadata ?? DBNull.Value));
                 cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+
                 await cmd.ExecuteNonQueryAsync();
             }
         }

@@ -20,12 +20,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             int? gatewayPreferredId = null)
         {
             const int PendingOrderStatusId = 2;         // TODO: look up from config/table if you prefer
-            const string ModifiedBy = "system";
+            const string ModifiedBy = "system";         // TODO: Update this accordingly
 
-            if (req is null) throw new ArgumentNullException(nameof(req));
-            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) throw new ArgumentException("IdempotencyKey is required.");
-            if (string.IsNullOrWhiteSpace(req.UserId)) throw new ArgumentException("UserId is required.");
-            if (req.LineItems is null || req.LineItems.Count == 0) throw new ArgumentException("At least one line is required.");
+            if (req is null)
+                throw new ArgumentNullException(nameof(req));
+
+            if (string.IsNullOrWhiteSpace(req.IdempotencyKey)) 
+                throw new ArgumentException("IdempotencyKey is required.");
+
+            if (string.IsNullOrWhiteSpace(req.UserId)) 
+                throw new ArgumentException("UserId is required.");
+
+            if (req.LineItems is null || req.LineItems.Count == 0) 
+                throw new ArgumentException("At least one line is required.");
 
             await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();

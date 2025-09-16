@@ -12,7 +12,7 @@ using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Utilities;
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
 
-namespace GMS.TifoXRCoreWebAPI.Services.Payments
+namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
 {
     public sealed class RefundHandler(IPaymentGatewayResolver resolver, IOrderRepository orders, IRefundPolicyResolver refundPolicies)
     {
