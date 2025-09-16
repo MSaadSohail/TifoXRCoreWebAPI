@@ -45,17 +45,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return _orders.GetEntitlementsByOrderAsync(spaceId, orderId);
             });
 
-        //    {
-        //    if (string.IsNullOrWhiteSpace(orderId))
-        //        return BadRequest("orderId is required.");
-
-        //    var result = await _repo.GetEntitlementsByOrderAsync(spaceId, orderId);
-        //    if (result is null)
-        //        return NotFound();
-
-        //    return Ok(result);
-        //}
-
         [HttpGet("{orderId}/invoices")]
         public Task<ActionResult<InvoiceListResponse?>> GetInvoices(int spaceId, string orderId)
             => Handle(async () => await _orders.GetInvoicesAsync(spaceId, orderId));
