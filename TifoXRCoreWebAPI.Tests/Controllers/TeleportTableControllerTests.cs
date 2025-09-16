@@ -586,7 +586,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ASSERT
             var ok = result.Should().BeOfType<OkObjectResult>().Subject;
             ok.StatusCode.Should().Be(StatusCodes.Status200OK);
-            ok.Value.Should().BeEquivalentTo(new { message = "Teleport Table deleted successfully." });
+            ok.Value.Should().BeEquivalentTo(new { message = "Teleport Table Button deleted successfully." });
             repo.Verify(r => r.DeleteTeleportTableButtonAsync(3, 2), Times.Once);
         }
 

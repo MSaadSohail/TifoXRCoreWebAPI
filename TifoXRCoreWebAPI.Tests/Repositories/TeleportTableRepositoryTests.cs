@@ -694,7 +694,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             )
             {
                 ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO teleport_table_button", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom during button insert")
+                NonQueryException = new InvalidOperationException("error during button insert")
             };
 
             var dto = TeleportDtoBuilders.Default()
@@ -713,7 +713,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
             // Assert
             await act.Should().ThrowAsync<InvalidOperationException>()
-                     .WithMessage("*boom during button insert*");
+                     .WithMessage("*error during button insert*");
 
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(1);
@@ -782,7 +782,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             {
                 ShouldThrowOnNonQuery = sql =>
                     WS(sql).Contains("INSERT INTO teleport_table_button", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at button insert")
+                NonQueryException = new InvalidOperationException("error during button insert")
             };
 
             var sut = BuildRepo(fakeDb);
@@ -847,7 +847,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             {
                 ShouldThrowOnNonQuery = sql =>
                     WS(sql).Contains("INSERT INTO teleport_table_button", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom external tx")
+                NonQueryException = new InvalidOperationException("error in external transaction")
             };
 
             var sut = BuildRepo(fakeDb);
@@ -855,7 +855,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             var extTx = await extConn.BeginTransactionAsync();
 
             var dto = ButtonCreateDtoBuilder.Default()
-                .WithNameKey("btn.oops")
+                .WithNameKey("btn.problem")
                 .WithIsActive(true)
                 .WithNewMapSpot(1m, 2m, 3m)
                 .Build();
@@ -864,7 +864,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             var act = async () => await sut.CreateTeleportTableButtonAsync(123, 77, dto, extConn, extTx);
 
             // Assert
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*external tx*");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*external transaction*");
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(0);
         }
@@ -1356,7 +1356,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader())
             {
                 ShouldThrowOnNonQuery = sql => sql.Contains("INSERT INTO i18n", StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at button i18n")
+                NonQueryException = new InvalidOperationException("error during button i18n insert")
             };
 
             fakeDb.EnqueueReader(() => SupportedLangs("en-US"));
@@ -1395,7 +1395,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
 
             // Assert
             await act.Should().ThrowAsync<InvalidOperationException>()
-                     .WithMessage("*boom at button i18n*");
+                     .WithMessage("*error during button i18n insert*");
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(1);
         }
@@ -1521,7 +1521,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             {
                 ShouldThrowOnNonQuery = sql => WS(sql).Contains("DELETE FROM teleport_table_button WHERE table_id = @TableId",
                                                                StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom deleting buttons")
+                NonQueryException = new InvalidOperationException("error deleting buttons")
             };
 
             fakeDb.EnqueueScalar("teleport.table");
@@ -1533,7 +1533,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             var act = async () => await sut.DeleteTeleportTableAsync(123, 7);
 
             // Assert
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*boom deleting buttons*");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*error deleting buttons*");
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(1);
         }
@@ -1649,10 +1649,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             {
                 ShouldThrowOnNonQuery = sql => WS(sql).Contains("DELETE FROM i18n WHERE `key` = @BtnKey",
                                                                StringComparison.OrdinalIgnoreCase),
-                NonQueryException = new InvalidOperationException("boom at i18n")
+                NonQueryException = new InvalidOperationException("error deleting button i18n")
             };
 
-            fakeDb.EnqueueScalar("btn.oops");
+            fakeDb.EnqueueScalar("btn.problem");
 
             var sut = BuildRepo(fakeDb);
 
@@ -1660,7 +1660,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             var act = async () => await sut.DeleteTeleportTableButtonAsync(1, 2);
 
             // Assert
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*boom at i18n*");
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*error deleting button i18n*");
             fakeDb.Commits.Should().Be(0);
             fakeDb.Rollbacks.Should().Be(1);
         }

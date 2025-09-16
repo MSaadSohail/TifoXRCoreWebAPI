@@ -37,7 +37,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         {
             repo = new Mock<IEntityRepository>();
             logger = new Mock<ILogger<EntityController>>();
-            sut = new EntityController(repo.Object, logger.Object);
+            sut = new EntityController(repo.Object);
             dtoBuilder = new EntityDtoBuilder();
         }
 
