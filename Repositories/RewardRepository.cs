@@ -5,10 +5,9 @@
 // <date>09/16/2025</date>
 // <summary>Repository implementation for Reward and UserReward</summary>
 
-using System.Data.Common;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Sql;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
