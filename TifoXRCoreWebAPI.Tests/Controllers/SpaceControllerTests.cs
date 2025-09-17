@@ -10,12 +10,12 @@
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using Moq;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
