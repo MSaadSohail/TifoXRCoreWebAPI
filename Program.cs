@@ -29,7 +29,7 @@ using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
-using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -2,7 +2,7 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Saad Sohail</author>
-// <date>9/16/2025</date>
+// <date>09/16/2025</date>
 // <summary></summary>
 
 using static GMS.TifoXRCoreWebAPI.Repositories.SQL.PaymentIntentSql;

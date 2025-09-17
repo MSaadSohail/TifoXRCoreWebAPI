@@ -5,9 +5,10 @@
 // <date>9/16/2025</date>
 // <summary></summary>
 
-using static GMS.TifoXRCoreWebAPI.Repositories.SQL.OrderSql;
-using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using System.Data.Common;
+//
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+using static GMS.TifoXRCoreWebAPI.Repositories.SQL.OrderSql;
 
 namespace TifoXRCoreWebAPI.Utilities.Infrastructure
 {

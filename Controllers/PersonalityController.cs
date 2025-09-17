@@ -5,10 +5,11 @@
 // <date>07/23/2025</date>
 // <summary>Personality HTTP methods</summary>
 
-using GMS.TifoXRCoreWebAPI.Middleware.Errors;
+using Microsoft.AspNetCore.Mvc;
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
-using Microsoft.AspNetCore.Mvc;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {

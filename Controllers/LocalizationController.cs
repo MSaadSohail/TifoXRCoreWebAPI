@@ -7,11 +7,9 @@
 
 using Microsoft.AspNetCore.Mvc;
 //
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Errors;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {

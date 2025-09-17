@@ -7,7 +7,7 @@
 
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
-using TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 
 namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways
 {

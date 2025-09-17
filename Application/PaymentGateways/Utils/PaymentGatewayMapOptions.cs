@@ -2,10 +2,10 @@
 // Copyright © 2025 All Rights Reserved
 // </copyright>
 // <author>Saad Sohail</author>
-// <date>9/9/2025</date>
+// <date>09/09/2025</date>
 // <summary></summary>
 
-namespace TifoXRCoreWebAPI.Application.PaymentGateways.Utils
+namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils
 {
     public sealed class PaymentGatewayMapOptions
     {

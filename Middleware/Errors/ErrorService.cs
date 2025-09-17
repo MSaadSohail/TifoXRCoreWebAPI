@@ -5,7 +5,6 @@
 // <date>09/05/2025</date>
 // <summary>Unified logging/exception service</summary>
 
-using System.Data;
 using System.Reflection;
 using System.Text.Json;
 
