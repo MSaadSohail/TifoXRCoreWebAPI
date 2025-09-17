@@ -7,15 +7,15 @@
 
 using System.Data;
 
-namespace TifoXRCoreWebAPI.Tests.TestDoubles.Schemas
+namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Schemas
 {
     /// <summary>
     /// Builds the exact columns that GetTeleportTableBySpaceAsync expects from its SELECT aliases.
     /// Use this to produce a DataTable and then call CreateDataReader() for a fresh reader per test.
     /// </summary>
-    public static class TeleportGetSchema
+    public static class TeleportSchema
     {
-        public static DataTable CreateEmptySchema()
+        public static DataTable CreateTeleportSelectSchema()
         {
             var t = new DataTable();
             t.Columns.Add("table_id", typeof(int));

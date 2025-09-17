@@ -4,13 +4,12 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Controller to handle Event APIs</summary>
-
-using Microsoft.AspNetCore.Mvc;
-//
-using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -41,25 +40,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EventData>> GetEventDataByID([FromRoute] int event_id)
         {
             if (event_id <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "event_id must be a positive integer.",
-                        nameof(GetEventDataByID),
-                        new { event_id }
-                    ),
-                    nameof(event_id)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetEventDataByID),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(event_id),
+                    parameters: new { event_id });
 
             var evt = await _eventRepository.GetEventByIdAsync(event_id);
 
             if (evt is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Event not found.",
-                        nameof(GetEventDataByID),
-                        new { event_id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetEventDataByID),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { event_id });
 
             return Ok(evt);
         }
@@ -73,23 +68,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EventData>> CreateEvent([FromBody] Event eventDto)
         {
             if (eventDto is null)
-                throw new ArgumentNullException(
-                    nameof(eventDto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(CreateEvent)
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateEvent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(eventDto));
 
             var created = await _eventRepository.CreateEventAsync(eventDto);
 
             if (created is null)
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                        "Creation failed.",
-                        nameof(CreateEvent)
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(CreateEvent),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { eventDto });
 
             return CreatedAtAction(nameof(GetEventDataByID), new { event_id = created.Id }, created);
         }
@@ -106,35 +98,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<EventData>> UpdateEvent([FromRoute] int eventId, [FromBody] Event dto)
         {
             if (eventId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "eventId must be a positive integer.",
-                        nameof(UpdateEvent),
-                        new { eventId }
-                    ),
-                    nameof(eventId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateEvent),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(eventId),
+                    parameters: new { eventId });
 
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(UpdateEvent),
-                        new { eventId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateEvent),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { eventId });
 
             var updated = await _eventRepository.UpdateEventAsync(eventId, dto);
 
             if (updated is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Event not found.",
-                        nameof(UpdateEvent),
-                        new { eventId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdateEvent),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { eventId });
 
             return Ok(updated);
         }
