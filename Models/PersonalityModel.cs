@@ -4,8 +4,7 @@
 // <author>Syed Hussain</author>
 // <date>07/25/2025</date>
 // <summary>Personality Model for Personality Controller</summary>
-using System;
-using System.Collections.Generic;
+
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models
@@ -40,18 +39,4 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public LocalizedPairs LocalizedBio { get; set; } = new();
         public MediaUpdateDto? Media { get; set; }
     }
-
-    //public class PersonalityUpdateDto
-    //{
-    //    public string Name { get; set; }
-    //    public int? SportId { get; set; }
-    //    public int? EntityId { get; set; }
-    //    public int SpaceId { get; set; } // Needed for media and i18n
-    //    public string? ModifiedBy { get; set; }
-
-    //    public LocalizedPairs LocalizedCountry { get; set; } = new();
-    //    public LocalizedPairs LocalizedBio { get; set; } = new();
-
-    //    public MediaUpdateDto? Media { get; set; }
-    //}
-    }
+}

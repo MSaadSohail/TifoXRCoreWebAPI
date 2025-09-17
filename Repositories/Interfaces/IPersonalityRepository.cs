@@ -6,13 +6,11 @@
 // <summary>Interface layer for personality repository</summary>
 using GMS.TifoXRCoreWebAPI.Models;
 
-namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public interface IPersonalityRepository
     {
         Task<PersonalityData?> GetPersonalityByIdAsync(int id);
         Task<PersonalityData> CreatePersonalityAsync(PersonalityCreateDto dto);
-
     }
-
 }

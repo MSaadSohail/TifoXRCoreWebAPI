@@ -1,6 +1,5 @@
 ﻿// AppLoggerExtensions.cs
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface; // IAppLogger<T>
-using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Utilities.Logger
 {

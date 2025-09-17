@@ -4,12 +4,12 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Class to handle event SQL side</summary>
+
 using MySqlConnector;
 using System.Data;
+//
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {

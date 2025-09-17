@@ -1,8 +1,14 @@
-﻿using System.Data.Common;
-using System.Reflection;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+﻿// <copyright file="DefaultDbProvider .cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary></summary>
 
-namespace TifoXRCoreWebAPI.Utilities.Infrastructure
+using System.Data.Common;
+using System.Reflection;
+
+namespace GMS.TifoXRCoreWebAPI.Utilities.Infrastructure
 {
     public sealed class DefaultDbProvider(DbProviderOptions options) : IDbProvider
     {

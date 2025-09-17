@@ -1,162 +1,48 @@
-﻿// Services/PaymentService.cs
-using GMS.TifoXRCoreWebAPI.Middleware;
+﻿// <copyright file="PaymentService.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary></summary>
+
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using TifoXRCoreWebAPI.Application.PaymentGateways;
-using TifoXRCoreWebAPI.Services;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {
     /// <summary>
-    /// Orchestrates payment gateway calls and persists results through IOrderRepository helpers.
+    /// Slim façade that delegates to focused payment handlers.
     /// </summary>
-    public sealed class PaymentService(IPaymentGateway gateway, IOrderRepository orders) : IPaymentService
+    public sealed class PaymentService : IPaymentService
     {
-        // Status constants (align with your lookup tables)
-        private const int StatusRequiresAction = 1; // e.g., "requires_action"
-        private const int StatusSucceeded = 3; // e.g., "succeeded"
-        private const int OrderStatusPaid = 3; // e.g., "Paid"
+        private readonly PaymentHandlers.CreateIntentHandler _create;
+        private readonly PaymentHandlers.CaptureHandler _capture;
+        private readonly PaymentHandlers.RefundHandler _refund;
+        private readonly IPaymentGatewayResolver _resolver;
 
-        private readonly IPaymentGateway _gateway = gateway;
-        private readonly IOrderRepository _orders = orders;
-
-        public async Task<CreatePaymentIntentResponse> CreateIntentAsync(
-            int spaceId, string orderId, CreatePaymentIntentRequest req)
+        public PaymentService(
+            PaymentHandlers.CreateIntentHandler create,
+            PaymentHandlers.CaptureHandler capture,
+            PaymentHandlers.RefundHandler refund,
+            IPaymentGatewayResolver resolver)
         {
-            if (req is null) throw new ArgumentNullException(nameof(req));
-            
-            if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
-                throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
-            
-            if (_gateway == null)
-                throw new ArgumentException("Gateway is required.", nameof(req.Gateway));
-
-            // 1) Load order context (minimal header)
-            var header = await _orders.GetOrderHeaderAsync(orderId); // space, currency, total net
-            
-            if (header is null || header.Value.SpaceId != spaceId)
-                throw new InvalidOperationException("Order not found in this space.");
-
-            var amountMinor = req.AmountMinor ?? header.Value.TotalNetMinor;
-            var amountMajor = amountMinor / 100m;       //FIX ME: Check what is 100m
-
-            // 2) Idempotency — return existing intent if already created
-            var existing = await _orders.FindPaymentIntentByIdempotencyAsync(orderId, req.IdempotencyKey);
-
-            if (existing is not null)
-            {
-                // Optionally refresh approval link via gateway (useful if link expired/rotated)
-                string? approve = null;
-
-                if (!string.IsNullOrWhiteSpace(existing.Value.ProviderIntentId))
-                {
-                    var st = await _gateway.GetIntentAsync(existing.Value.ProviderIntentId!);
-                    approve = st?.ApproveLink;
-                }
-
-                return new CreatePaymentIntentResponse
-                {
-                    PaymentIntentId = existing.Value.Id,
-                    PaymentGatewayId = req.Gateway,
-                    StatusId = StatusRequiresAction,
-                    ProviderIntentId = existing.Value.ProviderIntentId,
-                    ApproveLink = approve
-                };
-            }
-
-            // 3) Create intent on gateway
-            var created = await _gateway.CreateIntentAsync(new CreateGatewayIntentRequest(
-                IdempotencyKey: req.IdempotencyKey,
-                CurrencyId: header.Value.CurrencyId,
-                Amount: amountMajor, // major units
-                ReturnUrl: $"https://localhost:7017/api/space/{spaceId}/orders/{orderId}/payments/paypal/return",
-                CancelUrl: $"https://your.app/cancel"));
-
-            if (string.IsNullOrWhiteSpace(created.ProviderIntentId))
-                throw new InvalidOperationException("Gateway did not return a provider intent id.");
-
-            // 4) Persist the intent
-            var gatewayId = req.Gateway;
-
-            var piId = await _orders.InsertPaymentIntentAsync(
-                orderId: orderId,
-                gatewayId: gatewayId,
-                statusId: StatusRequiresAction,
-                amountMinor: amountMinor,
-                currencyId: header.Value.CurrencyId,
-                providerIntentId: created.ProviderIntentId!,
-                idempotencyKey: req.IdempotencyKey);
-
-            return new CreatePaymentIntentResponse
-            {
-                PaymentIntentId = piId,
-                PaymentGatewayId = gatewayId,
-                StatusId = StatusRequiresAction,
-                ProviderIntentId = created.ProviderIntentId,
-                ApproveLink = created.ApproveLink
-            };
+            _create = create;
+            _capture = capture;
+            _refund = refund;
+            _resolver = resolver;
         }
 
-        public async Task<ConfirmPaymentIntentResponse> CaptureAsync(
-            int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req)
-        {
-            if (req is null) throw new ArgumentNullException(nameof(req));
-            
-            if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
-                throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
+        public Task<CreatePaymentIntentResponse> CreateIntentAsync(int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req)
+            => _create.ExecuteAsync(spaceId, orderId, gatewayId, req);
 
-            // 1) Intent + Order context
-            var ctx = await _orders.GetIntentContextAsync(intentId);
-            
-            if (ctx is null || ctx.Value.OrderId != orderId || ctx.Value.SpaceId != spaceId)
-                throw new InvalidOperationException("payment_intent not found for this order/space.");
+        public Task<ConfirmPaymentIntentResponse> CaptureAsync(int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req)
+            => _capture.ExecuteAsync(spaceId, orderId, intentId, req);
 
-            var providerIntentId = ctx.Value.ProviderIntentId ?? req.ProviderIntentId
-                ?? throw new InvalidOperationException("provider_intent_id missing.");
+        public Task<RefundResponse> RefundAsync(int spaceId, string orderId, string chargeId, RefundRequest req)
+            => _refund.ExecuteAsync(spaceId, orderId, chargeId, req);
 
-            // NOTE: If you later store gateway_id on the intent, resolve the gateway from the repo/context.
-            // For now, we only support PayPal here.
-
-            var status = await _gateway.GetIntentAsync(providerIntentId);
-
-            if (status is null || !string.Equals(status.Status, "APPROVED", StringComparison.OrdinalIgnoreCase))
-            {
-                // throw a user-meaningful exception the controller can map to 409/400
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                    "PAYMENT_REQUIRES_APPROVAL",
-                    nameof(CaptureAsync)));
-            }
-
-            // 2) Capture
-            var cap = await _gateway.CaptureAsync(new CaptureGatewayRequest(
-                IdempotencyKey: req.IdempotencyKey,
-                ProviderIntentId: providerIntentId));
-
-            var amountMinor = (long)decimal.Round(cap.CapturedAmount * 100m, 0, MidpointRounding.AwayFromZero);
-
-            // 3) Persist charge + transitions
-            var chargeId = await _orders.InsertChargeAsync(
-                intentId: intentId,
-                statusId: StatusSucceeded,
-                amountCapturedMinor: amountMinor,
-                currencyId: ctx.Value.CurrencyId,
-                providerChargeId: cap.ProviderChargeId,
-                paidAtUtc: DateTime.UtcNow,
-                userId: ctx.Value.UserId);
-
-            // Mark order paid if fully covered, grant entitlements, snapshot invoice
-            await _orders.MarkPaidIfCoveredAsync(orderId, amountMinor, OrderStatusPaid);
-            await _orders.GrantEntitlementsAsync(orderId);
-            await _orders.InsertInvoiceFromOrderAsync(spaceId, orderId, chargeId, gatewayId: 2 /* PayPal */);
-
-            return new ConfirmPaymentIntentResponse
-            {
-                OrderId = orderId,
-                PaymentIntentId = intentId,
-                ProviderChargeId = cap.ProviderChargeId,
-                PaymentStatusId = StatusSucceeded
-            };
-        }
+        // Preserving these helpers to maintain your public API
+        public IPaymentGateway GetGatewayByName(string name) => _resolver.GetByName(name);
+        public IPaymentGateway GetGatewayById(int gatewayId) => _resolver.GetById(gatewayId);
     }
 }

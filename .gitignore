@@ -486,3 +486,6 @@ $RECYCLE.BIN/
 #App settings should be locally created
 appsettings.json
 appsettings.*.json
+
+# custom header
+*.licenseheader

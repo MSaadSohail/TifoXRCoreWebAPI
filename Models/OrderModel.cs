@@ -1,4 +1,11 @@
-﻿namespace GMS.TifoXRCoreWebAPI.Models
+﻿// <copyright file="OrderModel.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/02/2025</date>
+// <summary></summary>
+
+namespace GMS.TifoXRCoreWebAPI.Models
 {
     public sealed class OrderDto
     {
@@ -146,8 +153,8 @@
     public sealed class CreatePaymentIntentRequest
     {
         public string IdempotencyKey { get; init; } = default!;
-        public int Gateway { get; init; } = default!; // "paypal" etc.
-        public long? AmountMinor { get; init; }          // defaults to order total if null
+        //public int Gateway { get; init; } = default!; // "paypal" etc.
+        //public long? AmountMinor { get; init; }          // defaults to order total if null
     }
 
     public sealed class CreatePaymentIntentResponse
@@ -226,4 +233,40 @@
         public long? AmountMinor { get; init; }
         public int? CurrencyId { get; init; }
     }
+
+    public sealed class RefundRequest
+    {
+        public string IdempotencyKey { get; set; } = default!;
+        public long? AmountMinor { get; set; } // null => full refund
+        public string? Reason { get; set; }
+    }
+
+    public sealed class RefundResponse
+    {
+        public string OrderId { get; set; } = default!;
+        public string ChargeId { get; set; } = default!;
+        public string RefundId { get; set; } = default!;
+        public string ProviderRefundId { get; set; } = default!;
+        public int StatusId { get; set; } // e.g., 3 = succeeded
+        public long RefundedAmountMinor { get; set; }
+        public int CurrencyId { get; set; }
+    }
+
+    public sealed class ReconcileCandidate
+    {
+        public string OrderId { get; init; }
+        public int SpaceId { get; init; }
+        public int PaymentGatewayId { get; init; }
+
+        public bool IsPaid { get; init; }
+        public bool HasInvoice { get; init; }
+        public bool HasEntitlements { get; init; }
+
+        public string? IntentId { get; init; }
+        public string? ProviderIntentId { get; init; }
+        public string? LastChargeId { get; init; }
+
+        public long? ExpectedPaidMinor { get; init; }
+    }
+
 }
