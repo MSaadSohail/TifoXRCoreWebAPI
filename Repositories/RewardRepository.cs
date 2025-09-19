@@ -12,6 +12,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
+    /// <summary>
+    /// Concrete repository for Reward &amp; UserReward operations.
+    /// </summary>
     public sealed class RewardRepository : IRewardRepository
     {
         private readonly IDbProvider _db;

@@ -3,20 +3,20 @@
 // </copyright>
 // <author>Urvashi Dhingra</author>
 // <date>09/16/2025</date>
-// <summary>Reward definition + UserReward lifecycle endpoints</summary>
+// <summary>Reward definition and UserReward lifecycle endpoints</summary>
 
-using Microsoft.AspNetCore.Mvc;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 //
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Services;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
-    // ==============================
-    // Reward definitions (catalog)
-    // ==============================
+    // =========================================================================
+    // REWARD
+    // =========================================================================
     [ApiController]
     [Route("api/space/{spaceId:int}/rewards")]
     [Produces("application/json")]
@@ -25,75 +25,203 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         private readonly IRewardService _svc;
         public RewardsController(IRewardService svc) => _svc = svc;
 
-        // POST /api/space/{spaceId}/rewards
+        #region CREATE
+
+        /// <summary>
+        /// Create a reward definition for the specified space.
+        /// <returns>201 with new reward id.</returns>
+        /// </summary>
         [HttpPost]
-        public async Task<ActionResult<object>> Create(int spaceId, [FromBody] RewardCreateDto dto)
+        [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<object>> CreateReward(int spaceId, [FromBody] RewardCreateDto dto)
         {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
+
             if (dto is null)
-                throw new ArgumentNullException(nameof(dto),
-                    GlobalException.FormatExceptionMessage("Body is required.", nameof(Create), new { spaceId }));
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateReward),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId });
 
             var id = await _svc.CreateAsync(spaceId, dto);
-            return Ok(new { id });
+
+            return CreatedAtAction(nameof(GetRewardById), new { spaceId, rewardId = id }, new { id });
         }
 
-        // GET /api/space/{spaceId}/rewards/{rewardId}
+        #endregion
+
+        #region READ (GET / LIST)
+
+        /// <summary>
+        /// Get a reward definition by id within a space.
+        /// </summary>
         [HttpGet("{rewardId:int}")]
-        public async Task<ActionResult<RewardView>> Get(int spaceId, int rewardId)
+        [ProducesResponseType(typeof(RewardView), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<RewardView>> GetRewardById(int spaceId, int rewardId)
         {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetRewardById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, rewardId });
+
+            if (rewardId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetRewardById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId });
+
             var row = await _svc.GetAsync(rewardId, spaceId);
             if (row is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage("Reward not found.", nameof(Get), new { spaceId, rewardId }));
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetRewardById),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, rewardId });
+
             return Ok(row);
         }
 
-        // GET /api/space/{spaceId}/rewards
+        /// <summary>
+        /// List all reward definitions for a space.
+        /// </summary>
         [HttpGet]
-        public async Task<ActionResult<IReadOnlyList<RewardView>>> List(int spaceId)
+        [ProducesResponseType(typeof(IReadOnlyList<RewardView>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<IReadOnlyList<RewardView>>> ListRewardsBySpace(int spaceId)
         {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(ListRewardsBySpace),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
+
             var rows = await _svc.ListBySpaceAsync(spaceId);
             return Ok(rows);
         }
 
-        // POST /api/space/{spaceId}/rewards/{rewardId}/items
+        #endregion
+
+        #region ATTACH (ITEMS / CURRENCIES)
+
+        /// <summary>
+        /// Attach an item component to a reward (e.g., item + quantity).
+        /// </summary>
         [HttpPost("{rewardId:int}/items")]
-        public async Task<ActionResult<object>> AddItem(int spaceId, int rewardId, [FromBody] RewardItemDto dto)
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<object>> AddItemToReward(int spaceId, int rewardId, [FromBody] RewardItemDto dto)
         {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddItemToReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, rewardId });
+
+            if (rewardId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddItemToReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId });
+
             if (dto is null)
-                throw new ArgumentNullException(nameof(dto),
-                    GlobalException.FormatExceptionMessage("Body is required.", nameof(AddItem), new { spaceId, rewardId }));
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(AddItemToReward),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, rewardId });
 
             if (dto.RewardId != rewardId)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage("Route rewardId must match body RewardId.", nameof(AddItem), new { spaceId, rewardId, dto.RewardId }),
-                    nameof(rewardId));
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddItemToReward),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId, bodyRewardId = dto.RewardId });
 
             var id = await _svc.AddItemAsync(dto);
             return Ok(new { id });
         }
 
-        // POST /api/space/{spaceId}/rewards/{rewardId}/currencies
+        /// <summary>
+        /// Attach a currency component to a reward (e.g., currency + amount).
+        /// </summary>
         [HttpPost("{rewardId:int}/currencies")]
-        public async Task<ActionResult<object>> AddCurrency(int spaceId, int rewardId, [FromBody] RewardCurrencyDto dto)
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [HttpPost("{rewardId:int}/currencies")]
+        public async Task<ActionResult<object>> AddCurrencyToReward(int spaceId, int rewardId, [FromBody] RewardCurrencyDto dto)
         {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddCurrencyToReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, rewardId });
+
+            if (rewardId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddCurrencyToReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId });
+
             if (dto is null)
-                throw new ArgumentNullException(nameof(dto),
-                    GlobalException.FormatExceptionMessage("Body is required.", nameof(AddCurrency), new { spaceId, rewardId }));
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(AddCurrencyToReward),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, rewardId });
 
             if (dto.RewardId != rewardId)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage("Route rewardId must match body RewardId.", nameof(AddCurrency), new { spaceId, rewardId, dto.RewardId }),
-                    nameof(rewardId));
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddCurrencyToReward),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId, bodyRewardId = dto.RewardId });
 
             var id = await _svc.AddCurrencyAsync(dto);
             return Ok(new { id });
         }
     }
 
-    // ===========================================
-    // User reward instances (grant / claim flow)
-    // ===========================================
+    #endregion
+
+    // =========================================================================
+    // USER REWARDS
+    // =========================================================================
+
     [ApiController]
     [Route("api/user-rewards")]
     [Produces("application/json")]
@@ -102,48 +230,113 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         private readonly IRewardService _svc;
         public UserRewardsController(IRewardService svc) => _svc = svc;
 
-        // POST /api/user-rewards/grant
+        #region GET
+
+        /// <summary>
+        /// Get a user-reward instance by id.
+        /// </summary>
+        [HttpGet("{id:int}")]
+        [ProducesResponseType(typeof(UserRewardView), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<UserRewardView>> GetUserRewardById(int id)
+        {
+            if (id <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetUserRewardById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(id),
+                    parameters: new { id });
+
+            var row = await _svc.GetUserRewardAsync(id);
+            if (row is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetUserRewardById),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
+
+            return Ok(row);
+        }
+
+        #endregion
+
+        #region POST
+
+        /// <summary>
+        /// Grant a reward to a user in <b>Pending</b> state (idempotent).
+        /// </summary>
         [HttpPost("grant")]
-        public async Task<ActionResult<object>> Grant([FromBody] GrantRewardRequest req)
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [HttpPost("grant")]
+        public async Task<ActionResult<object>> GrantPendingUserReward([FromBody] GrantRewardRequest req)
         {
             if (req is null)
-                throw new ArgumentNullException(nameof(req),
-                    GlobalException.FormatExceptionMessage("Body is required.", nameof(Grant), new { }));
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(GrantPendingUserReward),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(req),
+                    parameters: new { });
 
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage("IdempotencyKey is required.", nameof(Grant), new { req.UserId, req.RewardId, req.SpaceId }),
-                    nameof(req.IdempotencyKey));
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GrantPendingUserReward),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(req.IdempotencyKey),
+                    parameters: new { req.UserId, req.RewardId, req.SpaceId });
 
             var userRewardId = await _svc.GrantPendingAsync(req);
             return Ok(new { id = userRewardId });
         }
 
-        // GET /api/user-rewards/{id}
-        [HttpGet("{id:int}")]
-        public async Task<ActionResult<UserRewardView>> GetUserReward(int id)
-        {
-            var row = await _svc.GetUserRewardAsync(id);
-            if (row is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage("UserReward not found.", nameof(GetUserReward), new { id }));
-            return Ok(row);
-        }
-
-        // POST /api/user-rewards/{id}/deliver
+        /// <summary>
+        /// Mark a user-reward as <b>Delivered</b>.
+        /// </summary>
         [HttpPost("{id:int}/deliver")]
-        public async Task<IActionResult> MarkDelivered(int id)
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> MarkUserRewardAsDelivered(int id)
         {
+            if (id <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(MarkUserRewardAsDelivered),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(id),
+                    parameters: new { id });
+
             await _svc.SetDeliveredAsync(id);
             return NoContent();
         }
 
-        // POST /api/user-rewards/{id}/claim
+        /// <summary>
+        /// Mark a user-reward as <b>Claimed</b>.
+        /// </summary>
         [HttpPost("{id:int}/claim")]
-        public async Task<IActionResult> MarkClaimed(int id)
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> MarkUserRewardAsClaimed(int id)
         {
+            if (id <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(MarkUserRewardAsClaimed),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(id),
+                    parameters: new { id });
+
             await _svc.SetClaimedAsync(id);
             return NoContent();
         }
+
+        #endregion
     }
 }
