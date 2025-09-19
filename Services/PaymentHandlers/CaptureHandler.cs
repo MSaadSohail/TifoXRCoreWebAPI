@@ -22,6 +22,7 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
             int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
@@ -73,7 +74,7 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
                 OrderId = orderId,
                 PaymentIntentId = intentId,
                 ProviderChargeId = cap.ProviderChargeId,
-                PaymentStatusId = (int)PaymentIntentStatus.RequiresAction
+                PaymentStatusId = (int)PaymentIntentStatus.Succeeded
             };
         }
     }
