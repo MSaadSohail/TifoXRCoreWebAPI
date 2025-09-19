@@ -7,30 +7,27 @@
 
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers; 
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {
     /// <summary>
     /// Slim façade that delegates to focused payment handlers.
     /// </summary>
-    public sealed class PaymentService : IPaymentService
+    public sealed class PaymentService(
+        CreateIntentHandler create,
+        CaptureHandler capture,
+        RefundHandler refund,
+        ReportOnChainHandler reportOnChain,
+        GetPreparedPayloadHandler getPrepared,
+        IPaymentGatewayResolver resolver) : IPaymentService
     {
-        private readonly PaymentHandlers.CreateIntentHandler _create;
-        private readonly PaymentHandlers.CaptureHandler _capture;
-        private readonly PaymentHandlers.RefundHandler _refund;
-        private readonly IPaymentGatewayResolver _resolver;
-
-        public PaymentService(
-            PaymentHandlers.CreateIntentHandler create,
-            PaymentHandlers.CaptureHandler capture,
-            PaymentHandlers.RefundHandler refund,
-            IPaymentGatewayResolver resolver)
-        {
-            _create = create;
-            _capture = capture;
-            _refund = refund;
-            _resolver = resolver;
-        }
+        private readonly CreateIntentHandler _create = create;
+        private readonly CaptureHandler _capture = capture;
+        private readonly RefundHandler _refund = refund;
+        private readonly ReportOnChainHandler _reportOnChain = reportOnChain;  
+        private readonly GetPreparedPayloadHandler _getPrepared = getPrepared;   
+        private readonly IPaymentGatewayResolver _resolver = resolver;
 
         public Task<CreatePaymentIntentResponse> CreateIntentAsync(int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req)
             => _create.ExecuteAsync(spaceId, orderId, gatewayId, req);
@@ -40,6 +37,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
         public Task<RefundResponse> RefundAsync(int spaceId, string orderId, string chargeId, RefundRequest req)
             => _refund.ExecuteAsync(spaceId, orderId, chargeId, req);
+
+        public Task ReportOnChainTxAsync(int spaceId, string orderId, string intentId, string txHash)
+            => _reportOnChain.ExecuteAsync(spaceId, orderId, intentId, txHash);
+
+        public Task<string> GetPreparedClientPayloadAsync(int spaceId, string orderId, string intentId, string sender)
+            => _getPrepared.ExecuteAsync(spaceId, orderId, intentId, sender);
+
 
         // Preserving these helpers to maintain your public API
         public IPaymentGateway GetGatewayByName(string name) => _resolver.GetByName(name);

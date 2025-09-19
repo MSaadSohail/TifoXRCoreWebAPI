@@ -10,11 +10,9 @@ using GMS.TifoXRCoreWebAPI.Repositories;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {
-    public sealed class RewardService : IRewardService
+    public sealed class RewardService(IRewardRepository repo) : IRewardService
     {
-        private readonly IRewardRepository _repo;
-        public RewardService(IRewardRepository repo) 
-            => _repo = repo;
+        private readonly IRewardRepository _repo = repo;
 
         // Reward definitions
         public Task<int> CreateAsync(int spaceId, RewardCreateDto dto) 

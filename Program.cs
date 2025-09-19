@@ -13,8 +13,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http.Features;
 // Serilog
 using Serilog;
-using Serilog.Context;
 using Serilog.Events;
+using Serilog.Context;
 //
 using Thirdweb;
 //
@@ -26,10 +26,10 @@ using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
 using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -117,6 +117,9 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.AddScoped<CreateIntentHandler>();
     services.AddScoped<CaptureHandler>();
     services.AddScoped<RefundHandler>();
+    services.AddScoped<ReportOnChainHandler>();
+    services.AddScoped<GetPreparedPayloadHandler>();
+
     services.AddScoped<IOrderRepository, OrderRepository>();
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();

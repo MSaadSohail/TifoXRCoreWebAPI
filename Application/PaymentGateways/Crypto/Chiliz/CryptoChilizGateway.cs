@@ -60,6 +60,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
         public Task<CreateGatewayIntentResult> CreateIntentAsync(CreateGatewayIntentRequest req)
         {
             if (req is null) throw new ArgumentNullException(nameof(req));
+
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
@@ -81,6 +82,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
 
             // Client must append ?sender=0xWallet when fetching prepared payload
             var approveLink = $"{_opts.PublicBaseUrl}/pay/crypto.html";
+            
             return Task.FromResult(new CreateGatewayIntentResult(providerIntentId, approveLink));
         }
 
@@ -175,13 +177,12 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
             _logger.LogInformation("Crypto intent {Pid} verification after report: {Ok}", pid, ok);
         }
 
-        // in CryptoChilizGateway.cs
         public async Task<string> GetPreparedJsonAsync(string pid, string senderAddress)
         {
             if (!_intents.TryGetValue(pid, out var s))
                 throw new InvalidOperationException("Unknown provider intent id.");
 
-            // Basic validations (fail fast with 400s instead of 500s)
+            // Basic validations (fail fast as before)
             if (string.IsNullOrWhiteSpace(senderAddress) || senderAddress.Length != 42 || !senderAddress.StartsWith("0x"))
                 throw new ArgumentException("sender must be a valid EVM address", nameof(senderAddress));
             if (string.IsNullOrWhiteSpace(_opts.TreasuryAddress) || _opts.TreasuryAddress.Length != 42 || !_opts.TreasuryAddress.StartsWith("0x"))
@@ -189,48 +190,56 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
             if (_opts.ChainId != 88882 && _opts.ChainId != 88888)
                 throw new ArgumentException($"Unsupported ChainId '{_opts.ChainId}'. Use 88882 (Spicy) or 88888 (Mainnet).");
 
-            // Cache hit for same sender
+            // Cache hit for same sender (but normalize shape before returning)
             if (s.Sender is not null && s.PreparedJson is not null &&
                 string.Equals(s.Sender, senderAddress, StringComparison.OrdinalIgnoreCase))
-                return s.PreparedJson;
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(s.PreparedJson);
+                    // If it’s already normalized (object with to/value_hex/chain_id_hex), just return it.
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                        doc.RootElement.TryGetProperty("to", out _) &&
+                        doc.RootElement.TryGetProperty("value_hex", out _) &&
+                        doc.RootElement.TryGetProperty("chain_id_hex", out _))
+                    {
+                        return s.PreparedJson;
+                    }
+                }
+                catch { /* ignore and re-normalize below */ }
+            }
 
-            // Try thirdweb prepare; if it fails, fall back to a simple native transfer
+            // Try thirdweb prepare (optional). If it throws, we still return our normalized minimal payload.
             try
             {
                 if (string.IsNullOrWhiteSpace(_opts.ThirdwebSecretKey))
                     throw new InvalidOperationException("ThirdwebSecretKey is missing.");
 
                 var bridge = await Thirdweb.Bridge.ThirdwebBridge.Create(_client);
-                var prepared = await bridge.Transfer_Prepare(
+                // Not used directly by the client; call serves as an extra guard/validation.
+                _ = await bridge.Transfer_Prepare(
                     chainId: s.ChainId,
                     tokenAddress: Constants.NATIVE_TOKEN_ADDRESS,
                     transferAmountWei: s.AmountWei,
                     sender: senderAddress,
                     receiver: s.Receiver
                 );
-
-                var json = JsonSerializer.Serialize(prepared);
-                _intents[pid] = s with { Sender = senderAddress, PreparedJson = json };
-                return json;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "thirdweb prepare failed; falling back to raw native tx for {Pid}", pid);
+                _logger.LogWarning(ex, "thirdweb prepare failed or skipped; using normalized native transfer for {Pid}", pid);
+            }
 
-                // Fallback: direct native CHZ tx (MetaMask will fill gas)
-                var fallback = new[]
-                {
-            new {
+            var normalized = new
+            {
                 to = s.Receiver,
-                data = "0x",
-                value = "0x" + s.AmountWei.ToString("X") // hex wei
-            }
-        };
+                value_hex = "0x" + s.AmountWei.ToString("X"),
+                chain_id_hex = "0x" + s.ChainId.ToString("X")
+            };
 
-                var json = JsonSerializer.Serialize(fallback);
-                _intents[pid] = s with { Sender = senderAddress, PreparedJson = json };
-                return json;
-            }
+            var json = JsonSerializer.Serialize(normalized);
+            _intents[pid] = s with { Sender = senderAddress, PreparedJson = json };
+            return json;
         }
 
         // ---- JSON-RPC shapes ----
@@ -258,22 +267,27 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
 
                 // 3) Confirmations
                 var headHex = await RpcCallAsync<string>("eth_blockNumber");
+
                 if (string.IsNullOrWhiteSpace(headHex)) return false;
+
                 var head = HexToBigInt(headHex);
                 var mined = HexToBigInt(receipt.blockNumber!);
                 var confirmations = head - mined;
+
                 if (confirmations < _opts.MinConfirmations)
                     return false; // not enough confs yet
 
                 // 4) Validate destination and amount (native CHZ)
                 if (!AddressEqual(tx.to, _opts.TreasuryAddress))
                     return false;
+
                 if (HexToBigInt(tx.value ?? "0x0") < s.AmountWei)
                     return false;
 
                 // 5) All good → APPROVED
                 s = s with { Status = "APPROVED" };
                 _intents[pid] = s;
+
                 return true;
             }
             catch (Exception ex)
@@ -282,7 +296,7 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
                 return false;
             }
         }
-        // inside CryptoChilizGateway class
+
         internal bool TryGetNativeParams(string pid, out string receiver, out string valueHex, out int chainId)
         {
             receiver = default!;
@@ -337,6 +351,5 @@ namespace GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz
             var s = hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? hex[2..] : hex;
             return BigInteger.Parse("0" + s, System.Globalization.NumberStyles.AllowHexSpecifier);
         }
-
     }
 }

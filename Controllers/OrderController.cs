@@ -49,8 +49,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public Task<ActionResult<InvoiceListResponse?>> GetInvoices(int spaceId, string orderId)
             => Handle(async () => await _orders.GetInvoicesAsync(spaceId, orderId));
 
-        [HttpPost]
-        public Task<ActionResult<CreateOrderResponse>> Create(int spaceId, [FromBody] CreateOrderRequest req, [FromQuery] int? gatewayId = null)
+        [HttpPost("create")]
+        public Task<ActionResult<CreateOrderResponse>> CreateOrder(int spaceId, [FromBody] CreateOrderRequest req, [FromQuery] int? gatewayId = null)
             => Handle(async () =>
             {
                 if (req is null) throw new ArgumentNullException(nameof(req));
@@ -176,14 +176,48 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return VerifyResponseMapper.Build(after);
             });
 
+        // GET /api/space/{spaceId}/orders/{orderId}/payment-intents/{intentId}/crypto/prepared?sender=0x...
+        [HttpGet("{orderId}/payment-intents/{intentId}/crypto/prepared")]
+        public async Task<IActionResult> GetCryptoPrepared(
+            int spaceId,
+            string orderId,
+            string intentId,
+            [FromQuery] string sender)
+        {
+            if (string.IsNullOrWhiteSpace(sender))
+                return BadRequest("sender is required (0x EVM address).");
+
+            // Service derives gateway/providerIntentId from the intent context
+            var json = await _payments.GetPreparedClientPayloadAsync(spaceId, orderId, intentId, sender);
+            return Content(json, "application/json");
+        }
+
+        // POST /api/space/{spaceId}/orders/{orderId}/payment-intents/{intentId}/crypto/report-tx
+        public sealed record ReportTxRequest(string TxHash);
+        [HttpPost("{orderId}/payment-intents/{intentId}/crypto/report-tx")]
+        public async Task<IActionResult> ReportOnChainTx(
+            int spaceId,
+            string orderId,
+            string intentId,
+            [FromBody] ReportTxRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.TxHash))
+                return BadRequest("txHash is required.");
+
+            // Service resolves gateway + providerIntentId from the intent context
+            await _payments.ReportOnChainTxAsync(spaceId, orderId, intentId, body.TxHash);
+            return NoContent();
+        }
+
         // ------------- Crypto Helpers -------------
 
         [HttpGet("~/pay/crypto")]
+        [HttpGet("~/pay/crypto.html")]
         [Produces("text/html")]
         public IActionResult CryptoExecute()
         {
             var path = Path.Combine(Environment.CurrentDirectory, "wwwroot", "pay", "crypto.html");
-            if (!System.IO.File.Exists(path)) return NotFound();
+            if (!System.IO.File.Exists(path)) return NotFound("Link not found");
             return PhysicalFile(path, "text/html; charset=utf-8");
         }
 

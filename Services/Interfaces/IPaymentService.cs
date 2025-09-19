@@ -16,6 +16,9 @@ namespace GMS.TifoXRCoreWebAPI.Services
         Task<ConfirmPaymentIntentResponse> CaptureAsync(int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req);
         Task<RefundResponse> RefundAsync(int spaceId, string orderId, string chargeId, RefundRequest req);
 
+        Task ReportOnChainTxAsync(int spaceId, string orderId, string intentId, string txHash);
+        Task<string> GetPreparedClientPayloadAsync(int spaceId, string orderId, string intentId, string sender);
+
         IPaymentGateway GetGatewayByName(string name);
         IPaymentGateway GetGatewayById(int gatewayId);
     }
