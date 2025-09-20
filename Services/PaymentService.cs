@@ -45,7 +45,6 @@ namespace GMS.TifoXRCoreWebAPI.Services
             => _getPrepared.ExecuteAsync(spaceId, orderId, intentId, sender);
 
 
-        // Preserving these helpers to maintain your public API
         public IPaymentGateway GetGatewayByName(string name) => _resolver.GetByName(name);
         public IPaymentGateway GetGatewayById(int gatewayId) => _resolver.GetById(gatewayId);
     }
