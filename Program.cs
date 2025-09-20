@@ -5,19 +5,8 @@
 // <date>08/19/2025</date>
 // <summary>Initializes and configures the ASP.NET Core Web API application with Serilog host logging</summary>
 
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
-using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
-//
-using GMS.TifoXRCoreWebAPI.Data;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Repositories;
-using GMS.TifoXRCoreWebAPI.Services;
-using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
-using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+
+
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -30,8 +19,19 @@ using System.Data.Common;
 using System.Reflection;
 //
 using Thirdweb;
-using TifoXRCoreWebAPI.Services;
-using TifoXRCoreWebAPI.Services.Interfaces;
+//
+using GMS.TifoXRCoreWebAPI.Data;
+using GMS.TifoXRCoreWebAPI.Services;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -126,7 +126,6 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();
     services.AddScoped<IPaymentQueryService, PaymentQueryService>();
-    services.AddScoped<IApprovalLinkService, DefaultApprovalLinkService>();
 
     // thirdweb client (server-side) from secret key
     services.AddSingleton(sp =>

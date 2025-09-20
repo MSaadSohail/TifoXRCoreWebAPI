@@ -5,21 +5,23 @@
 // <date>9/12/2025</date>
 // <summary></summary>
 
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
-using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
-using TifoXRCoreWebAPI.Services.Interfaces;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Utilities;
 
 namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
 {
     public sealed class CreateIntentHandler(
         IPaymentGatewayResolver resolver, 
-        IOrderRepository orders,
-        IApprovalLinkService approvalLinks)
+        IOrderRepository orders)
     {
         private readonly IPaymentGatewayResolver _resolver = resolver;
         private readonly IOrderRepository _orders = orders;
+
+        // FIX ME: Fetch from lookup tables
+        private const int STATUS_REQUIRES_ACTION = 1;
+        private const int STATUS_SUCCEEDED = 3;
 
         public async Task<CreatePaymentIntentResponse> ExecuteAsync(
             int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req)
@@ -31,56 +33,143 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
             if (string.IsNullOrWhiteSpace(req.IdempotencyKey))
                 throw new ArgumentException("IdempotencyKey is required.", nameof(req.IdempotencyKey));
 
-            // header: (SpaceId, CurrencyId, TotalNetMinor, GatewayPreferredId)
+            // Header: (SpaceId, CurrencyId, TotalNetMinor, GatewayPreferredId)
             var header = await _orders.GetOrderHeaderAsync(orderId);
             if (header is not { } h || h.SpaceId != spaceId)
                 throw new InvalidOperationException("Order not found in this space.");
 
             var gateway = _resolver.GetById(gatewayId);
+            var amountMajor = MoneyConverter.ToMajor(h.TotalNetMinor);
 
-            // Providers expect decimal major units; your DB stores minor units.
-            var amountMajor = h.TotalNetMinor / 100m;
+            // ---------- Guardrail: same order + same gateway (ignore new idempotency key) ----------
+            // If an intent already exists for this (order, gateway):
+            // - Status 3 (Succeeded): return WITHOUT approve link.
+            // - Status 1 (RequiresAction): rebuild approve link and return.
+            // - Any other status: return without approve link.
+            var order = await _orders.GetOrderAsync(spaceId, orderId)
+                       ?? throw new InvalidOperationException("Order not found.");
 
-            // -------- Idempotency: existing intent for the same key --------
+            var gwIntents = order.PaymentIntents
+                .Where(i => i.PaymentGatewayId == gatewayId)
+                .ToList();
+
+            if (gwIntents.Count > 0)
+            {
+                var usePending = gwIntents.FirstOrDefault(i => i.StatusId == STATUS_REQUIRES_ACTION
+                                                              && !string.IsNullOrWhiteSpace(i.ProviderIntentId));
+                var useSucceeded = gwIntents.FirstOrDefault(i => i.StatusId == STATUS_SUCCEEDED);
+                var useAny = usePending ?? useSucceeded ?? gwIntents[0];
+
+                // Already paid => never send approve link
+                if (useAny.StatusId == STATUS_SUCCEEDED)
+                {
+                    return new CreatePaymentIntentResponse
+                    {
+                        PaymentIntentId = useAny.Id,
+                        PaymentGatewayId = gatewayId,
+                        StatusId = STATUS_SUCCEEDED,
+                        ClientSecret = null,
+                        ProviderIntentId = useAny.ProviderIntentId,
+                        ApproveLink = null
+                    };
+                }
+
+                // Still requires action => rebuild approve link and return
+                if (useAny.StatusId == STATUS_REQUIRES_ACTION && !string.IsNullOrWhiteSpace(useAny.ProviderIntentId))
+                {
+                    var providerStatus = await gateway.GetIntentAsync(useAny.ProviderIntentId) 
+                        ?? throw new InvalidOperationException("STALE_PROVIDER_INTENT");
+
+                    var providerApprove = providerStatus?.ApproveLink;
+
+                    var approveLink = string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase)
+                        ? BuildCryptoApproveLinkFromProviderLink(
+                              providerApprove,
+                              spaceId,
+                              orderId,
+                              useAny.Id,
+                              useAny.ProviderIntentId!)
+                        : providerApprove;
+
+                    return new CreatePaymentIntentResponse
+                    {
+                        PaymentIntentId = useAny.Id,
+                        PaymentGatewayId = gatewayId,
+                        StatusId = STATUS_REQUIRES_ACTION,
+                        ClientSecret = null,
+                        ProviderIntentId = useAny.ProviderIntentId,
+                        ApproveLink = approveLink
+                    };
+                }
+
+                // Any other status => return without an approve link (do NOT create a new intent)
+                return new CreatePaymentIntentResponse
+                {
+                    PaymentIntentId = useAny.Id,
+                    PaymentGatewayId = gatewayId,
+                    StatusId = useAny.StatusId,
+                    ClientSecret = null,
+                    ProviderIntentId = useAny.ProviderIntentId,
+                    ApproveLink = null
+                };
+            }
+
+            // ---------- Idempotency: existing intent with the same key ----------
             var existing = await _orders.FindPaymentIntentByIdempotencyAsync(orderId, req.IdempotencyKey);
+            
             if (existing is not null)
             {
-                string? approveLink = null;
+                // Load the specific intent's current StatusId from the order graph
+                var orderForIdem = await _orders.GetOrderAsync(spaceId, orderId)
+                                  ?? throw new InvalidOperationException("Order not found.");
 
-                if (!string.IsNullOrWhiteSpace(existing.Value.ProviderIntentId))
+                var pi = orderForIdem.PaymentIntents.FirstOrDefault(i => i.Id == existing.Value.Id);
+                if (pi is null)
+                    throw new InvalidOperationException("Payment intent not found on order.");
+
+                if (pi.StatusId == STATUS_SUCCEEDED)
                 {
-                    // Stripe/PayPal: provider returns a human approve link.
-                    // Crypto: provider returns an API link; we convert it to /pay/crypto.html?... below.
+                    // Already paid => do NOT send approve link
+                    return new CreatePaymentIntentResponse
+                    {
+                        PaymentIntentId = existing.Value.Id,
+                        PaymentGatewayId = gatewayId,
+                        StatusId = STATUS_SUCCEEDED,
+                        ClientSecret = null,
+                        ProviderIntentId = existing.Value.ProviderIntentId,
+                        ApproveLink = null
+                    };
+                }
+
+                string? approveLink = null;
+                
+                if (pi.StatusId == STATUS_REQUIRES_ACTION && !string.IsNullOrWhiteSpace(existing.Value.ProviderIntentId))
+                {
                     var providerStatus = await gateway.GetIntentAsync(existing.Value.ProviderIntentId);
                     var providerApprove = providerStatus?.ApproveLink;
 
-                    if (string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
-                    {
-                        approveLink = BuildCryptoApproveLinkFromProviderLink(
-                            providerApprove,
-                            spaceId,
-                            orderId,
-                            existing.Value.Id,
-                            existing.Value.ProviderIntentId!);
-                    }
-                    else
-                    {
-                        approveLink = providerApprove;
-                    }
+                    approveLink = string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase)
+                        ? BuildCryptoApproveLinkFromProviderLink(
+                              providerApprove,
+                              spaceId,
+                              orderId,
+                              existing.Value.Id,
+                              existing.Value.ProviderIntentId!)
+                        : providerApprove;
                 }
 
                 return new CreatePaymentIntentResponse
                 {
                     PaymentIntentId = existing.Value.Id,
                     PaymentGatewayId = gatewayId,
-                    StatusId = (int)PaymentIntentStatus.RequiresAction,
+                    StatusId = pi.StatusId,
                     ClientSecret = null,
                     ProviderIntentId = existing.Value.ProviderIntentId,
                     ApproveLink = approveLink
                 };
             }
 
-            // -------- Fresh provider intent --------
+            // ---------- Fresh provider intent ----------
             var created = await gateway.CreateIntentAsync(
                 new CreateGatewayIntentRequest(
                     IdempotencyKey: req.IdempotencyKey,
@@ -97,42 +186,36 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
             var piId = await _orders.InsertPaymentIntentAsync(
                 orderId: orderId,
                 gatewayId: gatewayId,
-                statusId: (int)PaymentIntentStatus.RequiresAction,
+                statusId: STATUS_REQUIRES_ACTION,
                 amountMinor: h.TotalNetMinor,
                 currencyId: h.CurrencyId,
                 providerIntentId: created.ProviderIntentId!,
                 idempotencyKey: req.IdempotencyKey
             );
 
-            // Build human-facing approve link in real time
-            string? freshApprove;
-            if (string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
-            {
-                freshApprove = BuildCryptoApproveLinkFromProviderLink(
-                    created.ApproveLink,
-                    spaceId,
-                    orderId,
-                    piId,
-                    created.ProviderIntentId!);
-            }
-            else
-            {
-                freshApprove = created.ApproveLink;
-            }
+            // Build human-facing approve link for the response (no persistence)
+            string? freshApprove = string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase)
+                ? BuildCryptoApproveLinkFromProviderLink(
+                      created.ApproveLink,
+                      spaceId,
+                      orderId,
+                      piId,
+                      created.ProviderIntentId!)
+                : created.ApproveLink;
 
             return new CreatePaymentIntentResponse
             {
                 PaymentIntentId = piId,
                 PaymentGatewayId = gatewayId,
-                StatusId = (int)PaymentIntentStatus.RequiresAction,
-                ClientSecret = null,       // Stripe may set this
+                StatusId = STATUS_REQUIRES_ACTION,
+                ClientSecret = null,
                 ProviderIntentId = created.ProviderIntentId,
                 ApproveLink = freshApprove
             };
         }
 
-        // providerLink (crypto) is usually "https://host/api/crypto/intents/{pid}" or ".../pay/crypto.html".
-        // We always emit "https://host/pay/crypto.html?spaceId=...&orderId=...&intentId=...&pid=...".
+        // providerLink (crypto) is often "https://host/api/crypto/intents/{pid}" or ".../pay/crypto.html".
+        // We emit "https://host/pay/crypto.html?spaceId=...&orderId=...&intentId=...&pid=...".
         private static string BuildCryptoApproveLinkFromProviderLink(
             string? providerLink,
             int spaceId,
@@ -148,14 +231,14 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
             }
             else
             {
-                origin = "https://localhost:7017"; // fallback
+                origin = "https://localhost:7017"; // fallback if provider didn't include host
             }
 
-            return $"{origin}/pay/crypto.html" +
-                   $"?spaceId={spaceId}" +
-                   $"&orderId={Uri.EscapeDataString(orderId)}" +
-                   $"&intentId={Uri.EscapeDataString(intentId)}" +
-                   $"&pid={Uri.EscapeDataString(providerIntentId)}";
+            return $"{origin}/pay/crypto.html"
+                 + $"?spaceId={spaceId}"
+                 + $"&orderId={Uri.EscapeDataString(orderId)}"
+                 + $"&intentId={Uri.EscapeDataString(intentId)}"
+                 + $"&pid={Uri.EscapeDataString(providerIntentId)}";
         }
     }
 }

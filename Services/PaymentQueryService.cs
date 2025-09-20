@@ -5,22 +5,19 @@
 // <date>9/12/2025</date>
 // <summary></summary>
 
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
-using TifoXRCoreWebAPI.Services.Interfaces;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {
     public sealed class PaymentQueryService(
         IOrderRepository repo,
-        IPaymentGatewayResolver resolver,
-        IApprovalLinkService approvalLinks) : IPaymentQueryService
+        IPaymentGatewayResolver resolver) : IPaymentQueryService
     {
         private readonly IOrderRepository _repo = repo;
         private readonly IPaymentGatewayResolver _resolver = resolver;
-        private readonly IApprovalLinkService _approvalLinks = approvalLinks;
 
         public async Task<PendingIntentResponse> GetPendingForOrderAsync(int spaceId, string orderId)
         {
@@ -33,17 +30,47 @@ namespace GMS.TifoXRCoreWebAPI.Services
             var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
             if (pi is null) return new PendingIntentResponse { Found = false };
 
+            // Unpack
+            var intentId = pi.Value.IntentId;
+            var providerIntentId = pi.Value.ProviderIntentId;
+            var gatewayId = pi.Value.PaymentGatewayId;
+            var statusId = pi.Value.StatusId;
+            var idemKey = pi.Value.IdempotencyKey;
+            var amtMinor = pi.Value.AmountMinor;
+            var currencyId = pi.Value.CurrencyId;
+
+            // Build approve link only for "requires action" (pending) intents
+            string? approveLink = null;
+            if (statusId == (int)PaymentIntentStatus.RequiresAction || statusId == 1)
+            {
+                var gateway = _resolver.GetById(gatewayId);
+
+                string? providerApprove = null;
+                if (!string.IsNullOrWhiteSpace(providerIntentId))
+                {
+                    var providerStatus = await gateway.GetIntentAsync(providerIntentId) 
+                        ?? throw new InvalidOperationException("STALE_PROVIDER_INTENT");
+
+                    providerApprove = providerStatus?.ApproveLink;
+                }
+
+                approveLink = string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase)
+                    ? BuildCryptoApproveLinkFromProviderLink(providerApprove, spaceId, orderId, intentId, providerIntentId ?? string.Empty)
+                    : providerApprove;
+            }
+
             return new PendingIntentResponse
             {
                 Found = true,
                 OrderId = orderId,
-                PaymentIntentId = pi.Value.IntentId,
-                StatusId = pi.Value.StatusId,
-                IdempotencyKey = pi.Value.IdempotencyKey,
-                ProviderIntentId = pi.Value.ProviderIntentId,
-                PaymentGatewayId = pi.Value.PaymentGatewayId,
-                AmountMinor = pi.Value.AmountMinor,
-                CurrencyId = pi.Value.CurrencyId
+                PaymentIntentId = intentId,
+                StatusId = statusId,
+                IdempotencyKey = idemKey,
+                ProviderIntentId = providerIntentId,
+                PaymentGatewayId = gatewayId,
+                AmountMinor = amtMinor,
+                CurrencyId = currencyId,
+                ApproveLink = approveLink
             };
         }
 
@@ -69,19 +96,26 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 var gateway = _resolver.GetById(gatewayId);
 
                 string? providerApprove = null;
+
                 if (!string.IsNullOrWhiteSpace(providerIntentId))
                 {
                     var providerStatus = await gateway.GetIntentAsync(providerIntentId);
                     providerApprove = providerStatus?.ApproveLink;
                 }
 
-                approveLink = _approvalLinks.BuildApproveLink(
-                    gateway.Name,
-                    providerApprove,
-                    spaceId,
-                    orderId,
-                    intentId,
-                    providerIntentId ?? string.Empty);
+                if (string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
+                {
+                    approveLink = BuildCryptoApproveLinkFromProviderLink(
+                        providerApprove,
+                        spaceId,
+                        orderId,
+                        intentId,
+                        providerIntentId ?? string.Empty);
+                }
+                else
+                {
+                    approveLink = providerApprove;
+                }
             }
 
             return new PendingIntentResponse
@@ -94,8 +128,34 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 ProviderIntentId = providerIntentId,
                 PaymentGatewayId = gatewayId,
                 AmountMinor = amtMinor,
-                CurrencyId = currencyId
+                CurrencyId = currencyId,
+                ApproveLink = approveLink
             };
+        }
+
+        private static string? BuildCryptoApproveLinkFromProviderLink(
+            string? providerLink,
+            int spaceId,
+            string orderId,
+            string intentId,
+            string providerIntentId)
+        {
+            string origin;
+            if (!string.IsNullOrWhiteSpace(providerLink) &&
+                Uri.TryCreate(providerLink, UriKind.Absolute, out var uri))
+            {
+                origin = $"{uri.Scheme}://{uri.Authority}";
+            }
+            else
+            {
+                origin = "https://localhost:7017"; // fallback
+            }
+
+            return $"{origin}/pay/crypto.html"
+                 + $"?spaceId={spaceId}"
+                 + $"&orderId={Uri.EscapeDataString(orderId)}"
+                 + $"&intentId={Uri.EscapeDataString(intentId)}"
+                 + $"&pid={Uri.EscapeDataString(providerIntentId)}";
         }
     }
 }

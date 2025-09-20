@@ -232,6 +232,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? PaymentGatewayId { get; init; }
         public long? AmountMinor { get; init; }
         public int? CurrencyId { get; init; }
+        public string? ApproveLink { get; init; }      // human-facing link to approve payment
     }
 
     public sealed class RefundRequest
