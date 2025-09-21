@@ -112,6 +112,15 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
              client_secret, provider_intent_id, idempotency_key, creation_time, modified_by)
             VALUES (@Id, @OrderId, @Gw, @Status, @Amt, @Ccy, NULL, @ProvId, @Key, NOW(6), @ModBy);";
 
+        internal const string Intent_UpdateProvideId = @"
+                UPDATE payment_intent
+                   SET provider_intent_id = @ProvId,
+                       modified_time      = CURRENT_TIMESTAMP,
+                       modified_by        = @ModBy
+                 WHERE id        = @IntentId
+                   AND status_id = 1;  -- only refresh while pending (RequiresAction)
+            ";
+
         internal const string Intent_Context = @"
             SELECT i.order_id, o.space_id, o.currency_id, o.total_net_amount, o.user_id, i.provider_intent_id, i.payment_gateway_id
             FROM payment_intent i JOIN `order` o ON o.id=i.order_id

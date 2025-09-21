@@ -29,7 +29,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private readonly GetPreparedPayloadHandler _getPrepared = getPrepared;   
         private readonly IPaymentGatewayResolver _resolver = resolver;
 
-        public Task<CreatePaymentIntentResponse> CreateIntentAsync(int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req)
+        public Task<CreatePaymentIntentResponse> CreateCheckoutAsync(int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req)
             => _create.ExecuteAsync(spaceId, orderId, gatewayId, req);
 
         public Task<ConfirmPaymentIntentResponse> CaptureAsync(int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req)

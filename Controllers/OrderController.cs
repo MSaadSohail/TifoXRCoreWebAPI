@@ -15,18 +15,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 {
     [ApiController]
     [Route("api/space/{spaceId:int}/orders")]
-    public class OrdersController : ControllerBase
+    public class OrdersController(
+        IOrderService orders, 
+        IPaymentService payments, 
+        IPaymentQueryService paymentQueries) : ControllerBase
     {
-        private readonly IOrderService _orders;
-        private readonly IPaymentService _payments;
-        private readonly IPaymentQueryService _paymentQueries;
-
-        public OrdersController(IOrderService orders, IPaymentService payments, IPaymentQueryService paymentQueries)
-        {
-            _orders = orders;
-            _payments = payments;
-            _paymentQueries = paymentQueries;
-        }
+        private readonly IOrderService _orders = orders;
+        private readonly IPaymentService _payments = payments;
+        private readonly IPaymentQueryService _paymentQueries = paymentQueries;
 
         // ---------------- Basics ----------------
 
@@ -62,11 +58,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         // ------------- Payment Intents (queries) -------------
 
-        [HttpGet("{orderId}/payment-intents/pending")]
-        public Task<ActionResult<PendingIntentResponse>> GetPendingIntentForOrder(int spaceId, string orderId)
+        [HttpGet("{orderId}/checkout/pending")]
+        public Task<ActionResult<PendingIntentResponse>> GetCheckoutForOrder(int spaceId, string orderId)
             => Handle(() => _paymentQueries.GetPendingForOrderAsync(spaceId, orderId));
 
-        [HttpGet("pending-intent/by-item")]
+        [HttpGet("checkout/by-item")]
         public Task<ActionResult<PendingIntentResponse>> FindPendingIntentByItem(
             int spaceId, [FromQuery] string userId, [FromQuery] int itemTypeId, [FromQuery] int itemRefId)
             => Handle(() => _paymentQueries.FindPendingByItemAsync(spaceId, userId, itemTypeId, itemRefId));
@@ -74,13 +70,14 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         // ------------- Payments -------------
 
         [HttpPost("{orderId}/payment-intents")]
-        public Task<ActionResult<CreatePaymentIntentResponse>> CreatePaymentIntent(
+        [HttpPost("{orderId}/checkout")]
+        public Task<ActionResult<CreatePaymentIntentResponse>> CreateCheckout(
             int spaceId, string orderId, [FromBody] CreatePaymentIntentRequest req, [FromQuery] int gatewayId)
             => Handle(() =>
             {
                 return req is null
                 ? throw new ArgumentNullException(nameof(req))
-                : _payments.CreateIntentAsync(spaceId, orderId, gatewayId, req);
+                : _payments.CreateCheckoutAsync(spaceId, orderId, gatewayId, req);
             });
 
         [HttpGet("{orderId}/payments/stripe/return")]
@@ -178,6 +175,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
         // GET /api/space/{spaceId}/orders/{orderId}/payment-intents/{intentId}/crypto/prepared?sender=0x...
         [HttpGet("{orderId}/payment-intents/{intentId}/crypto/prepared")]
+        [HttpGet("{orderId}/checkout/{intentId}/crypto/prepared")]
         public async Task<IActionResult> GetCryptoPrepared(
             int spaceId,
             string orderId,

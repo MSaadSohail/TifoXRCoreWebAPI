@@ -12,7 +12,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
 {
     public interface IPaymentService
     {
-        Task<CreatePaymentIntentResponse> CreateIntentAsync(int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req);
+        Task<CreatePaymentIntentResponse> CreateCheckoutAsync(int spaceId, string orderId, int gatewayId, CreatePaymentIntentRequest req);
         Task<ConfirmPaymentIntentResponse> CaptureAsync(int spaceId, string orderId, string intentId, ConfirmPaymentIntentRequest req);
         Task<RefundResponse> RefundAsync(int spaceId, string orderId, string chargeId, RefundRequest req);
 

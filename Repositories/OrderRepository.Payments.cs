@@ -105,6 +105,29 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Refresh the provider intent id in-place for an existing PENDING (status_id = 1) payment_intent.
+        /// Returns the number of affected rows (1 on success, 0 if not pending or not found).
+        /// </summary>
+        public async Task<int> UpdatePaymentIntentProviderIdAsync(string intentId, string newProviderIntentId)
+        {
+            if (string.IsNullOrWhiteSpace(intentId))
+                throw new ArgumentException("intentId is required.", nameof(intentId));
+            if (string.IsNullOrWhiteSpace(newProviderIntentId))
+                throw new ArgumentException("newProviderIntentId is required.", nameof(newProviderIntentId));
+
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, Intent_UpdateProvideId);
+
+            cmd.Parameters.Add(_db.CreateParameter("@IntentId", intentId));
+            cmd.Parameters.Add(_db.CreateParameter("@ProvId", newProviderIntentId));
+            cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+
+            var rows = await cmd.ExecuteNonQueryAsync();
+            return rows;
+        }
+
         public async Task<(string OrderId, int SpaceId, int CurrencyId, long TotalNetMinor, string UserId, string? ProviderIntentId, int GatewayId)?>
             GetIntentContextAsync(string intentId)
         {

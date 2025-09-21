@@ -33,6 +33,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         Task UpdatePaymentIntentStatusAsync(string intentId, int statusId);
 
+        // Set a new provider intent id on an existing (pending) payment_intent row.
+        Task<int> UpdatePaymentIntentProviderIdAsync(string intentId, string newProviderIntentId);
+
         Task<string> InsertChargeAsync(string intentId, int statusId, long amountCapturedMinor,
             int currencyId, string providerChargeId, DateTime paidAtUtc, string userId);
 

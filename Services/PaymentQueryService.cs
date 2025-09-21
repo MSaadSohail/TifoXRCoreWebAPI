@@ -5,10 +5,11 @@
 // <date>9/12/2025</date>
 // <summary></summary>
 
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Utilities;
 using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
 
 namespace GMS.TifoXRCoreWebAPI.Services
 {
@@ -39,26 +40,55 @@ namespace GMS.TifoXRCoreWebAPI.Services
             var amtMinor = pi.Value.AmountMinor;
             var currencyId = pi.Value.CurrencyId;
 
-            // Build approve link only for "requires action" (pending) intents
+            // Only build approve link for pending
             string? approveLink = null;
+            string providerPidToUse = providerIntentId ?? string.Empty;
+
             if (statusId == (int)PaymentIntentStatus.RequiresAction || statusId == 1)
             {
                 var gateway = _resolver.GetById(gatewayId);
-
                 string? providerApprove = null;
-                if (!string.IsNullOrWhiteSpace(providerIntentId))
-                {
-                    var providerStatus = await gateway.GetIntentAsync(providerIntentId) 
-                        ?? throw new InvalidOperationException("STALE_PROVIDER_INTENT");
 
-                    providerApprove = providerStatus?.ApproveLink;
+                if (!string.IsNullOrWhiteSpace(providerPidToUse))
+                {
+                    var providerStatus = await gateway.GetIntentAsync(providerPidToUse);
+
+                    if (providerStatus is null && string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // auto-refresh in place
+                        var amountMajor = MoneyConverter.ToMajor(amtMinor);
+                        var (newPid, newApproveLink) = await RefreshCryptoProviderIntentAsync(
+                            spaceId, orderId, intentId, gatewayId, amountMajor, currencyId);
+
+                        providerPidToUse = newPid;
+                        providerApprove = newApproveLink;
+                    }
+                    else
+                    {
+                        providerApprove = providerStatus?.ApproveLink;
+                    }
                 }
 
                 approveLink = string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase)
-                    ? BuildCryptoApproveLinkFromProviderLink(providerApprove, spaceId, orderId, intentId, providerIntentId ?? string.Empty)
+                    ? BuildCryptoApproveLinkFromProviderLink(providerApprove, spaceId, orderId, intentId, providerPidToUse)
                     : providerApprove;
+
+                return new PendingIntentResponse
+                {
+                    Found = true,                    
+                    OrderId = orderId,
+                    PaymentIntentId = intentId,
+                    StatusId = statusId,
+                    IdempotencyKey = idemKey,
+                    ProviderIntentId = providerPidToUse,       // may be refreshed
+                    PaymentGatewayId = gatewayId,
+                    AmountMinor = amtMinor,
+                    CurrencyId = currencyId,
+                    ApproveLink = approveLink
+                };
             }
 
+            // Not pending; we return the record but without link
             return new PendingIntentResponse
             {
                 Found = true,
@@ -70,7 +100,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 PaymentGatewayId = gatewayId,
                 AmountMinor = amtMinor,
                 CurrencyId = currencyId,
-                ApproveLink = approveLink
+                ApproveLink = null
             };
         }
 
@@ -156,6 +186,36 @@ namespace GMS.TifoXRCoreWebAPI.Services
                  + $"&orderId={Uri.EscapeDataString(orderId)}"
                  + $"&intentId={Uri.EscapeDataString(intentId)}"
                  + $"&pid={Uri.EscapeDataString(providerIntentId)}";
+        }
+
+        private async Task<(string NewProviderIntentId, string? ApproveLink)> RefreshCryptoProviderIntentAsync(
+    int spaceId,
+    string orderId,
+    string intentId,
+    int gatewayId,
+    decimal amountMajor,
+    int currencyId)
+        {
+            var gateway = _resolver.GetById(gatewayId);
+
+            // Create a fresh provider intent (provider idempotency can be a transient value; not persisted)
+            var created = await gateway.CreateIntentAsync(new CreateGatewayIntentRequest(
+                IdempotencyKey: $"refresh::{intentId}::{DateTime.UtcNow.Ticks}",
+                Amount: amountMajor,
+                CurrencyId: currencyId,
+                ReturnUrl: $"https://localhost:7017/api/space/{spaceId}/orders/{orderId}/payments/{gateway.Name}/return",
+                CancelUrl: $"https://localhost:7017/pay/cancel"
+            ));
+
+            if (string.IsNullOrWhiteSpace(created.ProviderIntentId))
+                throw new InvalidOperationException("Crypto refresh failed: no ProviderIntentId from gateway.");
+
+            // Persist the new PID on the SAME payment_intent id
+            var rows = await _repo.UpdatePaymentIntentProviderIdAsync(intentId, created.ProviderIntentId!);
+            if (rows != 1)
+                throw new InvalidOperationException("Crypto refresh failed: could not update provider_intent_id.");
+
+            return (created.ProviderIntentId!, created.ApproveLink);
         }
     }
 }

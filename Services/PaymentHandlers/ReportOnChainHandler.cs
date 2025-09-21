@@ -28,23 +28,24 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
             if (string.IsNullOrWhiteSpace(txHash))
                 throw new ArgumentException("txHash is required.", nameof(txHash));
 
-            // 1) Validate and load provider/gateway context exactly like your other handlers
-            var ctx = await _orders.GetIntentContextAsync(intentId);
+            // Resolve from the order + its intents (no repo “intent context” join)
+            var order = await _orders.GetOrderAsync(spaceId, orderId)
+                ?? throw new InvalidOperationException("order not found.");
 
-            if (ctx is not { } c || c.OrderId != orderId || c.SpaceId != spaceId)
+            var intent = order.PaymentIntents.FirstOrDefault(i =>
+                string.Equals(i.Id, intentId, StringComparison.OrdinalIgnoreCase));
+
+            if (intent is null)
                 throw new InvalidOperationException("payment_intent not found for this order/space.");
 
-            if (string.IsNullOrWhiteSpace(c.ProviderIntentId))
+            if (string.IsNullOrWhiteSpace(intent.ProviderIntentId))
                 throw new InvalidOperationException("provider_intent_id missing.");
 
-            // 2) Resolve gateway and delegate to crypto-only API
-            var gateway = _resolver.GetById(c.GatewayId);
-
+            var gateway = _resolver.GetById(intent.PaymentGatewayId);
             if (gateway is not ICryptoGateway crypto)
-                throw new NotSupportedException($"Gateway {c.GatewayId} does not support on-chain reporting.");
+                throw new NotSupportedException($"Gateway {intent.PaymentGatewayId} does not support on-chain reporting.");
 
-            await crypto.ReportTxAsync(c.ProviderIntentId!, txHash);
-            // Approval/verification stays inside the crypto gateway (as you implemented).
+            await crypto.ReportTxAsync(intent.ProviderIntentId!, txHash);
         }
     }
 }
