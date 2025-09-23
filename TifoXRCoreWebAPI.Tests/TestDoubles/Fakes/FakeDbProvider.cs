@@ -19,7 +19,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Fakes
 {

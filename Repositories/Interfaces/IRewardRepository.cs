@@ -16,13 +16,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<RewardView?> GetAsync(int rewardId, int spaceId);
         Task<IReadOnlyList<RewardView>> ListBySpaceAsync(int spaceId);
 
-        Task<int> AddItemAsync(RewardItemDto dto);
-        Task<int> AddCurrencyAsync(RewardCurrencyDto dto);
+        Task<int> AddItemAsync(int rewardId, RewardItemDto dto);
+        Task<int> AddCurrencyAsync(int rewardId, RewardCurrencyDto dto);
 
         // ----- User rewards definitions -----
         Task<int> GrantPendingAsync(GrantRewardRequest req);
         Task<UserRewardView?> GetUserRewardAsync(int userRewardId);
-        Task SetDeliveredAsync(int userRewardId);
-        Task SetClaimedAsync(int userRewardId);
+        Task<(bool exists, bool updated)> TrySetDeliveredAsync(int userRewardId);
+        Task<(bool exists, bool updated)> TrySetClaimedAsync(int userRewardId);
     }
 }

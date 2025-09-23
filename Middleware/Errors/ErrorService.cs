@@ -16,7 +16,8 @@ namespace GMS.TifoXRCoreWebAPI.Middleware.Errors
         Argument,
         ArgumentNull,
         InvalidOperation,
-        NotFound
+        NotFound,
+        Conflict
     }
 
     public static class ErrorService
@@ -57,6 +58,7 @@ namespace GMS.TifoXRCoreWebAPI.Middleware.Errors
                 ErrorType.ArgumentNull => new ArgumentNullException(paramName, body),
                 ErrorType.InvalidOperation => new InvalidOperationException(body),
                 ErrorType.NotFound => new Middleware.Exceptions.ResourceNotFoundException(body),
+                ErrorType.Conflict => new InvalidOperationException(body),
                 _ => new Exception(body)
             };
 

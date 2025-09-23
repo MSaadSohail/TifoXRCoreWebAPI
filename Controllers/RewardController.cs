@@ -157,15 +157,15 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dto),
                     parameters: new { spaceId, rewardId });
 
-            if (dto.RewardId != rewardId)
+            var reward = await _svc.GetAsync(rewardId, spaceId);
+            if (reward is null)
                 throw ErrorService.Exception(
-                    ErrorType.Argument,
+                    ErrorType.NotFound,
                     nameof(AddItemToReward),
-                    ErrorMessages.Validation.RouteBodyMismatch,
-                    paramName: nameof(rewardId),
-                    parameters: new { spaceId, rewardId, bodyRewardId = dto.RewardId });
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, rewardId });
 
-            var id = await _svc.AddItemAsync(dto);
+            var id = await _svc.AddItemAsync(rewardId, dto);
             return Ok(new { id });
         }
 
@@ -176,7 +176,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        [HttpPost("{rewardId:int}/currencies")]
         public async Task<ActionResult<object>> AddCurrencyToReward(int spaceId, int rewardId, [FromBody] RewardCurrencyDto dto)
         {
             if (spaceId <= 0)
@@ -203,15 +202,15 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dto),
                     parameters: new { spaceId, rewardId });
 
-            if (dto.RewardId != rewardId)
+            var reward = await _svc.GetAsync(rewardId, spaceId);
+            if (reward is null)
                 throw ErrorService.Exception(
-                    ErrorType.Argument,
+                    ErrorType.NotFound,
                     nameof(AddCurrencyToReward),
-                    ErrorMessages.Validation.RouteBodyMismatch,
-                    paramName: nameof(rewardId),
-                    parameters: new { spaceId, rewardId, bodyRewardId = dto.RewardId });
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, rewardId });
 
-            var id = await _svc.AddCurrencyAsync(dto);
+            var id = await _svc.AddCurrencyAsync(rewardId, dto);
             return Ok(new { id });
         }
     }
@@ -272,7 +271,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        [HttpPost("grant")]
         public async Task<ActionResult<object>> GrantPendingUserReward([FromBody] GrantRewardRequest req)
         {
             if (req is null)
@@ -312,8 +310,27 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(id),
                     parameters: new { id });
 
-            await _svc.SetDeliveredAsync(id);
-            return NoContent();
+            var (exists, updated) = await _svc.TrySetDeliveredAsync(id);
+
+            if (!exists)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(MarkUserRewardAsDelivered),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
+
+            if (!updated)
+                // exists but status didn’t allow transition (e.g., already Claimed)
+                throw ErrorService.Exception(
+                    ErrorType.Conflict,
+                    nameof(MarkUserRewardAsDelivered),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { id },
+                    extra: "User reward cannot transition to Delivered from its current status."
+                );
+
+            var row = await _svc.GetUserRewardAsync(id);
+            return Ok(row); // 200 with current snapshot
         }
 
         /// <summary>
@@ -333,8 +350,26 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(id),
                     parameters: new { id });
 
-            await _svc.SetClaimedAsync(id);
-            return NoContent();
+            var (exists, updated) = await _svc.TrySetClaimedAsync(id);
+
+            if (!exists)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(MarkUserRewardAsClaimed),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
+
+            if (!updated)
+                throw ErrorService.Exception(
+                    ErrorType.Conflict,
+                    nameof(MarkUserRewardAsClaimed),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { id },
+                    extra: "User reward cannot transition to Claimed from its current status."
+                );
+
+            var row = await _svc.GetUserRewardAsync(id);
+            return Ok(row);
         }
 
         #endregion

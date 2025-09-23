@@ -9,7 +9,7 @@ using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions; // <-- for ResourceNotFoundException
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 using Microsoft.AspNetCore.Http;
