@@ -15,5 +15,6 @@ namespace GMS.TifoXRCoreWebAPI.Services
         Task<OrderDto?> GetOrderAsync(int spaceId, string orderId);
         Task<InvoiceListResponse?> GetInvoicesAsync(int spaceId, string orderId);
         Task<List<EntitlementDto>?> GetEntitlementsByOrderAsync(int spaceId, string orderId);
+        Task RevokeOrderAsync(string orderId, string? reason = null);
     }
 }

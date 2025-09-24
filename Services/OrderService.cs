@@ -26,5 +26,16 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
         public Task<List<EntitlementDto>?> GetEntitlementsByOrderAsync(int spaceId, string orderId)
             => _repo.GetEntitlementsByOrderAsync(spaceId, orderId);
+
+        public async Task RevokeOrderAsync(string orderId, string? reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(orderId))
+                throw new ArgumentException("OrderId is required.", nameof(orderId));
+
+            var revokeReason = reason ?? "Order revoked";
+
+            await _repo.RevokeEntitlementsAsync(orderId, revokeReason);
+            await _repo.RevokeOrderAsync(orderId, revokeReason);
+        }
     }
 }

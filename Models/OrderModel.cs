@@ -248,7 +248,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string ChargeId { get; set; } = default!;
         public string RefundId { get; set; } = default!;
         public string ProviderRefundId { get; set; } = default!;
-        public int StatusId { get; set; } // e.g., 3 = succeeded
+        public int StatusId { get; set; } // RefundStatus enum (1=pending, 2=succeeded, 3=failed, 4=canceled)
         public long RefundedAmountMinor { get; set; }
         public int CurrencyId { get; set; }
     }

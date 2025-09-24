@@ -27,6 +27,21 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             await cmd.ExecuteNonQueryAsync();
         }
+
+        public async Task RevokeEntitlementsAsync(string orderId, string reason)
+        {
+            const int RevokedStatus = 3; // your entitlement status for "revoked"       //FIX ME: Get from look up tables
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, Entitlement_RevokeByOrder);
+
+            cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+            cmd.Parameters.Add(_db.CreateParameter("@RevokedStatus", RevokedStatus));
+            cmd.Parameters.Add(_db.CreateParameter("@Reason", (object?)reason ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@ModBy", "system"));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 }
 

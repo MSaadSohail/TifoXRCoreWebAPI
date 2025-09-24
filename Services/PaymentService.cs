@@ -44,7 +44,6 @@ namespace GMS.TifoXRCoreWebAPI.Services
         public Task<string> GetPreparedClientPayloadAsync(int spaceId, string orderId, string intentId, string sender)
             => _getPrepared.ExecuteAsync(spaceId, orderId, intentId, sender);
 
-
         public IPaymentGateway GetGatewayByName(string name) => _resolver.GetByName(name);
         public IPaymentGateway GetGatewayById(int gatewayId) => _resolver.GetById(gatewayId);
     }

@@ -10,6 +10,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     public partial interface IOrderRepository
     {
         Task GrantEntitlementsAsync(string orderId);
+        Task RevokeEntitlementsAsync(string orderId, string reason);
     }
 }
 

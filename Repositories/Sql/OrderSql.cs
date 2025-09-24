@@ -126,6 +126,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             FROM payment_intent i JOIN `order` o ON o.id=i.order_id
             WHERE i.id=@IntentId LIMIT 1;";
 
+        internal const string Order_UpdateStatus = @"
+            UPDATE `order`
+            SET status_id=@StatusId,
+                change_reason=@ChangeReason,
+                modified_by=@ModBy
+            WHERE id=@OrderId;";
+
         internal const string Order_SumCaptured = @"
             SELECT COALESCE(SUM(pc.amount_captured),0)
             FROM payment_charge pc
