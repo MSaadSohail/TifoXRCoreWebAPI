@@ -129,6 +129,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             UPDATE `order` SET status_id=@PaidStatusId, modified_by=@ModBy
             WHERE id=@OrderId AND status_id<>@PaidStatusId;";
 
+        internal const string Order_UpdateStatus = @"
+            UPDATE `order`
+            SET status_id=@StatusId,
+                change_reason=@ChangeReason,
+                modified_by=@ModBy
+            WHERE id=@OrderId;";
+
         internal const string Order_GetHeader = @"
             SELECT space_id, currency_id, total_net_amount, gateway_preferred_id
             FROM `order` WHERE id=@OrderId LIMIT 1;";

@@ -116,7 +116,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             JOIN payment_intent pi ON pi.id = pc.payment_intent_id
             JOIN `order` o        ON o.id  = pi.order_id
             LEFT JOIN payment_refund pr ON pr.payment_charge_id = pc.id
-                                       AND pr.status_id = 3      -- succeeded only
+                                       AND pr.status_id = 2      -- succeeded only
             WHERE pc.id = @ChargeId
             GROUP BY o.id, o.space_id, o.currency_id, pi.payment_gateway_id, pc.provider_charge_id, pc.amount_captured;
         ";
@@ -133,6 +133,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                 WHERE ol.order_id = @OrderId
                   AND o.status_id = @OrderStatusPaid
                   AND e.id IS NULL;";
+
+        internal const string Entitlement_RevokeByOrder = @"
+            UPDATE entitlement e
+            JOIN order_line ol ON ol.id = e.order_line_id
+            SET e.status = @RevokedStatus,
+                e.revoked_reason = @Reason,
+                e.modified_by = @ModBy
+            WHERE ol.order_id = @OrderId;";
     }
 }
 

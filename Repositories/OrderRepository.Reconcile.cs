@@ -7,6 +7,7 @@
 
 using GMS.TifoXRCoreWebAPI.Models;
 using static GMS.TifoXRCoreWebAPI.Repositories.SQL.PaymentIntentSql;
+using static GMS.TifoXRCoreWebAPI.Repositories.SQL.OrderSql;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
@@ -41,6 +42,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             return list;
         }
+
     }
 }
 

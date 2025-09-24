@@ -14,7 +14,10 @@ using GMS.TifoXRCoreWebAPI.Utilities.Domain.Enums;
 
 namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
 {
-    public sealed class RefundHandler(IPaymentGatewayResolver resolver, IOrderRepository orders, IRefundPolicyResolver refundPolicies)
+    public sealed class RefundHandler(
+        IPaymentGatewayResolver resolver,
+        IOrderRepository orders,
+        IRefundPolicyResolver refundPolicies)
     {
         private readonly IPaymentGatewayResolver _resolver = resolver;
         private readonly IOrderRepository _orders = orders;
@@ -58,14 +61,21 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
                 Reason: normalizedReason
             ));
 
+            var refundStatus = RefundStatus.Succeeded;
+
             var refundId = await _orders.InsertRefundAsync(
                 chargeId: chargeId,
-                statusId: (int)PaymentIntentStatus.Succeeded,
+                statusId: (int)refundStatus,
                 amountMinor: MoneyConverter.ToMinor(prov.RefundedAmount),
                 currencyId: c.CurrencyId,
                 providerRefundId: prov.ProviderRefundId,
                 reason: req.Reason
             );
+
+            var revokeReason = req.Reason ?? "Refund succeeded";
+
+            await _orders.RevokeEntitlementsAsync(orderId, revokeReason);
+            await _orders.RevokeOrderAsync(orderId, revokeReason);
 
             return new RefundResponse
             {
@@ -73,7 +83,7 @@ namespace GMS.TifoXRCoreWebAPI.Services.PaymentHandlers
                 ChargeId = chargeId,
                 RefundId = refundId,
                 ProviderRefundId = prov.ProviderRefundId,
-                StatusId = (int)PaymentIntentStatus.Succeeded,
+                StatusId = (int)refundStatus,
                 RefundedAmountMinor = MoneyConverter.ToMinor(prov.RefundedAmount),
                 CurrencyId = c.CurrencyId
             };
