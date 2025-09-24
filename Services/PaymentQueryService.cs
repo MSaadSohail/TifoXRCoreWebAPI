@@ -189,12 +189,12 @@ namespace GMS.TifoXRCoreWebAPI.Services
         }
 
         private async Task<(string NewProviderIntentId, string? ApproveLink)> RefreshCryptoProviderIntentAsync(
-    int spaceId,
-    string orderId,
-    string intentId,
-    int gatewayId,
-    decimal amountMajor,
-    int currencyId)
+            int spaceId,
+            string orderId,
+            string intentId,
+            int gatewayId,
+            decimal amountMajor,
+            int currencyId)
         {
             var gateway = _resolver.GetById(gatewayId);
 
