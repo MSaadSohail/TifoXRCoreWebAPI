@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace GMS.TifoXRCoreWebAPI.Models
 {
@@ -280,6 +281,47 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public DateTime OccurredAt { get; init; }
         public string? PropertiesJson { get; init; }
         public DateTime IngestedAt { get; init; }
+    }
+
+    // =========================
+    // Runtime: Rules evaluation
+    // =========================
+
+    public sealed class RulesEngineEvaluationRequest
+    {
+        public int SpaceId { get; init; }
+        public string EventType { get; init; } = default!;
+        public DateTime OccurredAt { get; init; }
+        public string? ActorUserId { get; init; }
+        public string? TargetUserId { get; init; }
+        public string? ContentOwnerUserId { get; init; }
+        public string? ContentRef { get; init; }
+        public Dictionary<string, JsonElement>? Properties { get; init; }
+    }
+
+    public sealed class RulesEngineEvaluationResponse
+    {
+        public bool AnyRuleMatched { get; init; }
+        public IReadOnlyList<RuleEvaluationOutcome> Outcomes { get; init; } = Array.Empty<RuleEvaluationOutcome>();
+        public IReadOnlyList<RewardDecision> RewardDecisions { get; init; } = Array.Empty<RewardDecision>();
+        public IReadOnlyList<string> Messages { get; init; } = Array.Empty<string>();
+    }
+
+    public sealed class RuleEvaluationOutcome
+    {
+        public string RuleName { get; init; } = default!;
+        public bool IsSuccess { get; init; }
+        public string? SuccessEvent { get; init; }
+        public string? ErrorMessage { get; init; }
+        public string? RewardCode { get; init; }
+    }
+
+    public sealed class RewardDecision
+    {
+        public string RuleName { get; init; } = default!;
+        public bool Granted { get; init; }
+        public string? RewardCode { get; init; }
+        public string? Notes { get; init; }
     }
 
     // =========================
