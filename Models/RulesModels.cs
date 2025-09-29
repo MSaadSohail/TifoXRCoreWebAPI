@@ -6,18 +6,13 @@
 // <summary>DTOs for Rules Engine authoring, runtime ingestion, and auditing.</summary>
 
 using System;
+using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Models
 {
     // =========================
     // Lookups / Enums
     // =========================
-
-    public enum StateType { Draft = 1, Published = 2, Archived = 3 }
-
-    public enum RuleActionType { Reward = 1, Moderation = 2 }
-
-    public enum LogicalOperator { AND = 1, OR = 2 }
 
     /// <summary>String codes for comparators</summary>
     public static class ComparatorCodes
@@ -55,7 +50,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int SpaceId { get; init; }
         public string Name { get; init; } = default!;
-        public int StateTypeId { get; init; } = (int)StateType.Published;
+        public int? StateTypeId { get; init; }
     }
 
     public sealed class WorkflowView
@@ -81,7 +76,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? SuccessEvent { get; init; }
         public int Priority { get; init; } = 100;
         public int RuleCooldownSeconds { get; init; } = 0;
-        public int StateTypeId { get; init; } = (int)StateType.Published;
+        public int? StateTypeId { get; init; }
     }
 
     public sealed class RuleView
@@ -156,7 +151,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int RuleId { get; init; }
         public int? ParentGroupId { get; init; }
-        public int LogicalOperatorId { get; init; } = (int)LogicalOperator.AND;
+        public int LogicalOperatorId { get; init; }
         public int OrderIndex { get; init; } = 1;
         public string? NameKey { get; init; }
         public string? DescriptionKey { get; init; }
@@ -212,7 +207,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public sealed class RuleActionCreateDto
     {
         public int RuleId { get; init; }
-        public int ActionTypeId { get; init; } = (int)RuleActionType.Reward;
+        public int ActionTypeId { get; init; }
         public string ActionName { get; init; } = default!;
         public string ActionKey { get; init; } = default!;
         public string? ActionParametersJson { get; init; }
@@ -236,6 +231,11 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         /// <summary>FK to parent rule_actions.id</summary>
         public int Id { get; init; }
+        public int RewardId { get; init; }
+    }
+
+    public sealed class RuleActionRewardBindDto
+    {
         public int RewardId { get; init; }
     }
 

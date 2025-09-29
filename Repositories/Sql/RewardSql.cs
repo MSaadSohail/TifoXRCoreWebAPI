@@ -70,6 +70,48 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             VALUES (@RewardId, @CurrencyId, @Amount, NOW(6), 'system');
             SELECT LAST_INSERT_ID();";
 
+        public const string ListRewardItems = @"
+            SELECT id, item_id AS ItemId, quantity AS Quantity
+            FROM reward_items
+            WHERE reward_id = @RewardId
+            ORDER BY id;";
+
+        public const string ListRewardCurrencies = @"
+            SELECT id, currency_id AS CurrencyId, amount AS Amount
+            FROM reward_currency
+            WHERE reward_id = @RewardId
+            ORDER BY id;";
+
+        public const string UpdateRewardMetadata = @"
+            UPDATE reward
+            SET description_key     = COALESCE(@DescriptionKey, description_key),
+                entity_id           = COALESCE(@EntityId, entity_id),
+                claim_required      = COALESCE(@ClaimRequired, claim_required),
+                is_active           = COALESCE(@IsActive, is_active),
+                max_total_claims    = COALESCE(@MaxTotalClaims, max_total_claims),
+                max_claims_per_user = COALESCE(@MaxClaimsPerUser, max_claims_per_user),
+                cooldown_seconds    = COALESCE(@CooldownSeconds, cooldown_seconds),
+                valid_from          = COALESCE(@ValidFrom, valid_from),
+                valid_to            = COALESCE(@ValidTo, valid_to),
+                modified_by         = 'system'
+            WHERE id = @Id AND space_id = @SpaceId;";
+
+        public const string ToggleRewardActive = @"
+            UPDATE reward
+            SET is_active = @IsActive,
+                modified_by = 'system'
+            WHERE id = @Id AND space_id = @SpaceId;";
+
+        public const string GetCompositionTypeCode = @"
+            SELECT type
+            FROM reward_composition_type
+            WHERE id = @Id;";
+
+        public const string RewardHasRuleBindings = @"
+            SELECT COUNT(*)
+            FROM rule_action_reward rar
+            WHERE rar.reward_id = @RewardId;";
+
         // User rewards
         public const string LookupPendingStatus = @"SELECT id FROM reward_status WHERE status = 'Pending' LIMIT 1;";
 
