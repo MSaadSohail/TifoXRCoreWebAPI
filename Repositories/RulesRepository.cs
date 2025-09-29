@@ -5,6 +5,9 @@
 // <date>09/30/2025</date>
 // <summary>Rules engine authoring data access.</summary>
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Sql;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
@@ -223,6 +226,170 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@RewardId", rewardId));
 
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<IReadOnlyList<RuntimeWorkflowDefinition>> GetRuntimeWorkflowsAsync(int spaceId)
+        {
+            await using var conn = await _db.OpenConnectionAsync();
+
+            var builders = new Dictionary<int, RuntimeWorkflowBuilder>();
+            var eventTypeIds = new HashSet<int>();
+
+            await using (var cmd = _db.CreateCommand(conn, RulesSql.GetRuntimeWorkflows))
+            {
+                cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
+                await using var rdr = await cmd.ExecuteReaderAsync();
+                if (!rdr.HasRows)
+                {
+                    return Array.Empty<RuntimeWorkflowDefinition>();
+                }
+
+                var workflowIdIdx = rdr.GetOrdinal("WorkflowId");
+                var workflowNameIdx = rdr.GetOrdinal("WorkflowName");
+                var ruleIdIdx = rdr.GetOrdinal("RuleId");
+                var ruleNameIdx = rdr.GetOrdinal("RuleName");
+                var expressionIdx = rdr.GetOrdinal("Expression");
+                var successEventIdx = rdr.GetOrdinal("SuccessEvent");
+                var eventTypeIdx = rdr.GetOrdinal("EventType");
+                var eventTypeIdIdx = rdr.GetOrdinal("EventTypeId");
+
+                while (await rdr.ReadAsync())
+                {
+                    var workflowId = rdr.GetInt32(workflowIdIdx);
+                    var workflowName = rdr.GetString(workflowNameIdx);
+                    var eventType = rdr.IsDBNull(eventTypeIdx)
+                        ? workflowName
+                        : rdr.GetString(eventTypeIdx);
+                    var eventTypeId = rdr.IsDBNull(eventTypeIdIdx)
+                        ? (int?)null
+                        : rdr.GetInt32(eventTypeIdIdx);
+
+                    if (!builders.TryGetValue(workflowId, out var builder))
+                    {
+                        builder = new RuntimeWorkflowBuilder(workflowId, workflowName, eventType, eventTypeId);
+                        builders.Add(workflowId, builder);
+                    }
+
+                    if (eventTypeId.HasValue)
+                    {
+                        eventTypeIds.Add(eventTypeId.Value);
+                    }
+
+                    if (rdr.IsDBNull(expressionIdx))
+                    {
+                        continue;
+                    }
+
+                    var expression = rdr.GetString(expressionIdx);
+                    if (string.IsNullOrWhiteSpace(expression))
+                    {
+                        continue;
+                    }
+
+                    var rule = new RuntimeRuleDefinition
+                    {
+                        RuleId = rdr.GetInt32(ruleIdIdx),
+                        RuleName = rdr.GetString(ruleNameIdx),
+                        Expression = expression,
+                        SuccessEvent = rdr.IsDBNull(successEventIdx) ? null : rdr.GetString(successEventIdx)
+                    };
+
+                    builder.AddRule(rule);
+                }
+            }
+
+            if (builders.Count == 0)
+            {
+                return Array.Empty<RuntimeWorkflowDefinition>();
+            }
+
+            var parameterCache = new Dictionary<int, IReadOnlyDictionary<string, RuntimeParameterDefinition>>();
+
+            foreach (var eventTypeId in eventTypeIds)
+            {
+                await using var paramCmd = _db.CreateCommand(conn, RulesSql.GetRuntimeEventParameters);
+                paramCmd.Parameters.Add(_db.CreateParameter("@EventTypeId", eventTypeId));
+
+                await using var paramRdr = await paramCmd.ExecuteReaderAsync();
+                if (!paramRdr.HasRows)
+                {
+                    continue;
+                }
+
+                var keyIdx = paramRdr.GetOrdinal("ParameterKey");
+                var sourceIdx = paramRdr.GetOrdinal("Source");
+                var pathIdx = paramRdr.GetOrdinal("Path");
+                var requiredIdx = paramRdr.GetOrdinal("IsRequired");
+                var defaultIdx = paramRdr.GetOrdinal("DefaultValueJson");
+
+                var parameters = new Dictionary<string, RuntimeParameterDefinition>(StringComparer.OrdinalIgnoreCase);
+
+                while (await paramRdr.ReadAsync())
+                {
+                    var key = paramRdr.GetString(keyIdx);
+
+                    parameters[key] = new RuntimeParameterDefinition
+                    {
+                        Key = key,
+                        Source = paramRdr.GetString(sourceIdx),
+                        Path = paramRdr.GetString(pathIdx),
+                        IsRequired = paramRdr.GetInt32(requiredIdx) != 0,
+                        DefaultValueJson = paramRdr.IsDBNull(defaultIdx) ? null : paramRdr.GetString(defaultIdx)
+                    };
+                }
+
+                parameterCache[eventTypeId] = parameters;
+            }
+
+            foreach (var builder in builders.Values)
+            {
+                if (builder.EventTypeId.HasValue &&
+                    parameterCache.TryGetValue(builder.EventTypeId.Value, out var parameters))
+                {
+                    builder.SetParameters(parameters);
+                }
+            }
+
+            return builders.Values
+                .Select(b => b.ToDefinition())
+                .ToList();
+        }
+
+        private sealed class RuntimeWorkflowBuilder
+        {
+            private readonly List<RuntimeRuleDefinition> _rules = new();
+            private IReadOnlyDictionary<string, RuntimeParameterDefinition> _parameters =
+                new Dictionary<string, RuntimeParameterDefinition>(StringComparer.OrdinalIgnoreCase);
+
+            public RuntimeWorkflowBuilder(int workflowId, string workflowName, string eventType, int? eventTypeId)
+            {
+                WorkflowId = workflowId;
+                WorkflowName = workflowName;
+                EventType = eventType;
+                EventTypeId = eventTypeId;
+            }
+
+            public int WorkflowId { get; }
+            public string WorkflowName { get; }
+            public string EventType { get; }
+            public int? EventTypeId { get; }
+
+            public void AddRule(RuntimeRuleDefinition rule) => _rules.Add(rule);
+
+            public void SetParameters(IReadOnlyDictionary<string, RuntimeParameterDefinition> parameters)
+                => _parameters = parameters;
+
+            public RuntimeWorkflowDefinition ToDefinition()
+                => new()
+                {
+                    WorkflowId = WorkflowId,
+                    WorkflowName = WorkflowName,
+                    EventType = EventType,
+                    EventTypeId = EventTypeId,
+                    Rules = _rules,
+                    Parameters = _parameters
+                };
         }
     }
 }
