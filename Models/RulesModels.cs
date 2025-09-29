@@ -289,7 +289,6 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class RulesEngineEvaluationRequest
     {
-        public int SpaceId { get; init; }
         public string EventType { get; init; } = default!;
         public DateTime OccurredAt { get; init; }
         public string? ActorUserId { get; init; }

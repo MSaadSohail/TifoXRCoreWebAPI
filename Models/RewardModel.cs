@@ -5,9 +5,6 @@
 // <date>09/16/2025</date>
 // <summary>DTOs for Reward definitions and UserReward lifecycle.</summary>
 
-using System;
-using System.Collections.Generic;
-
 namespace GMS.TifoXRCoreWebAPI.Models
 {
     // ----- Reward definition -----
@@ -68,7 +65,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int Amount { get; init; }
     }
 
-    public sealed class RewardSummaryView
+    public class RewardSummaryView
     {
         public int Id { get; init; }
         public int RewardCompositionTypeId { get; init; }

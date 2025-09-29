@@ -1,6 +1,9 @@
 ﻿// <copyright file="IRulesEvaluationService.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
+// <author>Saad Sohail</author>
+// <date>9/30/2025</date>
+// <summary></summary>
 
 using System.Threading;
 using System.Threading.Tasks;

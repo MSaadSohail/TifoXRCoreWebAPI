@@ -1,16 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
+﻿// <copyright file="RulesEvaluationService.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved</copyright>
+// <author>Saad Sohail</author>
+// <date>9/30/2025</date>
+// <summary></summary>
+
 using System.Dynamic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+//
 using RulesEngine.Models;
-
 using RulesEngineCore = RulesEngine.RulesEngine;
-
+//
 using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Services
