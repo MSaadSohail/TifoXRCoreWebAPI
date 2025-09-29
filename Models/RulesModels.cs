@@ -60,9 +60,6 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; init; }
         public string Name { get; init; } = default!;
         public int StateTypeId { get; init; }
-        public DateTime CreationTime { get; init; }
-        public DateTime ModifiedTime { get; init; }
-        public string ModifiedBy { get; init; } = default!;
     }
 
     public sealed class RuleCreateDto
@@ -90,9 +87,6 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int Priority { get; init; }
         public int RuleCooldownSeconds { get; init; }
         public int StateTypeId { get; init; }
-        public DateTime CreationTime { get; init; }
-        public DateTime ModifiedTime { get; init; }
-        public string ModifiedBy { get; init; } = default!;
     }
 
     // =========================
@@ -289,6 +283,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class RulesEngineEvaluationRequest
     {
+        public int SpaceId { get; set; }
         public string EventType { get; init; } = default!;
         public DateTime OccurredAt { get; init; }
         public string? ActorUserId { get; init; }
@@ -296,6 +291,34 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? ContentOwnerUserId { get; init; }
         public string? ContentRef { get; init; }
         public Dictionary<string, JsonElement>? Properties { get; init; }
+    }
+
+    public sealed class RuntimeWorkflowDefinition
+    {
+        public int WorkflowId { get; init; }
+        public string WorkflowName { get; init; } = default!;
+        public string EventType { get; init; } = default!;
+        public int? EventTypeId { get; init; }
+        public IReadOnlyList<RuntimeRuleDefinition> Rules { get; init; } = Array.Empty<RuntimeRuleDefinition>();
+        public IReadOnlyDictionary<string, RuntimeParameterDefinition> Parameters { get; init; }
+            = new Dictionary<string, RuntimeParameterDefinition>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public sealed class RuntimeRuleDefinition
+    {
+        public int RuleId { get; init; }
+        public string RuleName { get; init; } = default!;
+        public string Expression { get; init; } = default!;
+        public string? SuccessEvent { get; init; }
+    }
+
+    public sealed class RuntimeParameterDefinition
+    {
+        public string Key { get; init; } = default!;
+        public string Source { get; init; } = default!;
+        public string Path { get; init; } = default!;
+        public bool IsRequired { get; init; }
+        public string? DefaultValueJson { get; init; }
     }
 
     public sealed class RulesEngineEvaluationResponse

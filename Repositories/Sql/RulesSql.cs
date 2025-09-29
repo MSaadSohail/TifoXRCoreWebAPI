@@ -76,5 +76,32 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             INSERT INTO rule_action_reward (id, reward_id, creation_time, modified_by)
             VALUES (@ActionId, @RewardId, NOW(6), 'system')
             ON DUPLICATE KEY UPDATE reward_id = VALUES(reward_id), modified_by = 'system';";
+
+        public const string GetRuntimeWorkflows = @"
+            SELECT w.id AS WorkflowId,
+                   w.name AS WorkflowName,
+                   r.id AS RuleId,
+                   r.rule_name AS RuleName,
+                   r.expression AS Expression,
+                   r.success_event AS SuccessEvent,
+                   r.target_type AS EventType,
+                   et.id AS EventTypeId
+            FROM workflow w
+            JOIN rules r ON r.workflow_id = w.id
+            LEFT JOIN re_event_type et ON et.name = r.target_type
+            WHERE w.space_id = @SpaceId
+            ORDER BY w.id, r.priority, r.id;";
+
+        public const string GetRuntimeEventParameters = @"
+            SELECT etp.re_event_type_id AS EventTypeId,
+                   cp.`key` AS ParameterKey,
+                   cp.source AS Source,
+                   cp.path AS Path,
+                   (etp.is_required + 0) AS IsRequired,
+                   etp.default_value_json AS DefaultValueJson
+            FROM re_event_type_parameter etp
+            JOIN re_context_parameter cp ON cp.id = etp.parameter_id
+            WHERE etp.re_event_type_id = @EventTypeId
+            ORDER BY etp.id;";
     }
 }

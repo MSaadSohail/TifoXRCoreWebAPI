@@ -44,6 +44,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 return BadRequest("eventType is required.");
             }
 
+            request.SpaceId = spaceId;
+
             try
             {
                 var response = await _service.EvaluateAsync(request, cancellationToken);

@@ -26,5 +26,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<IReadOnlyList<int>> InsertConditionsAsync(IEnumerable<ConditionCreateDto> dtos);
         Task<int> CreateRuleActionAsync(RuleActionCreateDto dto);
         Task BindRewardToActionAsync(int actionId, int rewardId);
+
+        Task<IReadOnlyList<RuntimeWorkflowDefinition>> GetRuntimeWorkflowsAsync(int spaceId);
     }
 }
