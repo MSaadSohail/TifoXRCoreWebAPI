@@ -154,6 +154,7 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     services.AddScoped<ILookupService, LookupService>();
     services.AddScoped<IRulesAuthoringService, RulesAuthoringService>();
+    services.AddScoped<IRulesEvaluationService, RulesEvaluationService>();
     services.AddScoped<IRewardService, RewardService>();
 
     #endregion
