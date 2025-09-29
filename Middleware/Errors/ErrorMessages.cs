@@ -31,6 +31,9 @@ namespace GMS.TifoXRCoreWebAPI.Middleware.Errors
 
             public static readonly ErrorMessage ValidationFailed =
                 new(ErrorCodes.ValidationFailed, "Validation failed for the request.", LogLevel.Warning, "Validation");
+
+            public static readonly ErrorMessage RouteBodyMismatch =
+                new(ErrorCodes.InvalidParameter, "Route value for {0} must match the id in the body.", LogLevel.Warning, "Validation");
         }
 
         // -------- Auth (401/403) --------

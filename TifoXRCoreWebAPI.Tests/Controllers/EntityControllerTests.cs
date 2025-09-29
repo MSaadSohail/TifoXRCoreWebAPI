@@ -9,7 +9,7 @@ using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -26,7 +26,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
     public class EntityControllerTests
     {
         private readonly Mock<IEntityRepository> repo;
-        private readonly Mock<ILogger<EntityController>> logger;
         private readonly EntityController sut;
         private readonly EntityDtoBuilder dtoBuilder;
 
@@ -36,7 +35,6 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         public EntityControllerTests()
         {
             repo = new Mock<IEntityRepository>();
-            logger = new Mock<ILogger<EntityController>>();
             sut = new EntityController(repo.Object);
             dtoBuilder = new EntityDtoBuilder();
         }

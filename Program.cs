@@ -149,6 +149,12 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     #endregion
 
+    #region REWARDS
+
+    services.AddScoped<IRewardService, RewardService>();
+
+    #endregion
+
     #region REPOS
     // ---- Auto-register repositories: I{Name} -> {Name} ----
     RegisterRepositories(services, Assembly.GetExecutingAssembly());

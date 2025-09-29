@@ -11,6 +11,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
+    /// <summary>
+    /// Concrete repository for Reward &amp; UserReward operations.
+    /// </summary>
     public sealed class RewardRepository : IRewardRepository
     {
         private readonly IDbProvider _db;
@@ -23,11 +26,21 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RewardSql.InsertReward);
 
-            cmd.Parameters.Add(_db.CreateParameter("@RewardTypeId", dto.RewardTypeId));
+            cmd.Parameters.Add(_db.CreateParameter("@RewardCompositionTypeId", dto.RewardCompositionTypeId));
             cmd.Parameters.Add(_db.CreateParameter("@NameKey", dto.NameKey));
             cmd.Parameters.Add(_db.CreateParameter("@DescriptionKey", (object?)dto.DescriptionKey ?? DBNull.Value));
             cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
             cmd.Parameters.Add(_db.CreateParameter("@EntityId", (object?)dto.EntityId ?? DBNull.Value));
+
+            cmd.Parameters.Add(_db.CreateParameter("@MaxTotalClaims", (object?)dto.MaxTotalClaims ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@MaxClaimsPerUser", (object?)dto.MaxClaimsPerUser ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@CooldownSeconds", (object?)dto.CooldownSeconds ?? DBNull.Value));
+
+            cmd.Parameters.Add(_db.CreateParameter("@ClaimRequired", dto.ClaimRequired ? 1 : 0));
+            cmd.Parameters.Add(_db.CreateParameter("@IsActive", dto.IsActive ? 1 : 0));
+
+            cmd.Parameters.Add(_db.CreateParameter("@ValidFrom", (object?)dto.ValidFrom ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@ValidTo", (object?)dto.ValidTo ?? DBNull.Value));
 
             var obj = await cmd.ExecuteScalarAsync();
             return Convert.ToInt32(obj);
@@ -47,7 +60,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return new RewardView
             {
                 Id = rdr.GetInt32(rdr.GetOrdinal("id")),
-                RewardTypeId = rdr.GetInt32(rdr.GetOrdinal("RewardTypeId")),
+                RewardCompositionTypeId = rdr.GetInt32(rdr.GetOrdinal("RewardCompositionTypeId")),
                 NameKey = rdr.GetString(rdr.GetOrdinal("NameKey")),
                 DescriptionKey = rdr.IsDBNull(rdr.GetOrdinal("DescriptionKey")) ? null : rdr.GetString(rdr.GetOrdinal("DescriptionKey")),
                 SpaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId")),
@@ -73,7 +86,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 if (!ord)
                 {
                     o_id = rdr.GetOrdinal("id");
-                    o_type = rdr.GetOrdinal("RewardTypeId");
+                    o_type = rdr.GetOrdinal("RewardCompositionTypeId");
                     o_name = rdr.GetOrdinal("NameKey");
                     o_desc = rdr.GetOrdinal("DescriptionKey");
                     o_space = rdr.GetOrdinal("SpaceId");
@@ -84,7 +97,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 list.Add(new RewardView
                 {
                     Id = rdr.GetInt32(o_id),
-                    RewardTypeId = rdr.GetInt32(o_type),
+                    RewardCompositionTypeId = rdr.GetInt32(o_type),
                     NameKey = rdr.GetString(o_name),
                     DescriptionKey = rdr.IsDBNull(o_desc) ? null : rdr.GetString(o_desc),
                     SpaceId = rdr.GetInt32(o_space),
@@ -95,12 +108,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return list;
         }
 
-        public async Task<int> AddItemAsync(RewardItemDto dto)
+        public async Task<int> AddItemAsync(int rewardId, RewardItemDto dto)
         {
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RewardSql.InsertRewardItem);
 
-            cmd.Parameters.Add(_db.CreateParameter("@RewardId", dto.RewardId));
+            cmd.Parameters.Add(_db.CreateParameter("@RewardId", rewardId));
             cmd.Parameters.Add(_db.CreateParameter("@ItemId", dto.ItemId));
             cmd.Parameters.Add(_db.CreateParameter("@Quantity", dto.Quantity));
 
@@ -108,12 +121,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return Convert.ToInt32(obj);
         }
 
-        public async Task<int> AddCurrencyAsync(RewardCurrencyDto dto)
+        public async Task<int> AddCurrencyAsync(int rewardId, RewardCurrencyDto dto)
         {
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RewardSql.InsertRewardCurrency);
 
-            cmd.Parameters.Add(_db.CreateParameter("@RewardId", dto.RewardId));
+            cmd.Parameters.Add(_db.CreateParameter("@RewardId", rewardId));
             cmd.Parameters.Add(_db.CreateParameter("@CurrencyId", dto.CurrencyId));
             cmd.Parameters.Add(_db.CreateParameter("@Amount", dto.Amount));
 
@@ -141,6 +154,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@RewardId", req.RewardId));
             cmd.Parameters.Add(_db.CreateParameter("@SpaceId", req.SpaceId));
             cmd.Parameters.Add(_db.CreateParameter("@PendingId", pendingId));
+            cmd.Parameters.Add(_db.CreateParameter("@GrantSource", (object?)req.GrantSource ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@SourceEventId", req.SourceEventId));
             cmd.Parameters.Add(_db.CreateParameter("@Idem", req.IdempotencyKey));
 
             var res = await cmd.ExecuteScalarAsync();
@@ -165,26 +180,47 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 SpaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId")),
                 Status = rdr.GetString(rdr.GetOrdinal("Status")),
                 ClaimedAt = rdr.IsDBNull(rdr.GetOrdinal("ClaimedAt")) ? (DateTime?)null : rdr.GetDateTime(rdr.GetOrdinal("ClaimedAt")),
-                ExpiredAt = rdr.IsDBNull(rdr.GetOrdinal("ExpiredAt")) ? (DateTime?)null : rdr.GetDateTime(rdr.GetOrdinal("ExpiredAt"))
+                ExpiredAt = rdr.IsDBNull(rdr.GetOrdinal("ExpiredAt")) ? (DateTime?)null : rdr.GetDateTime(rdr.GetOrdinal("ExpiredAt")),
+                GrantSource = rdr.IsDBNull(rdr.GetOrdinal("GrantSource")) ? null : rdr.GetString(rdr.GetOrdinal("GrantSource")),
+                SourceEventId = rdr.GetInt32(rdr.GetOrdinal("SourceEventId")),
+                IdempotencyKey = rdr.GetString(rdr.GetOrdinal("IdempotencyKey"))
             };
         }
 
-        public async Task SetDeliveredAsync(int userRewardId)
+        public async Task<(bool exists, bool updated)> TrySetDeliveredAsync(int userRewardId)
         {
             await using var conn = await _db.OpenConnectionAsync();
-            await using var cmd = _db.CreateCommand(conn, RewardSql.SetDelivered);
 
-            cmd.Parameters.Add(_db.CreateParameter("@Id", userRewardId));
-            await cmd.ExecuteNonQueryAsync();
+            // Exists?
+            await using (var existsCmd = _db.CreateCommand(conn, RewardSql.ExistsUserReward))
+            {
+                existsCmd.Parameters.Add(_db.CreateParameter("@Id", userRewardId));
+                var existsObj = await existsCmd.ExecuteScalarAsync();
+                if (existsObj is null) return (exists: false, updated: false);
+            }
+
+            // Guarded update
+            await using var upd = _db.CreateCommand(conn, RewardSql.SetDeliveredGuarded);
+            upd.Parameters.Add(_db.CreateParameter("@Id", userRewardId));
+            var affected = await upd.ExecuteNonQueryAsync(); // affected rows
+            return (exists: true, updated: affected > 0);
         }
 
-        public async Task SetClaimedAsync(int userRewardId)
+        public async Task<(bool exists, bool updated)> TrySetClaimedAsync(int userRewardId)
         {
             await using var conn = await _db.OpenConnectionAsync();
-            await using var cmd = _db.CreateCommand(conn, RewardSql.SetClaimed);
 
-            cmd.Parameters.Add(_db.CreateParameter("@Id", userRewardId));
-            await cmd.ExecuteNonQueryAsync();
+            await using (var existsCmd = _db.CreateCommand(conn, RewardSql.ExistsUserReward))
+            {
+                existsCmd.Parameters.Add(_db.CreateParameter("@Id", userRewardId));
+                var existsObj = await existsCmd.ExecuteScalarAsync();
+                if (existsObj is null) return (exists: false, updated: false);
+            }
+
+            await using var upd = _db.CreateCommand(conn, RewardSql.SetClaimedGuarded);
+            upd.Parameters.Add(_db.CreateParameter("@Id", userRewardId));
+            var affected = await upd.ExecuteNonQueryAsync();
+            return (exists: true, updated: affected > 0);
         }
     }
 }

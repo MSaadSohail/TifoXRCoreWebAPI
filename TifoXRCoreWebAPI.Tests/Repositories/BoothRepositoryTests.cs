@@ -14,7 +14,7 @@ using GMS.TifoXRCoreWebAPI.Tests.TestDoubles.Schemas;
 using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using Xunit;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Repositories

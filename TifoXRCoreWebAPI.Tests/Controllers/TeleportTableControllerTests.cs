@@ -16,7 +16,7 @@ using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {

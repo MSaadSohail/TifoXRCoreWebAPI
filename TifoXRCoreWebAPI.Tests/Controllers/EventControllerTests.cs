@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using System.Data;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Repositories;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {

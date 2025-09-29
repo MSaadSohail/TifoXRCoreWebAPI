@@ -24,11 +24,11 @@ namespace GMS.TifoXRCoreWebAPI.Services
         public Task<IReadOnlyList<RewardView>> ListBySpaceAsync(int id) 
             => _repo.ListBySpaceAsync(id);
 
-        public Task<int> AddItemAsync(RewardItemDto dto) 
-            => _repo.AddItemAsync(dto);
+        public Task<int> AddItemAsync(int rewardId, RewardItemDto dto) 
+            => _repo.AddItemAsync(rewardId, dto);
 
-        public Task<int> AddCurrencyAsync(RewardCurrencyDto dto) 
-            => _repo.AddCurrencyAsync(dto);
+        public Task<int> AddCurrencyAsync(int rewardId, RewardCurrencyDto dto) 
+            => _repo.AddCurrencyAsync(rewardId, dto);
 
 
         // User rewards
@@ -38,10 +38,10 @@ namespace GMS.TifoXRCoreWebAPI.Services
         public Task<UserRewardView?> GetUserRewardAsync(int userRewardId) 
             => _repo.GetUserRewardAsync(userRewardId);
 
-        public Task SetDeliveredAsync(int userRewardId) 
-            => _repo.SetDeliveredAsync(userRewardId);
+        public Task<(bool exists, bool updated)> TrySetDeliveredAsync(int userRewardId)
+        => _repo.TrySetDeliveredAsync(userRewardId);
 
-        public Task SetClaimedAsync(int userRewardId) 
-            => _repo.SetClaimedAsync(userRewardId);
+        public Task<(bool exists, bool updated)> TrySetClaimedAsync(int userRewardId)
+        => _repo.TrySetClaimedAsync(userRewardId);
     }
 }
