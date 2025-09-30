@@ -132,6 +132,16 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         };
     }
 
+    public void Invalidate(int spaceId)
+    {
+        if (spaceId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(spaceId));
+        }
+
+        _workflowCaches.TryRemove(spaceId, out _);
+    }
+
     private async Task<WorkflowCache> GetWorkflowCacheAsync(int spaceId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
