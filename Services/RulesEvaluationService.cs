@@ -196,7 +196,16 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         {
             foreach (var parameter in parameters.Values)
             {
-                dict[parameter.Key] = ResolveParameterValue(parameter, request);
+                var resolved = ResolveParameterValue(parameter, request);
+
+                if (resolved is not null)
+                {
+                    dict[parameter.Key] = resolved;
+                }
+                else if (!dict.ContainsKey(parameter.Key))
+                {
+                    dict[parameter.Key] = resolved;
+                }
             }
         }
 
@@ -235,20 +244,70 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
             return null;
         }
 
-        if (!properties.TryGetValue(segments[0], out var current))
+        if (!TryGetValueCaseInsensitive(properties, segments[0], out var current))
         {
             return null;
         }
 
         for (var i = 1; i < segments.Count; i++)
         {
-            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segments[i], out current))
+            if (current.ValueKind != JsonValueKind.Object ||
+                !TryGetPropertyCaseInsensitive(current, segments[i], out current))
             {
                 return null;
             }
         }
 
         return ConvertJsonElement(current);
+    }
+
+    private static bool TryGetValueCaseInsensitive(
+        IReadOnlyDictionary<string, JsonElement> dictionary,
+        string key,
+        out JsonElement value)
+    {
+        if (dictionary.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        foreach (var pair in dictionary)
+        {
+            if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = pair.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        if (element.TryGetProperty(propertyName, out value))
+        {
+            return true;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static IReadOnlyList<string> ParsePathSegments(string path)
