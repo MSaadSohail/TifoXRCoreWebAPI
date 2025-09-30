@@ -14,5 +14,6 @@ namespace GMS.TifoXRCoreWebAPI.Services
     public interface IRulesEvaluationService
     {
         Task<RulesEngineEvaluationResponse> EvaluateAsync(RulesEngineEvaluationRequest request, CancellationToken cancellationToken = default);
+        void Invalidate(int spaceId);
     }
 }

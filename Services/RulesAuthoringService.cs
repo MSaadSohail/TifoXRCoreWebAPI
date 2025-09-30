@@ -5,6 +5,8 @@
 // <date>09/30/2025</date>
 // <summary>Coordinates repository operations for rules engine authoring.</summary>
 
+using System;
+using System.Collections.Generic;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
 
@@ -14,19 +16,26 @@ namespace GMS.TifoXRCoreWebAPI.Services
     {
         private readonly IRulesRepository _repo;
         private readonly IRewardRepository _rewardRepo;
+        private readonly IRulesEvaluationService _evaluationService;
         private const string DefaultStateTypeName = "Published";
 
-        public RulesAuthoringService(IRulesRepository repo, IRewardRepository rewardRepo)
+        public RulesAuthoringService(
+            IRulesRepository repo,
+            IRewardRepository rewardRepo,
+            IRulesEvaluationService evaluationService)
         {
-            _repo = repo;
-            _rewardRepo = rewardRepo;
+            _repo = repo ?? throw new ArgumentNullException(nameof(repo));
+            _rewardRepo = rewardRepo ?? throw new ArgumentNullException(nameof(rewardRepo));
+            _evaluationService = evaluationService ?? throw new ArgumentNullException(nameof(evaluationService));
         }
 
         public async Task<int> CreateWorkflowAsync(WorkflowCreateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
             var stateTypeId = await ResolveStateTypeIdAsync(dto.StateTypeId);
-            return await _repo.CreateWorkflowAsync(dto, stateTypeId);
+            var id = await _repo.CreateWorkflowAsync(dto, stateTypeId);
+            _evaluationService.Invalidate(dto.SpaceId);
+            return id;
         }
 
         public async Task<int> CreateRuleAsync(RuleCreateDto dto)
@@ -41,14 +50,16 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 throw new InvalidOperationException("Rule space id must match the workflow's space id.");
 
             var stateTypeId = await ResolveStateTypeIdAsync(dto.StateTypeId);
-            return await _repo.CreateRuleAsync(dto, stateTypeId);
+            var id = await _repo.CreateRuleAsync(dto, stateTypeId);
+            _evaluationService.Invalidate(dto.SpaceId);
+            return id;
         }
 
         public async Task<IReadOnlyList<int>> AddConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> groups)
         {
             if (groups is null) throw new ArgumentNullException(nameof(groups));
 
-            var (exists, _, _) = await _repo.TryGetRuleContextAsync(ruleId);
+            var (exists, spaceId, _) = await _repo.TryGetRuleContextAsync(ruleId);
             if (!exists)
                 throw new InvalidOperationException($"Rule {ruleId} does not exist.");
 
@@ -58,14 +69,16 @@ namespace GMS.TifoXRCoreWebAPI.Services
                     throw new InvalidOperationException("Condition group payload rule id must match the route rule id.");
             }
 
-            return await _repo.InsertConditionGroupsAsync(groups);
+            var ids = await _repo.InsertConditionGroupsAsync(groups);
+            _evaluationService.Invalidate(spaceId);
+            return ids;
         }
 
         public async Task<IReadOnlyList<int>> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions)
         {
             if (conditions is null) throw new ArgumentNullException(nameof(conditions));
 
-            var (exists, _, _) = await _repo.TryGetConditionGroupContextAsync(groupId);
+            var (exists, _, spaceId) = await _repo.TryGetConditionGroupContextAsync(groupId);
             if (!exists)
                 throw new InvalidOperationException($"Condition group {groupId} does not exist.");
 
@@ -75,18 +88,22 @@ namespace GMS.TifoXRCoreWebAPI.Services
                     throw new InvalidOperationException("Condition payload group id must match the route group id.");
             }
 
-            return await _repo.InsertConditionsAsync(conditions);
+            var ids = await _repo.InsertConditionsAsync(conditions);
+            _evaluationService.Invalidate(spaceId);
+            return ids;
         }
 
         public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-            var (ruleExists, _, _) = await _repo.TryGetRuleContextAsync(dto.RuleId);
+            var (ruleExists, spaceId, _) = await _repo.TryGetRuleContextAsync(dto.RuleId);
             if (!ruleExists)
                 throw new InvalidOperationException($"Rule {dto.RuleId} does not exist.");
 
-            return await _repo.CreateRuleActionAsync(dto);
+            var id = await _repo.CreateRuleActionAsync(dto);
+            _evaluationService.Invalidate(spaceId);
+            return id;
         }
 
         public async Task BindRewardAsync(int actionId, int rewardId)

@@ -192,4 +192,117 @@ public sealed class RulesEvaluationServiceTests
         response.Outcomes.Should().ContainSingle();
         response.Outcomes[0].IsSuccess.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task EvaluateAsync_ReloadsCacheAfterInvalidation()
+    {
+        // Arrange
+        var initialDefinitions = new List<RuntimeWorkflowDefinition>
+        {
+            new()
+            {
+                WorkflowId = 1,
+                WorkflowName = "GamePlayed",
+                EventType = "GamePlayed",
+                Rules = new List<RuntimeRuleDefinition>
+                {
+                    new()
+                    {
+                        RuleId = 1,
+                        RuleName = "ScoreThreshold",
+                        Expression = "ScoreValue >= 50",
+                        SuccessEvent = "reward:threshold"
+                    }
+                },
+                Parameters = new Dictionary<string, RuntimeParameterDefinition>
+                {
+                    ["ScoreValue"] = new()
+                    {
+                        Key = "ScoreValue",
+                        Source = "event",
+                        Path = "$.ScoreValue",
+                        IsRequired = false
+                    }
+                }
+            }
+        };
+
+        var updatedDefinitions = new List<RuntimeWorkflowDefinition>
+        {
+            new()
+            {
+                WorkflowId = 1,
+                WorkflowName = "GamePlayed",
+                EventType = "GamePlayed",
+                Rules = new List<RuntimeRuleDefinition>
+                {
+                    new()
+                    {
+                        RuleId = 1,
+                        RuleName = "ScoreThreshold",
+                        Expression = "ScoreValue >= 50",
+                        SuccessEvent = "reward:threshold"
+                    }
+                },
+                Parameters = new Dictionary<string, RuntimeParameterDefinition>
+                {
+                    ["ScoreValue"] = new()
+                    {
+                        Key = "ScoreValue",
+                        Source = "event",
+                        Path = "$.NewScore",
+                        IsRequired = false
+                    }
+                }
+            }
+        };
+
+        var repository = new Mock<IRulesRepository>();
+        repository
+            .SetupSequence(r => r.GetRuntimeWorkflowsAsync(It.IsAny<int>()))
+            .ReturnsAsync(initialDefinitions)
+            .ReturnsAsync(updatedDefinitions);
+
+        var logger = new Mock<ILogger<RulesEvaluationService>>();
+        var service = new RulesEvaluationService(repository.Object, logger.Object);
+
+        using var firstDoc = JsonDocument.Parse("""{ \"ScoreValue\": 75 }""");
+        var firstRequest = new RulesEngineEvaluationRequest
+        {
+            SpaceId = 42,
+            EventType = "GamePlayed",
+            OccurredAt = DateTime.UtcNow,
+            Properties = new Dictionary<string, JsonElement>
+            {
+                ["ScoreValue"] = firstDoc.RootElement.GetProperty("ScoreValue")
+            }
+        };
+
+        // Warm the cache
+        var initialResponse = await service.EvaluateAsync(firstRequest);
+        initialResponse.AnyRuleMatched.Should().BeTrue();
+
+        service.Invalidate(firstRequest.SpaceId);
+
+        using var secondDoc = JsonDocument.Parse("""{ \"NewScore\": 80 }""");
+        var secondRequest = new RulesEngineEvaluationRequest
+        {
+            SpaceId = 42,
+            EventType = "GamePlayed",
+            OccurredAt = DateTime.UtcNow,
+            Properties = new Dictionary<string, JsonElement>
+            {
+                ["NewScore"] = secondDoc.RootElement.GetProperty("NewScore")
+            }
+        };
+
+        // Act
+        var updatedResponse = await service.EvaluateAsync(secondRequest);
+
+        // Assert
+        updatedResponse.AnyRuleMatched.Should().BeTrue();
+        updatedResponse.Outcomes.Should().ContainSingle();
+        updatedResponse.Outcomes[0].IsSuccess.Should().BeTrue();
+        repository.Verify(r => r.GetRuntimeWorkflowsAsync(firstRequest.SpaceId), Times.Exactly(2));
+    }
 }
