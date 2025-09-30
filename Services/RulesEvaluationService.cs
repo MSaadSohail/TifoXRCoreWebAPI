@@ -63,11 +63,42 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
 
         cache.ParameterMap.TryGetValue(workflowName, out var parameterDefinitions);
 
-        var parameters = new[]
+        var inputBag = BuildPropertyBag(request, parameterDefinitions);
+        var parameters = new List<RuleParameter>
         {
-            new RuleParameter("input1", BuildPropertyBag(request, parameterDefinitions)),
-            new RuleParameter("event", request)
+            new("input1", inputBag),
+            new("event", request)
         };
+
+        if (parameterDefinitions is not null && parameterDefinitions.Count > 0)
+        {
+            var inputDictionary = (IDictionary<string, object?>)inputBag;
+
+            foreach (var (alias, definition) in parameterDefinitions)
+            {
+                if (string.IsNullOrWhiteSpace(alias) ||
+                    string.Equals(alias, "input1", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(alias, "event", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                object? value = null;
+
+                if (!string.IsNullOrWhiteSpace(alias) && inputDictionary.TryGetValue(alias, out var aliasValue))
+                {
+                    value = aliasValue;
+                }
+                else if (!string.IsNullOrWhiteSpace(definition?.Key) &&
+                         !string.Equals(definition.Key, alias, StringComparison.OrdinalIgnoreCase) &&
+                         inputDictionary.TryGetValue(definition.Key, out var keyValue))
+                {
+                    value = keyValue;
+                }
+
+                parameters.Add(new RuleParameter(alias, value));
+            }
+        }
 
         List<RuleResultTree> results;
 

@@ -128,4 +128,68 @@ public sealed class RulesEvaluationServiceTests
         outcome.ErrorMessage.Should().Contain(ExpectedError);
         outcome.ErrorMessage.Should().NotBe("Fallback error");
     }
+
+    [Fact]
+    public async Task EvaluateAsync_AllowsParameterReferenceWithoutInputPrefix()
+    {
+        // Arrange
+        var workflowDefinitions = new List<RuntimeWorkflowDefinition>
+        {
+            new()
+            {
+                WorkflowId = 1,
+                WorkflowName = "GamePlayed",
+                EventType = "GamePlayed",
+                Rules = new List<RuntimeRuleDefinition>
+                {
+                    new()
+                    {
+                        RuleId = 1,
+                        RuleName = "ScoreThreshold",
+                        Expression = "ScoreValue >= 50",
+                        SuccessEvent = "reward:threshold"
+                    }
+                },
+                Parameters = new Dictionary<string, RuntimeParameterDefinition>
+                {
+                    ["ScoreValue"] = new()
+                    {
+                        Key = "ScoreValue",
+                        Source = "event",
+                        Path = "$.ScoreValue",
+                        IsRequired = false
+                    }
+                }
+            }
+        };
+
+        var repository = new Mock<IRulesRepository>();
+        repository
+            .Setup(r => r.GetRuntimeWorkflowsAsync(It.IsAny<int>()))
+            .ReturnsAsync(workflowDefinitions);
+
+        var logger = new Mock<ILogger<RulesEvaluationService>>();
+        var service = new RulesEvaluationService(repository.Object, logger.Object);
+
+        using var doc = JsonDocument.Parse("""{ \"ScoreValue\": 75 }""");
+
+        var request = new RulesEngineEvaluationRequest
+        {
+            SpaceId = 42,
+            EventType = "GamePlayed",
+            OccurredAt = DateTime.UtcNow,
+            Properties = new Dictionary<string, JsonElement>
+            {
+                ["ScoreValue"] = doc.RootElement.GetProperty("ScoreValue")
+            }
+        };
+
+        // Act
+        var response = await service.EvaluateAsync(request);
+
+        // Assert
+        response.AnyRuleMatched.Should().BeTrue();
+        response.Outcomes.Should().ContainSingle();
+        response.Outcomes[0].IsSuccess.Should().BeTrue();
+    }
 }
