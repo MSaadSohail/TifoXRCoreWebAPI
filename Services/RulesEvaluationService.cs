@@ -344,12 +344,16 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         var successEvent = result.Rule.SuccessEvent;
         var rewardCode = TryParseRewardCode(successEvent);
 
+        var errorMessage = string.IsNullOrWhiteSpace(result.ExceptionMessage)
+            ? result.Rule.ErrorMessage
+            : result.ExceptionMessage;
+
         return new RuleEvaluationOutcome
         {
             RuleName = result.Rule.RuleName,
             IsSuccess = result.IsSuccess,
             SuccessEvent = successEvent,
-            ErrorMessage = result.Rule.ErrorMessage,
+            ErrorMessage = errorMessage,
             RewardCode = rewardCode
         };
     }
