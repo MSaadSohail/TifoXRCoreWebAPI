@@ -5,6 +5,7 @@ using System.Dynamic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using RulesEngine.Models;
 using RulesEngineCore = RulesEngine.RulesEngine;
@@ -243,10 +244,8 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
                 Rules = d.Rules.Select(r => new Rule
                 {
                     RuleName = r.RuleName,
-                    Expression = r.Expression,
+                    Expression = NormalizeExpression(r.Expression, d.Parameters),
                     SuccessEvent = r.SuccessEvent,
-                    // Use dynamic expression parsing so parameters such as "ScoreValue"
-                    // can be referenced directly without requiring an explicit input prefix.
                     RuleExpressionType = RuleExpressionType.LambdaExpression,
                     Enabled = true
                 }).ToList()
@@ -275,6 +274,49 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         var cache = new WorkflowCache(engine, lookup, parameterMap);
         _workflowCaches[spaceId] = cache;
         return cache;
+    }
+
+    private static string NormalizeExpression(
+        string expression,
+        IReadOnlyDictionary<string, RuntimeParameterDefinition>? parameters)
+    {
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return expression;
+        }
+
+        if (expression.Contains("input1.", StringComparison.Ordinal))
+        {
+            return expression;
+        }
+
+        if (parameters is null || parameters.Count == 0)
+        {
+            return expression;
+        }
+
+        var identifiers = parameters.Keys
+            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static key => key.Length)
+            .ToList();
+
+        if (identifiers.Count == 0)
+        {
+            return expression;
+        }
+
+        foreach (var identifier in identifiers)
+        {
+            var pattern = $"(?<![\\w.]){Regex.Escape(identifier)}\\b";
+            expression = Regex.Replace(
+                expression,
+                pattern,
+                static match => $"input1.{match.Value}",
+                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        }
+
+        return expression;
     }
 
     private static ExpandoObject BuildPropertyBag(
