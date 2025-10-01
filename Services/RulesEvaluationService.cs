@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using RulesEngine.Models;
 using RulesEngineCore = RulesEngine.RulesEngine;
@@ -18,11 +20,20 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
     private readonly IRulesRepository _rulesRepository;
     private readonly ConcurrentDictionary<int, WorkflowCache> _workflowCaches = new();
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     public RulesEvaluationService(IRulesRepository rulesRepository, ILogger<RulesEvaluationService> logger)
     {
         _rulesRepository = rulesRepository ?? throw new ArgumentNullException(nameof(rulesRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    private static string Serialize(object? value)
+        => JsonSerializer.Serialize(value, JsonOptions);
 
     public async Task<RulesEngineEvaluationResponse> EvaluateAsync(
         RulesEngineEvaluationRequest request,
@@ -30,12 +41,23 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
 
+        _logger.LogInformation(
+            "Starting rules evaluation for space {SpaceId} and event {EventType} with payload {Payload}.",
+            request.SpaceId,
+            request.EventType,
+            Serialize(request));
+
         if (request.SpaceId <= 0)
         {
             throw new ArgumentException("SpaceId must be provided on the evaluation request.", nameof(request));
         }
 
         var cache = await GetWorkflowCacheAsync(request.SpaceId, cancellationToken);
+
+        _logger.LogDebug(
+            "Workflow cache for space {SpaceId} contains {WorkflowCount} workflows.",
+            request.SpaceId,
+            cache.WorkflowLookup.Count);
 
         if (cache.Engine is null || cache.WorkflowLookup.Count == 0)
         {
@@ -64,6 +86,10 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         cache.ParameterMap.TryGetValue(workflowName, out var parameterDefinitions);
 
         var inputBag = BuildPropertyBag(request, parameterDefinitions);
+        _logger.LogDebug(
+            "Built input bag for workflow {WorkflowName}: {Payload}.",
+            workflowName,
+            Serialize(inputBag));
         var parameters = new List<RuleParameter>
         {
             new("input1", inputBag),
@@ -102,6 +128,11 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
 
         List<RuleResultTree> results;
 
+        _logger.LogInformation(
+            "Executing workflow {WorkflowName} with parameters {Parameters}.",
+            workflowName,
+            Serialize(parameters.Select(p => new { p.Name, p.Value })));
+
         try
         {
             results = await cache.Engine.ExecuteAllRulesAsync(workflowName, parameters);
@@ -111,6 +142,18 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
             _logger.LogError(ex, "Failed to execute rules workflow {WorkflowName}.", workflowName);
             throw;
         }
+
+        _logger.LogInformation(
+            "Workflow {WorkflowName} execution produced {ResultCount} results: {Results}.",
+            workflowName,
+            results.Count,
+            Serialize(results.Select(r => new
+            {
+                r.Rule.RuleName,
+                r.IsSuccess,
+                r.ExceptionMessage,
+                r.Rule.SuccessEvent
+            })));
 
         var outcomes = results.Select(ToOutcome).ToList();
         var rewardDecisions = outcomes
@@ -123,6 +166,11 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
                 Notes = o.IsSuccess ? "Rule matched." : o.ErrorMessage
             })
             .ToList();
+
+        _logger.LogInformation(
+            "Workflow {WorkflowName} outcomes: {Outcomes}.",
+            workflowName,
+            Serialize(outcomes));
 
         return new RulesEngineEvaluationResponse
         {
@@ -148,6 +196,10 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
 
         if (_workflowCaches.TryGetValue(spaceId, out var cached))
         {
+            _logger.LogDebug(
+                "Workflow cache hit for space {SpaceId} with {WorkflowCount} workflows.",
+                spaceId,
+                cached.WorkflowLookup.Count);
             return cached;
         }
 
@@ -155,6 +207,7 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
 
         try
         {
+            _logger.LogDebug("Cache miss for space {SpaceId}; loading workflows from repository.", spaceId);
             definitions = await _rulesRepository.GetRuntimeWorkflowsAsync(spaceId);
         }
         catch (Exception ex)
@@ -162,6 +215,11 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
             _logger.LogError(ex, "Failed to load workflow definitions for space {SpaceId}.", spaceId);
             throw;
         }
+
+        _logger.LogDebug(
+            "Loaded {DefinitionCount} workflow definitions from repository for space {SpaceId}.",
+            definitions.Count,
+            spaceId);
 
         if (definitions.Count == 0)
         {
@@ -186,9 +244,11 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
                 Rules = d.Rules.Select(r => new Rule
                 {
                     RuleName = r.RuleName,
-                    Expression = r.Expression,
+                    Expression = NormalizeExpression(r.Expression, d.Parameters),
                     SuccessEvent = r.SuccessEvent,
-                    RuleExpressionType = RuleExpressionType.LambdaExpression,
+                    // Expressions are normalized to allow parameters such as "ScoreValue"
+                    // to be referenced directly without requiring an explicit input prefix.
+                    RuleExpressionType = RuleExpressionType.Expression,
                     Enabled = true
                 }).ToList()
             })
@@ -216,6 +276,49 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         var cache = new WorkflowCache(engine, lookup, parameterMap);
         _workflowCaches[spaceId] = cache;
         return cache;
+    }
+
+    private static string NormalizeExpression(
+        string expression,
+        IReadOnlyDictionary<string, RuntimeParameterDefinition>? parameters)
+    {
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return expression;
+        }
+
+        if (expression.Contains("input1.", StringComparison.Ordinal))
+        {
+            return expression;
+        }
+
+        if (parameters is null || parameters.Count == 0)
+        {
+            return expression;
+        }
+
+        var identifiers = parameters.Keys
+            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static key => key.Length)
+            .ToList();
+
+        if (identifiers.Count == 0)
+        {
+            return expression;
+        }
+
+        foreach (var identifier in identifiers)
+        {
+            var pattern = $"(?<![\\w.]){Regex.Escape(identifier)}\\b";
+            expression = Regex.Replace(
+                expression,
+                pattern,
+                static match => $"input1.{match.Value}",
+                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        }
+
+        return expression;
     }
 
     private static ExpandoObject BuildPropertyBag(
