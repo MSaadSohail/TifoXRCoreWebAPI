@@ -8,100 +8,187 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Sql;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public sealed class RulesRepository : IRulesRepository
     {
         private readonly IDbProvider _db;
-        public RulesRepository(IDbProvider db) => _db = db;
+        private readonly ILogger<RulesRepository> _logger;
+
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            WriteIndented = false,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        public RulesRepository(IDbProvider db, ILogger<RulesRepository> logger)
+        {
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        private static string Serialize(object? value)
+            => JsonSerializer.Serialize(value, JsonOptions);
 
         public async Task<(bool exists, int spaceId)> TryGetWorkflowSpaceAsync(int workflowId)
         {
+            _logger.LogDebug("Fetching workflow space for workflow {WorkflowId}.", workflowId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.GetWorkflowSpace);
             cmd.Parameters.Add(_db.CreateParameter("@Id", workflowId));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return obj is null ? (false, 0) : (true, Convert.ToInt32(obj));
+            var result = obj is null ? (false, 0) : (true, Convert.ToInt32(obj));
+            _logger.LogDebug(
+                "Workflow space lookup for workflow {WorkflowId} returned Exists={Exists}, SpaceId={SpaceId}.",
+                workflowId,
+                result.exists,
+                result.spaceId);
+            return result;
         }
 
         public async Task<(bool exists, int spaceId, int workflowId)> TryGetRuleContextAsync(int ruleId)
         {
+            _logger.LogDebug("Fetching rule context for rule {RuleId}.", ruleId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.GetRuleContext);
             cmd.Parameters.Add(_db.CreateParameter("@Id", ruleId));
 
             await using var rdr = await cmd.ExecuteReaderAsync();
             if (!await rdr.ReadAsync())
+            {
+                _logger.LogDebug("Rule context not found for rule {RuleId}.", ruleId);
                 return (false, 0, 0);
+            }
 
-            return (true, rdr.GetInt32(rdr.GetOrdinal("SpaceId")), rdr.GetInt32(rdr.GetOrdinal("WorkflowId")));
+            var spaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId"));
+            var workflowId = rdr.GetInt32(rdr.GetOrdinal("WorkflowId"));
+            _logger.LogDebug(
+                "Rule context for rule {RuleId}: SpaceId={SpaceId}, WorkflowId={WorkflowId}.",
+                ruleId,
+                spaceId,
+                workflowId);
+            return (true, spaceId, workflowId);
         }
 
         public async Task<(bool exists, int ruleId, int spaceId)> TryGetActionContextAsync(int actionId)
         {
+            _logger.LogDebug("Fetching action context for action {ActionId}.", actionId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.GetActionContext);
             cmd.Parameters.Add(_db.CreateParameter("@Id", actionId));
 
             await using var rdr = await cmd.ExecuteReaderAsync();
             if (!await rdr.ReadAsync())
+            {
+                _logger.LogDebug("Action context not found for action {ActionId}.", actionId);
                 return (false, 0, 0);
+            }
 
-            return (true, rdr.GetInt32(rdr.GetOrdinal("RuleId")), rdr.GetInt32(rdr.GetOrdinal("SpaceId")));
+            var ruleId = rdr.GetInt32(rdr.GetOrdinal("RuleId"));
+            var spaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId"));
+            _logger.LogDebug(
+                "Action context for action {ActionId}: RuleId={RuleId}, SpaceId={SpaceId}.",
+                actionId,
+                ruleId,
+                spaceId);
+            return (true, ruleId, spaceId);
         }
 
         public async Task<(bool exists, int ruleId, int spaceId)> TryGetConditionGroupContextAsync(int groupId)
         {
+            _logger.LogDebug("Fetching condition group context for group {GroupId}.", groupId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.GetConditionGroupContext);
             cmd.Parameters.Add(_db.CreateParameter("@Id", groupId));
 
             await using var rdr = await cmd.ExecuteReaderAsync();
             if (!await rdr.ReadAsync())
+            {
+                _logger.LogDebug("Condition group context not found for group {GroupId}.", groupId);
                 return (false, 0, 0);
+            }
 
-            return (true, rdr.GetInt32(rdr.GetOrdinal("RuleId")), rdr.GetInt32(rdr.GetOrdinal("SpaceId")));
+            var ruleId = rdr.GetInt32(rdr.GetOrdinal("RuleId"));
+            var spaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId"));
+            _logger.LogDebug(
+                "Condition group context for group {GroupId}: RuleId={RuleId}, SpaceId={SpaceId}.",
+                groupId,
+                ruleId,
+                spaceId);
+            return (true, ruleId, spaceId);
         }
 
         public async Task<bool> ConditionGroupBelongsToRuleAsync(int groupId, int ruleId)
         {
+            _logger.LogDebug(
+                "Checking if condition group {GroupId} belongs to rule {RuleId}.",
+                groupId,
+                ruleId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.ConditionGroupBelongsToRule);
             cmd.Parameters.Add(_db.CreateParameter("@GroupId", groupId));
             cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return obj is not null;
+            var belongs = obj is not null;
+            _logger.LogDebug(
+                "Condition group {GroupId} belongs to rule {RuleId}: {Result}.",
+                groupId,
+                ruleId,
+                belongs);
+            return belongs;
         }
 
         public async Task<bool> ActionBelongsToRuleAsync(int actionId, int ruleId)
         {
+            _logger.LogDebug(
+                "Checking if action {ActionId} belongs to rule {RuleId}.",
+                actionId,
+                ruleId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.ActionBelongsToRule);
             cmd.Parameters.Add(_db.CreateParameter("@ActionId", actionId));
             cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return obj is not null;
+            var belongs = obj is not null;
+            _logger.LogDebug(
+                "Action {ActionId} belongs to rule {RuleId}: {Result}.",
+                actionId,
+                ruleId,
+                belongs);
+            return belongs;
         }
 
         public async Task<int?> GetStateTypeIdByNameAsync(string type)
         {
+            _logger.LogDebug("Resolving state type id for type {Type}.", type);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.GetStateTypeIdByName);
             cmd.Parameters.Add(_db.CreateParameter("@Type", type));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return obj is null ? null : Convert.ToInt32(obj);
+            var stateTypeId = obj is null ? null : Convert.ToInt32(obj);
+            _logger.LogDebug("State type lookup for {Type} returned {StateTypeId}.", type, stateTypeId);
+            return stateTypeId;
         }
 
         public async Task<int> CreateWorkflowAsync(WorkflowCreateDto dto, int stateTypeId)
         {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Creating workflow with payload {Payload} and state type {StateTypeId}.",
+                Serialize(dto),
+                stateTypeId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.InsertWorkflow);
 
@@ -110,11 +197,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@StateTypeId", stateTypeId));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return Convert.ToInt32(obj);
+            var workflowId = Convert.ToInt32(obj);
+            _logger.LogInformation(
+                "Workflow created with id {WorkflowId} for space {SpaceId}.",
+                workflowId,
+                dto.SpaceId);
+            return workflowId;
         }
 
         public async Task<int> CreateRuleAsync(RuleCreateDto dto, int stateTypeId)
         {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Creating rule with payload {Payload} and state type {StateTypeId}.",
+                Serialize(dto),
+                stateTypeId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.InsertRule);
 
@@ -131,18 +229,31 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@StateTypeId", stateTypeId));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return Convert.ToInt32(obj);
+            var ruleId = Convert.ToInt32(obj);
+            _logger.LogInformation(
+                "Rule created with id {RuleId} for workflow {WorkflowId} in space {SpaceId}.",
+                ruleId,
+                dto.WorkflowId,
+                dto.SpaceId);
+            return ruleId;
         }
 
         public async Task<IReadOnlyList<int>> InsertConditionGroupsAsync(IEnumerable<ConditionGroupCreateDto> dtos)
         {
+            if (dtos is null) throw new ArgumentNullException(nameof(dtos));
+
+            var dtoList = dtos.ToList();
+            _logger.LogInformation(
+                "Inserting {Count} condition groups with payload {Payload}.",
+                dtoList.Count,
+                Serialize(dtoList));
             await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             var ids = new List<int>();
             try
             {
-                foreach (var dto in dtos)
+                foreach (var dto in dtoList)
                 {
                     await using var cmd = _db.CreateCommand(conn, RulesSql.InsertConditionGroup, tx);
                     cmd.Parameters.Add(_db.CreateParameter("@RuleId", dto.RuleId));
@@ -162,18 +273,29 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
 
+            _logger.LogInformation(
+                "Inserted condition groups with ids {Ids} for payload {Payload}.",
+                Serialize(ids),
+                Serialize(dtoList));
             return ids;
         }
 
         public async Task<IReadOnlyList<int>> InsertConditionsAsync(IEnumerable<ConditionCreateDto> dtos)
         {
+            if (dtos is null) throw new ArgumentNullException(nameof(dtos));
+
+            var dtoList = dtos.ToList();
+            _logger.LogInformation(
+                "Inserting {Count} conditions with payload {Payload}.",
+                dtoList.Count,
+                Serialize(dtoList));
             await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             var ids = new List<int>();
             try
             {
-                foreach (var dto in dtos)
+                foreach (var dto in dtoList)
                 {
                     await using var cmd = _db.CreateCommand(conn, RulesSql.InsertCondition, tx);
                     cmd.Parameters.Add(_db.CreateParameter("@GroupId", dto.GroupId));
@@ -196,11 +318,20 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
 
+            _logger.LogInformation(
+                "Inserted conditions with ids {Ids} for payload {Payload}.",
+                Serialize(ids),
+                Serialize(dtoList));
             return ids;
         }
 
         public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)
         {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Creating rule action with payload {Payload}.",
+                Serialize(dto));
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.InsertRuleAction);
 
@@ -214,11 +345,20 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@IsActive", dto.IsActive ? 1 : 0));
 
             var obj = await cmd.ExecuteScalarAsync();
-            return Convert.ToInt32(obj);
+            var actionId = Convert.ToInt32(obj);
+            _logger.LogInformation(
+                "Rule action created with id {ActionId} for rule {RuleId}.",
+                actionId,
+                dto.RuleId);
+            return actionId;
         }
 
         public async Task BindRewardToActionAsync(int actionId, int rewardId)
         {
+            _logger.LogInformation(
+                "Binding reward {RewardId} to action {ActionId}.",
+                rewardId,
+                actionId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.UpsertRuleActionReward);
 
@@ -226,10 +366,15 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@RewardId", rewardId));
 
             await cmd.ExecuteNonQueryAsync();
+            _logger.LogInformation(
+                "Reward {RewardId} bound to action {ActionId}.",
+                rewardId,
+                actionId);
         }
 
         public async Task<IReadOnlyList<RuntimeWorkflowDefinition>> GetRuntimeWorkflowsAsync(int spaceId)
         {
+            _logger.LogInformation("Loading runtime workflows for space {SpaceId}.", spaceId);
             await using var conn = await _db.OpenConnectionAsync();
 
             var builders = new Dictionary<int, RuntimeWorkflowBuilder>();
@@ -242,6 +387,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 await using var rdr = await cmd.ExecuteReaderAsync();
                 if (!rdr.HasRows)
                 {
+                    _logger.LogInformation(
+                        "No runtime workflows found in database for space {SpaceId}.",
+                        spaceId);
                     return Array.Empty<RuntimeWorkflowDefinition>();
                 }
 
@@ -269,6 +417,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     {
                         builder = new RuntimeWorkflowBuilder(workflowId, workflowName, eventType, eventTypeId);
                         builders.Add(workflowId, builder);
+                        _logger.LogDebug(
+                            "Discovered workflow {WorkflowName} ({WorkflowId}) for event {EventType} (EventTypeId={EventTypeId}).",
+                            workflowName,
+                            workflowId,
+                            eventType,
+                            eventTypeId);
                     }
 
                     if (eventTypeId.HasValue)
@@ -296,11 +450,20 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     };
 
                     builder.AddRule(rule);
+                    _logger.LogDebug(
+                        "Added rule {RuleName} ({RuleId}) with expression {Expression} to workflow {WorkflowName}.",
+                        rule.RuleName,
+                        rule.RuleId,
+                        rule.Expression,
+                        workflowName);
                 }
             }
 
             if (builders.Count == 0)
             {
+                _logger.LogInformation(
+                    "Runtime workflow query for space {SpaceId} returned no active workflows.",
+                    spaceId);
                 return Array.Empty<RuntimeWorkflowDefinition>();
             }
 
@@ -314,6 +477,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 await using var paramRdr = await paramCmd.ExecuteReaderAsync();
                 if (!paramRdr.HasRows)
                 {
+                    _logger.LogDebug(
+                        "No parameters configured for event type id {EventTypeId}.",
+                        eventTypeId);
                     continue;
                 }
 
@@ -340,6 +506,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 parameterCache[eventTypeId] = parameters;
+                _logger.LogDebug(
+                    "Loaded {Count} parameters for event type id {EventTypeId}: {Parameters}.",
+                    parameters.Count,
+                    eventTypeId,
+                    Serialize(parameters));
             }
 
             foreach (var builder in builders.Values)
@@ -348,12 +519,25 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     parameterCache.TryGetValue(builder.EventTypeId.Value, out var parameters))
                 {
                     builder.SetParameters(parameters);
+                    _logger.LogDebug(
+                        "Assigned {Count} parameters to workflow {WorkflowName} ({WorkflowId}).",
+                        parameters.Count,
+                        builder.WorkflowName,
+                        builder.WorkflowId);
                 }
             }
 
-            return builders.Values
+            var definitions = builders.Values
                 .Select(b => b.ToDefinition())
                 .ToList();
+
+            _logger.LogInformation(
+                "Built {Count} runtime workflows for space {SpaceId}: {Definitions}.",
+                definitions.Count,
+                spaceId,
+                Serialize(definitions));
+
+            return definitions;
         }
 
         private sealed class RuntimeWorkflowBuilder
