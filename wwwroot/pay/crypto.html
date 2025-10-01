@@ -1,0 +1,327 @@
+﻿<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TifoXR Crypto Checkout</title>
+    <style>
+        :root {
+            --primary: #111827;
+            --muted: #6b7280;
+            --bg: #ffffff;
+            --border: #e5e7eb;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            padding: 24px;
+            background: var(--bg);
+            color: var(--primary);
+        }
+
+        .card {
+            max-width: 560px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 0;
+            cursor: pointer;
+            background: #111827;
+            color: #fff;
+            font-weight: 600;
+        }
+
+            button.secondary {
+                background: #374151;
+            }
+
+            button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        #log {
+            margin-top: 16px;
+            background: #0b1020;
+            color: #d0d6ff;
+            padding: 12px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 12px;
+            min-height: 56px;
+        }
+
+        /* Loading overlay */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.75);
+            display: none; /* toggled by JS */
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            backdrop-filter: blur(2px);
+        }
+
+            .overlay.show {
+                display: flex;
+            }
+
+        .loader {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 3px solid #e5e7eb;
+            border-top-color: #111827;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="card">
+        <h2>Pay with MetaMask (Chiliz)</h2>
+        <p class="muted">Connect your wallet, we’ll fetch the prepared transfer, then you sign &amp; broadcast.</p>
+
+        <div class="row">
+            <button id="connect" class="secondary">Connect Wallet</button>
+            <button id="pay" disabled>Pay</button>
+        </div>
+
+        <div id="log"></div>
+
+        <!-- Loading overlay -->
+        <div id="overlay" class="overlay" aria-hidden="true" aria-busy="false">
+            <div class="loader">
+                <div class="spinner" aria-hidden="true"></div>
+                <div id="overlayText">working…</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const qs = new URLSearchParams(location.search);
+
+        // Required query params from ApproveLink:
+        const SPACE_ID = qs.get('spaceId');
+        const ORDER_ID = qs.get('orderId');
+        const INTENT_ID = qs.get('intentId');
+        const PID = qs.get('pid'); // providerIntentId
+
+        if (!SPACE_ID || !ORDER_ID || !INTENT_ID || !PID) {
+            alert('Missing query parameters. Expected spaceId, orderId, intentId, pid.');
+        }
+
+        const API_BASE = window.location.origin; // same origin
+
+        let account = null;
+        let prepared = null; // { to, value_hex, chain_id_hex }
+        let busy = false;
+
+        const btnConnect = document.getElementById('connect');
+        const btnPay = document.getElementById('pay');
+        const overlay = document.getElementById('overlay');
+        const overlayText = document.getElementById('overlayText');
+
+        function setBusy(state, message = 'working…') {
+            busy = !!state;
+            btnConnect.disabled = busy;
+            btnPay.disabled = busy || !prepared; // pay stays disabled until prepared exists
+            overlay.classList.toggle('show', busy);
+            overlay.setAttribute('aria-hidden', (!busy).toString());
+            overlay.setAttribute('aria-busy', busy.toString());
+            overlayText.textContent = message;
+        }
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.textContent += msg + '\n';
+        }
+
+        async function ensureChain(chainIdHex) {
+            try {
+                await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
+            } catch (err) {
+                if (err && err.code === 4902) {
+                    await ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId: chainIdHex,
+                            chainName: 'Chiliz',
+                            nativeCurrency: { name: 'Chiliz', symbol: 'CHZ', decimals: 18 },
+                            rpcUrls: ['https://spicy-rpc.chiliz.com/'],
+                            blockExplorerUrls: ['https://testnet.chiliscan.com/']
+                        }]
+                    });
+                } else {
+                    throw err;
+                }
+            }
+        }
+
+        async function fetchPrepared(senderAddr) {
+            const url = `${API_BASE}/api/space/${SPACE_ID}/orders/${ORDER_ID}/payment-intents/${INTENT_ID}/crypto/prepared?sender=${encodeURIComponent(senderAddr)}`;
+            const res = await fetch(url, { method: 'GET' });
+            if (!res.ok) {
+                const t = await res.text();
+                throw new Error(`Prepared fetch failed: ${t}`);
+            }
+            const text = await res.text();               // controller may return a JSON string
+            try { return JSON.parse(text); } catch {     // or actual application/json
+                return await (new Response(text)).json();
+            }
+        }
+
+        btnConnect.onclick = async () => {
+            if (busy) return; // guard
+            try {
+                setBusy(true, 'connecting wallet…');
+                if (!window.ethereum) throw new Error('MetaMask not detected.');
+                const accts = await ethereum.request({ method: 'eth_requestAccounts' });
+                account = accts[0];
+                log('Connected: ' + account);
+
+                prepared = await fetchPrepared(account);
+                if (!prepared?.to || !prepared?.value_hex || !prepared?.chain_id_hex) {
+                    throw new Error('Prepared payload is missing required fields.');
+                }
+
+                await ensureChain(prepared.chain_id_hex);
+                btnPay.disabled = false; // allow paying now that we’re prepared (if not busy)
+                log('Prepared payload received.');
+            } catch (e) {
+                log('Connect error: ' + (e?.message || e));
+                alert('Connect error: ' + (e?.message || e));
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        btnPay.onclick = async () => {
+            if (busy) return; // guard
+            try {
+                setBusy(true, 'processing your payment…');
+                if (!window.ethereum) throw new Error('MetaMask not detected.');
+                if (!prepared) throw new Error('Prepared payload not loaded yet.');
+
+                const { to: TO, value_hex: VALUE_HEX, chain_id_hex: CHAIN_ID_HEX } = prepared;
+                await ensureChain(CHAIN_ID_HEX);
+
+                const balHex = await ethereum.request({ method: 'eth_getBalance', params: [account, 'latest'] });
+                const gasPriceHex = await ethereum.request({ method: 'eth_gasPrice' });
+                const value = BigInt(VALUE_HEX);
+                const balance = BigInt(balHex);
+                const gasPrice = BigInt(gasPriceHex);
+
+                let gasHex;
+                try {
+                    gasHex = await ethereum.request({
+                        method: 'eth_estimateGas',
+                        params: [{ from: account, to: TO, value: VALUE_HEX, data: '0x' }]
+                    });
+                } catch {
+                    gasHex = '0x5208'; // 21000
+                }
+                const gas = BigInt(gasHex);
+                const needed = value + gas * gasPrice;
+                if (balance < needed) {
+                    const fmt = (wei) => Number(wei) / 1e18;
+                    alert(
+                        `Insufficient CHZ:\n` +
+                        `Balance: ${fmt(balance)}\n` +
+                        `Needed (value + gas): ${fmt(needed)}`
+                    );
+                    return;
+                }
+
+                const params = { from: account, to: TO, value: VALUE_HEX, data: '0x', gas: gasHex };
+                const hash = await ethereum.request({ method: 'eth_sendTransaction', params: [params] });
+                log('Sent tx: ' + hash);
+
+                // short pause before reporting
+                await sleep(8000);
+
+                // Report tx hash to gateway
+                {
+                    const url = `${API_BASE}/api/space/${SPACE_ID}/orders/${ORDER_ID}/payment-intents/${INTENT_ID}/crypto/report-tx`;
+                    const rep = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ txHash: hash })
+                    });
+                    if (!rep.ok) {
+                        const t = await rep.text();
+                        throw new Error('Report failed: ' + t);
+                    }
+                    log('Reported tx hash.');
+                }
+
+                // Reconcile (attempt capture if approved)
+                {
+                    const url = `${API_BASE}/api/space/${SPACE_ID}/orders/${ORDER_ID}/reconcile`;
+                    const rec = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            providerIntentId: PID,
+                            intentId: INTENT_ID,
+                            idempotencyKey: 'idem-cap-' + Date.now(),
+                            attemptCaptureIfApproved: true
+                        })
+                    });
+                    if (!rec.ok) {
+                        const t = await rec.text();
+                        log('Reconcile failed: ' + t);
+                        alert('Reconcile failed (may be waiting for confirmations). Try again shortly.');
+                        return;
+                    }
+                    log('Payment captured!');
+                    alert('Payment captured!');
+                }
+            } catch (e) {
+                console.error(e);
+                const msg = e?.data?.message || e?.message || String(e);
+                log('Pay error: ' + msg);
+                alert('Pay error: ' + msg);
+            } finally {
+                setBusy(false);
+            }
+        };
+    </script>
+</body>
+</html>

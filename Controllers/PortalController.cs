@@ -6,11 +6,10 @@
 // <summary>Controller to handle portal routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
-
+//
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -36,26 +35,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<List<PortalModel>>> GetPortalsBySpace([FromRoute] int spaceId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(GetPortalsBySpace),
-                        new { spaceId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetPortalsBySpace),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
             var portals = await _portalRepository.GetPortalsBySpaceAsync(spaceId);
 
-            // Not found (404) – same pattern used in TeleportTableController
             if (portals == null || portals.Count == 0)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portals not found.",
-                        nameof(GetPortalsBySpace),
-                        new { spaceId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetPortalsBySpace),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId });
 
             return Ok(portals);
         }
@@ -78,35 +72,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(GetPortalsByBooth),
-                        new { spaceId, boothId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetPortalsByBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId });
 
             if (boothId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "boothId must be a positive integer.",
-                        nameof(GetPortalsByBooth),
-                        new { spaceId, boothId }
-                    ),
-                    nameof(boothId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetPortalsByBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId });
 
             var portals = await _portalRepository.GetPortalsByBoothAsync(spaceId, boothId);
 
             if (portals == null || portals.Count == 0)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portals not found for the specified booth.",
-                        nameof(GetPortalsByBooth),
-                        new { spaceId, boothId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetPortalsByBooth),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId });
 
             return Ok(portals);
         }
@@ -129,36 +117,31 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(GetPortalById),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetPortalById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, portalId });
 
             if (portalId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "portalId must be a positive integer.",
-                        nameof(GetPortalById),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(portalId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetPortalById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(portalId),
+                    parameters: new { spaceId, portalId });
 
             var portal = await _portalRepository.GetPortalByIdAsync(spaceId, portalId);
 
-            return portal == null
-                ? throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portal not found.",
-                        nameof(GetPortalById),
-                        new { spaceId, portalId }
-                    )
-                )
-                : Ok(portal);
+            if (portal is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetPortalById),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, portalId });
+
+            return Ok(portal);
         }
 
         #endregion
@@ -182,34 +165,41 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "spaceId must be a positive integer.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(CreatePortal),
-                    new { spaceId }
-                ));
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
-            ArgumentNullException.ThrowIfNull(portalDto);
+            if (portalDto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreatePortal),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(portalDto),
+                    parameters: new { spaceId });
 
             if (portalDto.LocalizedPairs == null || portalDto.LocalizedPairs.Values == null || portalDto.LocalizedPairs.Values.Count == 0)
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "LocalizedPairs.Values cannot be empty.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(CreatePortal),
-                    new { spaceId }
-                ), nameof(portalDto.LocalizedPairs));
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(portalDto.LocalizedPairs),
+                    parameters: new { spaceId, field = "LocalizedPairs.Values" });
 
             var created = await _portalRepository.CreatePortalAsync(spaceId, portalDto);
 
-            return created == null
-                ? throw new InvalidOperationException(GlobalException.FormatExceptionMessage(
-                    "Portal creation failed.",
+            if (created is null)
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
                     nameof(CreatePortal),
-                    new { spaceId, portalDto }
-                ))
-                : (ActionResult<PortalModel>)CreatedAtAction(
-                    nameof(GetPortalById),
-                    new { spaceId, portalId = created.PortalId },
-                    created
-                );
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { spaceId });
+            return CreatedAtAction(
+                nameof(GetPortalById),
+                new { spaceId, portalId = created.PortalId },
+                created);
         }
 
         #endregion
@@ -235,67 +225,61 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] PortalUpdateDto portalDto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(UpdatePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, portalId });
 
             if (portalId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "portalId must be a positive integer.",
-                        nameof(UpdatePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(portalId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(portalId),
+                    parameters: new { spaceId, portalId });
 
-            ArgumentNullException.ThrowIfNull(portalDto);
+            if (portalDto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(portalDto),
+                    parameters: new { spaceId, portalId });
 
             if (portalDto.LocalizedPairs == null)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedPairs cannot be null.",
-                        nameof(UpdatePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(portalDto.LocalizedPairs)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(portalDto.LocalizedPairs),
+                    parameters: new { spaceId, portalId });
 
             if (string.IsNullOrWhiteSpace(portalDto.LocalizedPairs.Key))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedPairs.Key cannot be null or whitespace.",
-                        nameof(UpdatePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(portalDto.LocalizedPairs.Key)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Validation.InvalidFormat,
+                    paramName: nameof(portalDto.LocalizedPairs.Key),
+                    parameters: new { spaceId, portalId });
 
             if (portalDto.LocalizedPairs.Values == null || !portalDto.LocalizedPairs.Values.Any())
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedPairs.Values cannot be empty.",
-                        nameof(UpdatePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(portalDto.LocalizedPairs)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(portalDto.LocalizedPairs),
+                    parameters: new { spaceId, portalId, field = "LocalizedPairs.Values" });
 
             var updated = await _portalRepository.UpdatePortalAsync(spaceId, portalId, portalDto);
 
             if (updated == null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portal not found.",
-                        nameof(UpdatePortal),
-                        new { spaceId, portalId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdatePortal),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, portalId });
 
             return Ok(updated);
         }
@@ -322,77 +306,70 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId, portalId });
 
             if (boothId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "boothId must be a positive integer.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(boothId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId, portalId });
 
             if (portalId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "portalId must be a positive integer.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(portalId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(portalId),
+                    parameters: new { spaceId, boothId, portalId });
 
-            ArgumentNullException.ThrowIfNull(dto);
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, boothId, portalId });
 
             if (dto.LocalizedPairs == null)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedPairs cannot be null.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(dto.LocalizedPairs)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto.LocalizedPairs),
+                    parameters: new { spaceId, boothId, portalId });
+
 
             if (string.IsNullOrWhiteSpace(dto.LocalizedPairs.Key))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedPairs.Key cannot be null or whitespace.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(dto.LocalizedPairs.Key)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.InvalidFormat,
+                    paramName: nameof(dto.LocalizedPairs.Key),
+                    parameters: new { spaceId, boothId, portalId });
 
             if (dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedPairs.Values cannot be empty.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(dto.LocalizedPairs)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(dto.LocalizedPairs),
+                    parameters: new { spaceId, boothId, portalId, field = "LocalizedPairs.Values" });
 
             var updated = await _portalRepository.UpdatePortalAsync(spaceId, boothId, portalId, dto);
 
             if (updated == null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portal not found for the specified booth.",
-                        nameof(UpdatePortalData),
-                        new { spaceId, boothId, portalId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdatePortalData),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId, portalId });
 
             return Ok(updated);
         }
@@ -418,35 +395,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromRoute] int portalId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeletePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeletePortal),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, portalId });
 
             if (portalId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "portalId must be a positive integer.",
-                        nameof(DeletePortal),
-                        new { spaceId, portalId }
-                    ),
-                    nameof(portalId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeletePortal),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(portalId),
+                    parameters: new { spaceId, portalId });
 
             var deleted = await _portalRepository.DeletePortalAsync(spaceId, portalId);
 
             if (!deleted)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portal not found.",
-                        nameof(DeletePortal),
-                        new { spaceId, portalId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeletePortal),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, portalId });
 
             return Ok(new { message = "Portal deleted successfully." });
         }
@@ -471,45 +442,37 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         )
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeletePortalForBooth),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeletePortalForBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId, portalId });
 
             if (boothId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "boothId must be a positive integer.",
-                        nameof(DeletePortalForBooth),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(boothId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeletePortalForBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId, portalId });
 
             if (portalId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "portalId must be a positive integer.",
-                        nameof(DeletePortalForBooth),
-                        new { spaceId, boothId, portalId }
-                    ),
-                    nameof(portalId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeletePortalForBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(portalId),
+                    parameters: new { spaceId, boothId, portalId });
 
             var deleted = await _portalRepository.DeletePortalAsync(spaceId, boothId, portalId);
 
             if (!deleted)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Portal not found for the specified booth.",
-                        nameof(DeletePortalForBooth),
-                        new { spaceId, boothId, portalId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeletePortalForBooth),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId, portalId });
 
             return Ok(new { message = "Portal deleted successfully." });
         }

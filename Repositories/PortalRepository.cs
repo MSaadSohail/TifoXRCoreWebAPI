@@ -7,9 +7,9 @@
 
 using MySqlConnector;
 using System.Data;
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {

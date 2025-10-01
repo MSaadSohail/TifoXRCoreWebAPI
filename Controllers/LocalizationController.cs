@@ -5,11 +5,11 @@
 // <date>07/31/2025</date>
 // <summary>Controller to handle localization routes</summary>
 
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+//
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -36,25 +36,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<List<LocalizedPairs>>> GetAllBySpace([FromRoute] int spaceId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(GetAllBySpace),
-                        new { spaceId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetAllBySpace),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
             var result = await _localizationRepo.GetAllLocalizationsBySpaceAsync(spaceId);
 
             if (result is null || result.Count == 0)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "No localizations found for the specified space.",
-                        nameof(GetAllBySpace),
-                        new { spaceId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetAllBySpace),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId });
 
             return Ok(result);
         }
@@ -74,35 +70,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromRoute] string key)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(GetLocalization),
-                        new { spaceId, key }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetLocalization),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, key });
 
             if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "key cannot be null, empty, or whitespace.",
-                        nameof(GetLocalization),
-                        new { spaceId }
-                    ),
-                    nameof(key)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetLocalization),
+                    ErrorMessages.Validation.InvalidFormat,
+                    paramName: nameof(key),
+                    parameters: new { spaceId });
 
             var result = await _localizationRepo.GetLocalizationByKeyAsync(spaceId, key);
 
             if (result is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Localization not found for the specified key.",
-                        nameof(GetLocalization),
-                        new { spaceId, key }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetLocalization),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, key });
 
             return Ok(result);
         }
@@ -124,55 +114,45 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] LocalizedPairs dto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(CreateLocalization),
-                        new { spaceId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateLocalization),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(CreateLocalization),
-                        new { spaceId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateLocalization),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId });
 
             if (string.IsNullOrWhiteSpace(dto.Key))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "Key cannot be null, empty, or whitespace.",
-                        nameof(CreateLocalization),
-                        new { spaceId }
-                    ),
-                    nameof(dto.Key)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateLocalization),
+                    ErrorMessages.Validation.InvalidFormat,
+                    paramName: nameof(dto.Key),
+                    parameters: new { spaceId });
 
             if (dto.Values is null || !dto.Values.Any())
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "Values collection cannot be null or empty.",
-                        nameof(CreateLocalization),
-                        new { spaceId, dto.Key }
-                    ),
-                    nameof(dto.Values)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateLocalization),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(dto.Values),
+                    parameters: new { spaceId, dto.Key });
 
             var created = await _localizationRepo.CreateLocalizationAsync(spaceId, dto);
 
             if (created is null)
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                        "Creation failed.",
-                        nameof(CreateLocalization),
-                        new { spaceId, dto.Key }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(CreateLocalization),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { spaceId, dto.Key });
 
             return CreatedAtAction(
                 nameof(GetLocalization),
@@ -201,55 +181,45 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromBody] LocalizedPairs dto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(UpdateLocalization),
-                        new { spaceId, key }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateLocalization),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, key });
 
             if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "key cannot be null, empty, or whitespace.",
-                        nameof(UpdateLocalization),
-                        new { spaceId }
-                    ),
-                    nameof(key)
-                );
+                throw ErrorService.Exception(
+                     ErrorType.Argument,
+                     nameof(UpdateLocalization),
+                     ErrorMessages.Validation.InvalidFormat,
+                     paramName: nameof(key),
+                     parameters: new { spaceId });
 
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(UpdateLocalization),
-                        new { spaceId, key }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateLocalization),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, key });
 
             if (dto.Values is null || !dto.Values.Any())
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "Values collection cannot be null or empty.",
-                        nameof(UpdateLocalization),
-                        new { spaceId, key }
-                    ),
-                    nameof(dto.Values)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateLocalization),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(dto.Values),
+                    parameters: new { spaceId, key });
 
             var updated = await _localizationRepo.UpdateLocalizationAsync(spaceId, key, dto);
 
             if (updated is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Localization not found for the specified key.",
-                        nameof(UpdateLocalization),
-                        new { spaceId, key }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdateLocalization),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, key });
 
             return Ok(updated);
         }
@@ -273,39 +243,32 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [FromRoute] string key)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeleteLocalization),
-                        new { spaceId, key }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteLocalization),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, key });
 
             if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "key cannot be null, empty, or whitespace.",
-                        nameof(DeleteLocalization),
-                        new { spaceId }
-                    ),
-                    nameof(key)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteLocalization),
+                    ErrorMessages.Validation.InvalidFormat,
+                    paramName: nameof(key),
+                    parameters: new { spaceId });
 
             var ok = await _localizationRepo.DeleteLocalizationAsync(spaceId, key);
 
             if (!ok)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Localization not found for the specified key.",
-                        nameof(DeleteLocalization),
-                        new { spaceId, key }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeleteLocalization),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, key });
 
             return NoContent();
         }
-
 
         #endregion
     }

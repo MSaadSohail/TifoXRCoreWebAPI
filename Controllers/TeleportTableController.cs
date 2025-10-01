@@ -6,11 +6,10 @@
 // <summary>Controller to handle teleportable routes</summary>
 
 using Microsoft.AspNetCore.Mvc;
-
+//
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -35,21 +34,24 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         {
             if (spaceId <= 0)
                 // Argument validation (Bad Request)
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "spaceId must be a positive integer.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(GetTeleportTablesBySpace),
-                    new { spaceId })
-                );
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
             var table = await _teleportRepository.GetTeleportTableBySpaceAsync(spaceId);
 
             // Not found (404)
-            return table == null
-                ? throw new ResourceNotFoundException(GlobalException.FormatExceptionMessage(
-                    $"Teleport table not found.",
+            if (table is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
                     nameof(GetTeleportTablesBySpace),
-                    new { spaceId }))
-                : (ActionResult<TeleportTableData>)Ok(table);
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId });
+
+            return Ok(table);
         }
 
         #endregion
@@ -69,27 +71,34 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] TeleportTableCreateDto dto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "spaceId must be a positive integer.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(CreateTeleportTable),
-                    new { spaceId }
-                ));
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
-            ArgumentNullException.ThrowIfNull(dto);
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateTeleportTable),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId });
 
             var created = await _teleportRepository.CreateTeleportTableAsync(spaceId, dto);
 
-            return created == null
-                ? throw new InvalidOperationException(GlobalException.FormatExceptionMessage(
-                    "Creation failed.",
+            if (created is null)
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
                     nameof(CreateTeleportTable),
-                    new { spaceId, dto }
-                ))
-                : (ActionResult<TeleportTableData>)CreatedAtAction(
-                    nameof(GetTeleportTablesBySpace),               // Name of your GET action
-                    new { spaceId, tableId = created.Id },          // Route parameters for GET action
-                    created                                         // The response body
-                );
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { spaceId });
+
+            return CreatedAtAction(
+                nameof(GetTeleportTablesBySpace),
+                new { spaceId, tableId = created.Id },
+                created);
         }
 
         #endregion
@@ -111,58 +120,63 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             [FromBody] TeleportTableUpdateDto dto)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "spaceId must be a positive integer.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
-                    new { spaceId, tableId }
-                ));
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, tableId });
 
             if (tableId <= 0)
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "tableId must be a positive integer.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
-                    new { spaceId, tableId }
-                ));
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(tableId),
+                    parameters: new { spaceId, tableId });
 
-            if (dto == null)
-                throw new ArgumentNullException(nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(UpdateTeleportTableById),
-                        new { spaceId, tableId }
-                    )
-                );
-
-            if (dto.Buttons == null || !dto.Buttons.Any())
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "Buttons cannot be empty.",
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
                     nameof(UpdateTeleportTableById),
-                    new { spaceId, tableId }
-                ), nameof(dto.Buttons));
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, tableId });
+
+            if (dto.Buttons is null || !dto.Buttons.Any())
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateTeleportTableById),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(dto.Buttons),
+                    parameters: new { spaceId, tableId });
 
             if (dto.Buttons.Any(b => !b.Id.HasValue || b.Id <= 0))
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "Each button must have a valid (positive) Id.",
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
-                    new { spaceId, tableId, buttons = dto.Buttons.Select(b => b.Id) }
-                ), nameof(dto.Buttons));
+                    ErrorMessages.Validation.MustHaveValidIds,
+                    paramName: nameof(dto.Buttons),
+                    parameters: new { spaceId, tableId, ids = dto.Buttons.Select(b => b.Id) });
 
-            if (dto.LocalizedPairs == null || dto.LocalizedPairs.Values == null || !dto.LocalizedPairs.Values.Any())
-                throw new ArgumentException(GlobalException.FormatExceptionMessage(
-                    "LocalizedPairs.Values cannot be empty.",
+            if (dto.LocalizedPairs?.Values is null || !dto.LocalizedPairs.Values.Any())
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
                     nameof(UpdateTeleportTableById),
-                    new { spaceId, tableId }
-                ), nameof(dto.LocalizedPairs));
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(dto.LocalizedPairs),
+                    parameters: new { spaceId, tableId });
 
             var updated = await _teleportRepository.UpdateTeleportTableAsync(spaceId, tableId, dto);
 
-            return updated == null
-                ? throw new ResourceNotFoundException(GlobalException.FormatExceptionMessage(
-                    "Teleport table not found.",
+            if (updated is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
                     nameof(UpdateTeleportTableById),
-                    new { spaceId, tableId }
-                ))
-                : (ActionResult<TeleportTableData>)Ok(updated);
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, tableId });
+
+            return Ok(updated);
         }
 
         #endregion
@@ -180,35 +194,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTable(int spaceId, int tableId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeleteTeleportTable),
-                        new { spaceId, tableId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteTeleportTable),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, tableId });
 
             if (tableId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "tableId must be a positive integer.",
-                        nameof(DeleteTeleportTable),
-                        new { spaceId, tableId }
-                    ),
-                    nameof(tableId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteTeleportTable),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(tableId),
+                    parameters: new { spaceId, tableId });
 
             var ok = await _teleportRepository.DeleteTeleportTableAsync(spaceId, tableId);
 
             if (!ok)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Teleport table not found.",
-                        nameof(DeleteTeleportTable),
-                        new { spaceId, tableId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeleteTeleportTable),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, tableId });
 
             return NoContent();
         }
@@ -223,14 +231,12 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTablesBySpace(int spaceId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeleteTeleportTablesBySpace),
-                        new { spaceId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteTeleportTablesBySpace),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId });
 
             var count = await _teleportRepository.DeleteTeleportTablesBySpaceAsync(spaceId);
 
@@ -251,47 +257,39 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> DeleteTeleportTableButton(int spaceId, int tableId, int buttonId)
         {
             if (spaceId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "spaceId must be a positive integer.",
-                        nameof(DeleteTeleportTableButton),
-                        new { spaceId, tableId, buttonId }
-                    ),
-                    nameof(spaceId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteTeleportTableButton),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, tableId, buttonId });
 
             if (tableId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "tableId must be a positive integer.",
-                        nameof(DeleteTeleportTableButton),
-                        new { spaceId, tableId, buttonId }
-                    ),
-                    nameof(tableId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteTeleportTableButton),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(tableId),
+                    parameters: new { spaceId, tableId, buttonId });
 
             if (buttonId <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "buttonId must be a positive integer.",
-                        nameof(DeleteTeleportTableButton),
-                        new { spaceId, tableId, buttonId }
-                    ),
-                    nameof(buttonId)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteTeleportTableButton),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(buttonId),
+                    parameters: new { spaceId, tableId, buttonId });
 
             var ok = await _teleportRepository.DeleteTeleportTableButtonAsync(buttonId, tableId);
 
             if (!ok)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Teleport table button not found.",
-                        nameof(DeleteTeleportTableButton),
-                        new { spaceId, tableId, buttonId }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeleteTeleportTableButton),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, tableId, buttonId });
 
-            return Ok(new { message = "Teleport Table deleted successfully." });
+            return Ok(new { message = "Teleport Table Button deleted successfully." });
         }
 
         #endregion

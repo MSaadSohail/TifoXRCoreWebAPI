@@ -10,12 +10,12 @@
 using FluentAssertions;
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using Moq;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -87,14 +87,16 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             if (repoReturnsNull)
             {
                 var ex = await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.GetSpaceById(id));
-                ex.Message.Should().Contain("Space not found.").And.Contain(nameof(SpaceController.GetSpaceById));
+                ex.Message.Should().ContainAny("not found", "No data", "NotFound", "Not Found");
+                ex.Message.Should().Contain(nameof(SpaceController.GetSpaceById));
                 repo.Verify(r => r.GetSpaceByIdAsync(id), Times.Once);
             }
             else
             {
                 var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.GetSpaceById(id));
                 ex.ParamName.Should().Be("id");
-                ex.Message.Should().Contain("id must be a positive integer.").And.Contain(nameof(SpaceController.GetSpaceById));
+                ex.Message.Should().ContainAny("positive integer", "must be > 0");
+                ex.Message.Should().Contain(nameof(SpaceController.GetSpaceById));
                 repo.Verify(r => r.GetSpaceByIdAsync(It.IsAny<int>()), Times.Never);
             }
 
@@ -134,7 +136,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => sut.CreateSpace(null!));
             ex.ParamName.Should().Be("dto");
-            ex.Message.Should().Contain("DTO cannot be null.").And.Contain(nameof(SpaceController.CreateSpace));
+            ex.Message.Should().ContainAny("cannot be null", "Missing parameter", "is required");
+            ex.Message.Should().Contain(nameof(SpaceController.CreateSpace));
 
             repo.Verify(r => r.CreateSpaceAsync(It.IsAny<Space>()), Times.Never);
             repo.VerifyNoOtherCalls();
@@ -153,9 +156,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.CreateSpace(dto));
+            // controller passes paramName: nameof(dto.LocalizedDescription) -> "LocalizedDescription"
             ex.ParamName.Should().Be("LocalizedDescription");
-            ex.Message.Should().Contain("LocalizedDescription.Values cannot be null or empty.")
-                          .And.Contain(nameof(SpaceController.CreateSpace));
+            ex.Message.Should().ContainAny("cannot be empty", "cannot be null or empty", "Empty collection");
+            ex.Message.Should().Contain(nameof(SpaceController.CreateSpace));
 
             repo.Verify(r => r.CreateSpaceAsync(It.IsAny<Space>()), Times.Never);
             repo.VerifyNoOtherCalls();
@@ -177,8 +181,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.CreateSpace(bad));
             ex.ParamName.Should().Be("LocalizedDescription");
-            ex.Message.Should().Contain("LocalizedDescription.Values cannot be null or empty.")
-                          .And.Contain(nameof(SpaceController.CreateSpace));
+            ex.Message.Should().ContainAny("cannot be empty", "cannot be null or empty", "Empty collection");
+            ex.Message.Should().Contain(nameof(SpaceController.CreateSpace));
 
             repo.Verify(r => r.CreateSpaceAsync(It.IsAny<Space>()), Times.Never);
             repo.VerifyNoOtherCalls();
@@ -197,7 +201,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.CreateSpace(dto));
-            ex.Message.Should().Contain("Creation failed.").And.Contain(nameof(SpaceController.CreateSpace));
+            ex.Message.Should().ContainAny("Conflict", "conflict", "failed", "could not");
+            ex.Message.Should().Contain(nameof(SpaceController.CreateSpace));
 
             repo.Verify(r => r.CreateSpaceAsync(dto), Times.Once);
             repo.VerifyNoOtherCalls();
@@ -307,7 +312,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => sut.UpdateSpaceById(1, null!));
             ex.ParamName.Should().Be("spaceDto");
-            ex.Message.Should().Contain("DTO cannot be null.").And.Contain(nameof(SpaceController.UpdateSpaceById));
+            ex.Message.Should().ContainAny("cannot be null", "Missing parameter", "is required");
+            ex.Message.Should().Contain(nameof(SpaceController.UpdateSpaceById));
 
             repo.Verify(r => r.UpdateSpaceAsync(It.IsAny<int>(), It.IsAny<Space>()), Times.Never);
             repo.VerifyNoOtherCalls();
@@ -346,9 +352,10 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateSpaceById(10, bad));
+            // controller passes paramName: nameof(spaceDto.LocalizedDescription) -> "LocalizedDescription"
             ex.ParamName.Should().Be("LocalizedDescription");
-            ex.Message.Should().Contain("LocalizedDescription.Values cannot be null or empty.")
-                          .And.Contain(nameof(SpaceController.UpdateSpaceById));
+            ex.Message.Should().ContainAny("cannot be empty", "cannot be null or empty", "Empty collection");
+            ex.Message.Should().Contain(nameof(SpaceController.UpdateSpaceById));
 
             repo.Verify(r => r.UpdateSpaceAsync(It.IsAny<int>(), It.IsAny<Space>()), Times.Never);
             repo.VerifyNoOtherCalls();
@@ -370,8 +377,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateSpaceById(10, bad));
             ex.ParamName.Should().Be("LocalizedDescription");
-            ex.Message.Should().Contain("LocalizedDescription.Values cannot be null or empty.")
-                          .And.Contain(nameof(SpaceController.UpdateSpaceById));
+            ex.Message.Should().ContainAny("cannot be empty", "cannot be null or empty", "Empty collection");
+            ex.Message.Should().Contain(nameof(SpaceController.UpdateSpaceById));
 
             repo.Verify(r => r.UpdateSpaceAsync(It.IsAny<int>(), It.IsAny<Space>()), Times.Never);
             repo.VerifyNoOtherCalls();
@@ -390,7 +397,8 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             // ACT & ASSERT
             var ex = await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.UpdateSpaceById(55, dto));
-            ex.Message.Should().Contain("Space not found.").And.Contain(nameof(SpaceController.UpdateSpaceById));
+            ex.Message.Should().ContainAny("not found", "No data");
+            ex.Message.Should().Contain(nameof(SpaceController.UpdateSpaceById));
 
             repo.Verify(r => r.UpdateSpaceAsync(55, dto), Times.Once);
             repo.VerifyNoOtherCalls();

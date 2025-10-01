@@ -7,7 +7,7 @@
 
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
-namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public interface ILocalizationRepository
     {

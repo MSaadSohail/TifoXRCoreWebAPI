@@ -5,12 +5,11 @@
 // <date>08/19/2025</date>
 // <summary>Initializes and configures the ASP.NET Core Web API application with Serilog host logging</summary>
 
-using GMS.TifoXRCoreWebAPI.Data;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Utilities;
+
+
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MySqlConnector;
 // Serilog
 using Serilog;
@@ -18,8 +17,21 @@ using Serilog.Context;
 using Serilog.Events;
 using System.Data.Common;
 using System.Reflection;
-using TifoXRCoreWebAPI.Utilities.Infrastructure;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+//
+using Thirdweb;
+//
+using GMS.TifoXRCoreWebAPI.Data;
+using GMS.TifoXRCoreWebAPI.Services;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,12 +59,17 @@ app.Run();
 
 #region HELPERS
 
-static void ConfigureServices(IServiceCollection services, IConfiguration config)
+static void ConfigureServices(IServiceCollection services,  IConfiguration config)
 {
-    // MVC + Swagger
+    #region MVC + Swagger
+
     services.AddControllers();
     services.AddEndpointsApiExplorer();
     services.AddSwaggerGen();
+
+    #endregion
+
+    #region DB CONNECTION POOLING
 
     // ---- Database: EF Core (Pomelo/MySqlConnector) ----
     var dsn = config.GetConnectionString("DefaultConnection")
@@ -79,18 +96,79 @@ static void ConfigureServices(IServiceCollection services, IConfiguration config
             ? new SqlServerDialect()
             : new MySqlDialect());
 
+    #endregion
+
+    #region PAYMENT GATEWAYS
+
+    // Bind PayPal/Stripe: ClientId / Secret / Environment
+    services.Configure<PaymentGatewayMapOptions>(config.GetSection("PaymentGateways"));
+    services.Configure<PayPalOptions>(config.GetSection("PayPal"));
+    services.Configure<StripeOptions>(config.GetSection("Stripe"));
+    services.Configure<CryptoChilizOptions>(config.GetSection("CryptoChiliz"));
+    services.AddHttpClient(); // for RPC calls
+
+    // Register gateways (add Stripe/paypal/Crypto in the same pattern when you create them)
+    services.AddSingleton<IPaymentGateway, StripeGateway>();
+    services.AddSingleton<IPaymentGateway, PaypalGateway>();
+
+    // Resolver/Registry
+    services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayRegistry>();
+    services.AddSingleton<IRefundPolicyResolver, RefundPolicyResolver>();
+
+    // Services
+    services.AddScoped<CreateIntentHandler>();
+    services.AddScoped<CaptureHandler>();
+    services.AddScoped<RefundHandler>();
+    services.AddScoped<ReportOnChainHandler>();
+    services.AddScoped<GetPreparedPayloadHandler>();
+
+    services.AddScoped<IOrderRepository, OrderRepository>();
+    services.AddScoped<IPaymentService, PaymentService>();
+    services.AddScoped<IOrderService, OrderService>();
+    services.AddScoped<IPaymentQueryService, PaymentQueryService>();
+
+    // thirdweb client (server-side) from secret key
+    services.AddSingleton(sp =>
+    {
+        var o = sp.GetRequiredService<IOptions<CryptoChilizOptions>>().Value;
+        return ThirdwebClient.Create(secretKey: o.ThirdwebSecretKey);
+    });
+
+    // 3) Register the Chiliz gateway
+    services.AddSingleton<IPaymentGateway, CryptoChilizGateway>();
+
+    // 4) Ensure gateway id map includes 3 => "crypto" (without clobbering existing)
+    // Ensure gateway id map includes 3 => "crypto"
+    services.PostConfigure<PaymentGatewayMapOptions>(opts =>
+    {
+        if (!opts.IdToName.ContainsKey(1)) opts.IdToName[1] = "stripe";
+        if (!opts.IdToName.ContainsKey(2)) opts.IdToName[2] = "paypal";
+        if (!opts.IdToName.ContainsKey(3)) opts.IdToName[3] = "crypto";
+    });
+
+
+    #endregion
+
+    #region REPOS
     // ---- Auto-register repositories: I{Name} -> {Name} ----
     RegisterRepositories(services, Assembly.GetExecutingAssembly());
 
-    // ---- CORS ----
+    #endregion
+
+    #region CORS
     services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
             policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
     });
+
+    #endregion
+
+    #region LOGGER
+    
     services.AddSingleton(typeof(GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface.IAppLogger<>), typeof(GMS.TifoXRCoreWebAPI.Utilities.Logger.AppLogger<>));
 
-    // NOTE: Removed AppLogger.Initialize(...) — Serilog is now the host logger via UseSerilog().
+    #endregion
 }
 
 static void ConfigurePipeline(WebApplication app, IWebHostEnvironment env)

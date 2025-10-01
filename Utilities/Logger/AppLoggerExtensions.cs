@@ -1,6 +1,12 @@
-﻿// AppLoggerExtensions.cs
+﻿// <copyright file="AppLoggerExtensions.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>08/20/2025</date>
+// <summary></summary>
+
+
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface; // IAppLogger<T>
-using System.Collections.Generic;
 
 namespace GMS.TifoXRCoreWebAPI.Utilities.Logger
 {
