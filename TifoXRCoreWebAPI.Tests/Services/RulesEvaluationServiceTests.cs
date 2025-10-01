@@ -194,6 +194,78 @@ public sealed class RulesEvaluationServiceTests
     }
 
     [Fact]
+    public async Task EvaluateAsync_AllowsMultipleParameterReferencesWithoutInputPrefix()
+    {
+        // Arrange
+        var workflowDefinitions = new List<RuntimeWorkflowDefinition>
+        {
+            new()
+            {
+                WorkflowId = 1,
+                WorkflowName = "GameSessionEnded",
+                EventType = "game.session.ended",
+                Rules = new List<RuntimeRuleDefinition>
+                {
+                    new()
+                    {
+                        RuleId = 1,
+                        RuleName = "Task completion reward",
+                        Expression = "ScoreValue >= 50 && Difficulty == \"hard\"",
+                        SuccessEvent = "reward:granted"
+                    }
+                },
+                Parameters = new Dictionary<string, RuntimeParameterDefinition>
+                {
+                    ["ScoreValue"] = new()
+                    {
+                        Key = "ScoreValue",
+                        Source = "event",
+                        Path = "$.ScoreValue",
+                        IsRequired = true
+                    },
+                    ["Difficulty"] = new()
+                    {
+                        Key = "Difficulty",
+                        Source = "event",
+                        Path = "$.Difficulty",
+                        IsRequired = true
+                    }
+                }
+            }
+        };
+
+        var repository = new Mock<IRulesRepository>();
+        repository
+            .Setup(r => r.GetRuntimeWorkflowsAsync(It.IsAny<int>()))
+            .ReturnsAsync(workflowDefinitions);
+
+        var logger = new Mock<ILogger<RulesEvaluationService>>();
+        var service = new RulesEvaluationService(repository.Object, logger.Object);
+
+        using var doc = JsonDocument.Parse("""{ \"ScoreValue\": 123, \"Difficulty\": \"hard\" }""");
+
+        var request = new RulesEngineEvaluationRequest
+        {
+            SpaceId = 42,
+            EventType = "game.session.ended",
+            OccurredAt = DateTime.UtcNow,
+            Properties = new Dictionary<string, JsonElement>
+            {
+                ["ScoreValue"] = doc.RootElement.GetProperty("ScoreValue"),
+                ["Difficulty"] = doc.RootElement.GetProperty("Difficulty")
+            }
+        };
+
+        // Act
+        var response = await service.EvaluateAsync(request);
+
+        // Assert
+        response.AnyRuleMatched.Should().BeTrue();
+        response.Outcomes.Should().ContainSingle();
+        response.Outcomes[0].IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task EvaluateAsync_ReloadsCacheAfterInvalidation()
     {
         // Arrange
