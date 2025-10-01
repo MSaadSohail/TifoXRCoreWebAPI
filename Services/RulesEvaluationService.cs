@@ -128,14 +128,16 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
 
         List<RuleResultTree> results;
 
+        var parameterArray = parameters.ToArray();
+
         _logger.LogInformation(
             "Executing workflow {WorkflowName} with parameters {Parameters}.",
             workflowName,
-            Serialize(parameters.Select(p => new { p.Name, p.Value })));
+            Serialize(parameterArray.Select(p => new { p.Name, p.Value })));
 
         try
         {
-            results = await cache.Engine.ExecuteAllRulesAsync(workflowName, parameters);
+            results = await cache.Engine.ExecuteAllRulesAsync(workflowName, parameterArray);
         }
         catch (Exception ex)
         {
