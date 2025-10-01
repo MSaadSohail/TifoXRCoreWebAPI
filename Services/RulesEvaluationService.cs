@@ -246,9 +246,7 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
                     RuleName = r.RuleName,
                     Expression = NormalizeExpression(r.Expression, d.Parameters),
                     SuccessEvent = r.SuccessEvent,
-                    // Expressions are normalized to allow parameters such as "ScoreValue"
-                    // to be referenced directly without requiring an explicit input prefix.
-                    RuleExpressionType = RuleExpressionType.Expression,
+                    RuleExpressionType = RuleExpressionType.LambdaExpression,
                     Enabled = true
                 }).ToList()
             })
