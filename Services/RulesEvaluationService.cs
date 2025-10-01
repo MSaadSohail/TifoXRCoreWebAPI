@@ -247,7 +247,7 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
                     SuccessEvent = r.SuccessEvent,
                     // Use dynamic expression parsing so parameters such as "ScoreValue"
                     // can be referenced directly without requiring an explicit input prefix.
-                    RuleExpressionType = RuleExpressionType.Expression,
+                    RuleExpressionType = RuleExpressionType.LambdaExpression,
                     Enabled = true
                 }).ToList()
             })

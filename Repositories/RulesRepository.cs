@@ -49,8 +49,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             _logger.LogDebug(
                 "Workflow space lookup for workflow {WorkflowId} returned Exists={Exists}, SpaceId={SpaceId}.",
                 workflowId,
-                result.exists,
-                result.spaceId);
+                result.Item1,
+                result.Item2);
             return result;
         }
 
@@ -176,7 +176,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@Type", type));
 
             var obj = await cmd.ExecuteScalarAsync();
-            var stateTypeId = obj is null ? null : Convert.ToInt32(obj);
+            var stateTypeId = obj is null ? -1 : Convert.ToInt32(obj);
             _logger.LogDebug("State type lookup for {Type} returned {StateTypeId}.", type, stateTypeId);
             return stateTypeId;
         }
