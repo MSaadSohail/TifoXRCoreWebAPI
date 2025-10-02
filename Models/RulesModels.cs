@@ -101,10 +101,15 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int RePathTypeId { get; init; }
         public string DataType { get; init; } = default!;
         public string UiLabel { get; init; } = default!;
-        public string? UiHelpKey { get; init; }
+        public string UiHelpKey { get; init; } = default!;
         public string? Unit { get; init; }
         public int? ReDropdownValueProviderId { get; init; }
         public string? ExampleValue { get; init; }
+    }
+
+    public sealed class ContextParameterUpdateDto : ContextParameterCreateDto
+    {
+        public int Id { get; init; }
     }
 
     public sealed class ContextParameterView
@@ -116,12 +121,23 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int RePathTypeId { get; init; }
         public string DataType { get; init; } = default!;
         public string UiLabel { get; init; } = default!;
+        public string UiHelpKey { get; init; } = default!;
         public string? Unit { get; init; }
+        public int? DropdownProviderId { get; init; }
+        public int? ProviderTypeId { get; init; }
+        public string? ProviderType { get; init; }
+        public string? DropdownConfigJson { get; init; }
+        public string? ExampleValue { get; init; }
     }
 
     public sealed class EventTypeCreateDto
     {
         public string Name { get; init; } = default!;
+    }
+
+    public sealed class EventTypeUpdateDto : EventTypeCreateDto
+    {
+        public int Id { get; init; }
     }
 
     public sealed class EventTypeView
@@ -130,11 +146,26 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string Name { get; init; } = default!;
     }
 
-    public sealed class EventTypeParameterUpsertDto
+    public sealed class EventTypeParameterCreateDto
     {
         public int ReEventTypeId { get; init; }
         public int ParameterId { get; init; }
         public bool IsRequired { get; init; } = true;
+        public string? DefaultValueJson { get; init; }
+    }
+
+    public sealed class EventTypeParameterUpdateDto : EventTypeParameterCreateDto
+    {
+        public int Id { get; init; }
+    }
+
+    public sealed class EventTypeParameterView
+    {
+        public int Id { get; init; }
+        public int EventTypeId { get; init; }
+        public int ParameterId { get; init; }
+        public string ParameterKey { get; init; } = default!;
+        public bool IsRequired { get; init; }
         public string? DefaultValueJson { get; init; }
     }
 
