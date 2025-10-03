@@ -297,9 +297,10 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 }
             };
 
-            var ids = await service.AddConditionsAsync(15, payload);
+            var result = await service.AddConditionsAsync(15, payload);
 
-            ids.Should().BeEquivalentTo(expectedIds);
+            result.Ids.Should().BeEquivalentTo(expectedIds);
+            result.Expression.Should().Be("Score == 10");
             repo.Verify(
                 r => r.InsertConditionsAsync(
                     15,
@@ -376,9 +377,10 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 }
             };
 
-            var ids = await service.AddConditionsAsync(15, payload);
+            var result = await service.AddConditionsAsync(15, payload);
 
-            ids.Should().BeEquivalentTo(new List<int> { 21 });
+            result.Ids.Should().BeEquivalentTo(new List<int> { 21 });
+            result.Expression.Should().Be("Score == 10");
             repo.Verify(
                 r => r.UpdateRuleExpressionAsync(5, "Score == 10"),
                 Times.Once);
@@ -449,10 +451,11 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 }
             };
 
-            await service.AddConditionsAsync(15, payload);
+            var result = await service.AddConditionsAsync(15, payload);
 
             repo.Verify(r => r.UpdateRuleExpressionAsync(5, "Score == 10"), Times.Once);
             evaluation.Verify(e => e.Invalidate(42), Times.Once);
+            result.Expression.Should().Be("Score == 10");
         }
 
         [Fact]
@@ -520,11 +523,86 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 }
             };
 
-            var ids = await service.AddConditionsAsync(15, payload);
+            var result = await service.AddConditionsAsync(15, payload);
 
-            ids.Should().BeEquivalentTo(new List<int> { 21 });
+            result.Ids.Should().BeEquivalentTo(new List<int> { 21 });
+            result.Expression.Should().Be("Tier == \"Bronze\"");
             repo.Verify(
                 r => r.UpdateRuleExpressionAsync(5, "Tier == \"Bronze\""),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task AddConditionsAsync_ComposesInComparatorWithListValues()
+        {
+            var repo = new Mock<IRulesRepository>();
+            var rewardRepo = new Mock<IRewardRepository>();
+            var evaluation = new Mock<IRulesEvaluationService>();
+            var metadata = new Mock<IRulesMetadataRepository>();
+
+            repo
+                .Setup(r => r.TryGetConditionGroupContextAsync(15))
+                .ReturnsAsync((true, 5, 42));
+
+            repo
+                .Setup(r => r.InsertConditionsAsync(15, It.IsAny<IEnumerable<ConditionCreateDto>>()))
+                .ReturnsAsync(new List<int> { 21 });
+
+            repo
+                .Setup(r => r.GetRuleConditionGroupsAsync(5))
+                .ReturnsAsync(new List<ConditionGroupDetailView>());
+
+            repo
+                .Setup(r => r.GetRuleConditionsAsync(5))
+                .ReturnsAsync(new List<ConditionDetailView>
+                {
+                    new()
+                    {
+                        Id = 21,
+                        GroupId = 15,
+                        ParameterId = 99,
+                        ComparatorId = 7,
+                        ComparatorCode = ComparatorCodes.In,
+                        ComparatorFormat = "{0} IN ({1})",
+                        ParameterKey = "Difficulty",
+                        ParameterSource = "event",
+                        ParameterPath = "$.difficulty",
+                        Negate = false,
+                        RightValueKind = RightValueKinds.List,
+                        RightValueJson = "[\"medium\", \"hard\"]",
+                        OrderIndex = 1
+                    }
+                });
+
+            repo
+                .Setup(r => r.UpdateRuleExpressionAsync(5, It.IsAny<string>()))
+                .Returns(Task.CompletedTask);
+
+            var service = new RulesAuthoringService(
+                repo.Object,
+                rewardRepo.Object,
+                evaluation.Object,
+                metadata.Object);
+
+            var payload = new[]
+            {
+                new ConditionCreateDto
+                {
+                    ParameterId = 99,
+                    ComparatorId = 7,
+                    Negate = false,
+                    RightValueKind = RightValueKinds.List,
+                    RightValueJson = "[\"medium\", \"hard\"]",
+                    OrderIndex = 1
+                }
+            };
+
+            var result = await service.AddConditionsAsync(15, payload);
+
+            result.Ids.Should().BeEquivalentTo(new List<int> { 21 });
+            result.Expression.Should().Be("(Difficulty == \"medium\" || Difficulty == \"hard\")");
+            repo.Verify(
+                r => r.UpdateRuleExpressionAsync(5, "(Difficulty == \"medium\" || Difficulty == \"hard\")"),
                 Times.Once);
         }
     }

@@ -148,7 +148,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
             return ids;
         }
 
-        public async Task<IReadOnlyList<int>> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions)
+        public async Task<ConditionCreateResult> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions)
         {
             if (conditions is null) throw new ArgumentNullException(nameof(conditions));
 
@@ -157,9 +157,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 throw new InvalidOperationException($"Condition group {groupId} does not exist.");
 
             var ids = await _repo.InsertConditionsAsync(groupId, conditions);
-            await RefreshRuleExpressionAsync(ruleId);
+            var expression = await RefreshRuleExpressionAsync(ruleId);
             _evaluationService.Invalidate(spaceId);
-            return ids;
+            return new ConditionCreateResult
+            {
+                Ids = ids,
+                Expression = expression
+            };
         }
 
         public async Task<RuleExpressionUpdateResult> UpdateConditionGroupAsync(
@@ -369,6 +373,12 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private static string ComposeCondition(ConditionDetailView condition)
         {
             var left = EscapeFormatArgument(condition.ParameterKey);
+
+            if (TryFormatInListExpression(condition, left, out var listExpression))
+            {
+                return condition.Negate ? $"!({listExpression})" : listExpression;
+            }
+
             var right = EscapeFormatArgument(FormatRightValue(condition));
             var format = string.IsNullOrWhiteSpace(condition.ComparatorFormat)
                 ? GetComparatorFallbackFormat(condition.ComparatorCode)
@@ -386,6 +396,57 @@ namespace GMS.TifoXRCoreWebAPI.Services
             }
 
             return condition.Negate ? $"!({expression})" : expression;
+        }
+
+        private static bool TryFormatInListExpression(ConditionDetailView condition, string left, out string expression)
+        {
+            expression = string.Empty;
+
+            if (!string.Equals(condition.ComparatorCode, ComparatorCodes.In, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.Equals(condition.RightValueKind, RightValueKinds.List, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(condition.RightValueJson))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(condition.RightValueJson);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                {
+                    return false;
+                }
+
+                var comparisons = new List<string>();
+                foreach (var element in doc.RootElement.EnumerateArray())
+                {
+                    var formattedValue = FormatLiteralElement(element);
+                    comparisons.Add($"{left} == {formattedValue}");
+                }
+
+                if (comparisons.Count == 0)
+                {
+                    expression = "false";
+                }
+                else
+                {
+                    expression = CombineUsingFormat("({0} || {1})", comparisons);
+                }
+
+                return true;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
         }
 
         private static string GetComparatorFallbackFormat(string? comparatorCode)
