@@ -22,6 +22,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private readonly IRulesEvaluationService _evaluationService;
         private readonly IRulesMetadataRepository _metadataRepo;
         private const string DefaultStateTypeName = "Published";
+        private const string DefaultLogicalOperatorFormat = "({0} && {1})";
 
         private static readonly IReadOnlyDictionary<string, string> ComparatorFallbackFormats =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -363,11 +364,35 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 return string.Empty;
             }
 
-            var format = string.IsNullOrWhiteSpace(group.LogicalOperatorFormat)
-                ? "({0} && {1})"
-                : group.LogicalOperatorFormat;
+            var format = GetLogicalOperatorFormat(group.LogicalOperatorFormat);
 
             return CombineUsingFormat(format, parts);
+        }
+
+        private static string GetLogicalOperatorFormat(string? format)
+        {
+            if (string.IsNullOrWhiteSpace(format))
+            {
+                return DefaultLogicalOperatorFormat;
+            }
+
+            var trimmed = format.Trim();
+
+            if (!trimmed.Contains("{0}", StringComparison.Ordinal) ||
+                !trimmed.Contains("{1}", StringComparison.Ordinal))
+            {
+                return DefaultLogicalOperatorFormat;
+            }
+
+            try
+            {
+                _ = string.Format(CultureInfo.InvariantCulture, trimmed, "left", "right");
+                return trimmed;
+            }
+            catch (FormatException)
+            {
+                return DefaultLogicalOperatorFormat;
+            }
         }
 
         private static string ComposeCondition(ConditionDetailView condition)

@@ -89,6 +89,99 @@ namespace TifoXRCoreWebAPI.Tests.Services
         }
 
         [Fact]
+        public async Task UpdateRuleDefinitionAsync_FallsBackToDefaultLogicalOperatorFormatWhenInvalid()
+        {
+            var repo = new Mock<IRulesRepository>();
+            var rewardRepo = new Mock<IRewardRepository>();
+            var evaluation = new Mock<IRulesEvaluationService>();
+            var metadata = new Mock<IRulesMetadataRepository>();
+
+            repo
+                .Setup(r => r.TryGetRuleContextAsync(1))
+                .ReturnsAsync((true, 42, 7));
+
+            repo
+                .Setup(r => r.GetRuleConditionGroupsAsync(1))
+                .ReturnsAsync(new List<ConditionGroupDetailView>
+                {
+                    new()
+                    {
+                        Id = 100,
+                        RuleId = 1,
+                        ParentGroupId = null,
+                        LogicalOperatorId = 1,
+                        LogicalOperatorCode = "and",
+                        LogicalOperatorFormat = "&&",
+                        OrderIndex = 1
+                    }
+                });
+
+            repo
+                .Setup(r => r.GetRuleConditionsAsync(1))
+                .ReturnsAsync(new List<ConditionDetailView>
+                {
+                    new()
+                    {
+                        Id = 200,
+                        GroupId = 100,
+                        ParameterId = 10,
+                        ComparatorId = 5,
+                        ComparatorCode = ComparatorCodes.Gte,
+                        ComparatorFormat = "{0} >= {1}",
+                        ParameterKey = "ScoreValue",
+                        ParameterSource = "event",
+                        ParameterPath = "$.ScoreValue",
+                        Negate = false,
+                        RightValueKind = RightValueKinds.Literal,
+                        RightValueJson = "50",
+                        OrderIndex = 1
+                    },
+                    new()
+                    {
+                        Id = 201,
+                        GroupId = 100,
+                        ParameterId = 11,
+                        ComparatorId = 6,
+                        ComparatorCode = ComparatorCodes.Lte,
+                        ComparatorFormat = "{0} <= {1}",
+                        ParameterKey = "Attempts",
+                        ParameterSource = "event",
+                        ParameterPath = "$.Attempts",
+                        Negate = false,
+                        RightValueKind = RightValueKinds.Literal,
+                        RightValueJson = "10",
+                        OrderIndex = 2
+                    }
+                });
+
+            repo
+                .Setup(r => r.UpdateRuleDefinitionAsync(
+                    It.IsAny<int>(),
+                    It.IsAny<RuleDefinitionUpdateDto>(),
+                    It.IsAny<string>()))
+                .Returns(Task.CompletedTask);
+
+            var service = new RulesAuthoringService(
+                repo.Object,
+                rewardRepo.Object,
+                evaluation.Object,
+                metadata.Object);
+
+            var dto = new RuleDefinitionUpdateDto
+            {
+                RuleName = "Test Rule",
+                Priority = 1,
+                RuleCooldownSeconds = 0
+            };
+
+            var result = await service.UpdateRuleDefinitionAsync(42, 1, dto);
+
+            result.Expression.Should().Be("(ScoreValue >= 50 && Attempts <= 10)");
+            repo.Verify(r => r.UpdateRuleDefinitionAsync(1, dto, "(ScoreValue >= 50 && Attempts <= 10)"), Times.Once);
+            evaluation.Verify(e => e.Invalidate(42), Times.Once);
+        }
+
+        [Fact]
         public async Task GetRuleDetailAsync_ReturnsAggregatedView()
         {
             var repo = new Mock<IRulesRepository>();
