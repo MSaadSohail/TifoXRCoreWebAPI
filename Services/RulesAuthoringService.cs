@@ -354,11 +354,21 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 ? "{0} == {1}"
                 : condition.ComparatorFormat;
 
-            var left = condition.ParameterKey;
-            var right = FormatRightValue(condition);
+            var left = EscapeFormatArgument(condition.ParameterKey);
+            var right = EscapeFormatArgument(FormatRightValue(condition));
             var expression = string.Format(CultureInfo.InvariantCulture, format, left, right);
 
             return condition.Negate ? $"!({expression})" : expression;
+        }
+
+        private static string EscapeFormatArgument(string? value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value ?? string.Empty;
+            }
+
+            return value.Replace("{", "{{").Replace("}", "}}");
         }
 
         private static string CombineUsingFormat(string format, IReadOnlyList<string> expressions)
@@ -389,11 +399,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 return "null";
             }
 
+            var json = condition.RightValueJson.Trim();
+
             if (string.Equals(condition.RightValueKind, RightValueKinds.Parameter, StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    using var doc = JsonDocument.Parse(condition.RightValueJson);
+                    using var doc = JsonDocument.Parse(json);
                     var root = doc.RootElement;
 
                     if (root.ValueKind == JsonValueKind.String)
@@ -416,13 +428,41 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 }
                 catch (JsonException)
                 {
-                    return condition.RightValueJson.Trim();
+                    return json;
                 }
 
                 return "null";
             }
 
-            return condition.RightValueJson.Trim();
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("value", out var valueProperty))
+                {
+                    return FormatLiteralElement(valueProperty);
+                }
+
+                return FormatLiteralElement(root);
+            }
+            catch (JsonException)
+            {
+                return json;
+            }
+        }
+
+        private static string FormatLiteralElement(JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.Null => "null",
+                JsonValueKind.String => element.GetRawText(),
+                JsonValueKind.Number => element.GetRawText(),
+                JsonValueKind.True => element.GetRawText(),
+                JsonValueKind.False => element.GetRawText(),
+                _ => element.GetRawText(),
+            };
         }
     }
 }
