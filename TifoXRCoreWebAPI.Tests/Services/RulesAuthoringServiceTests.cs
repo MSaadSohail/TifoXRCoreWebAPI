@@ -248,6 +248,36 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 .Setup(r => r.InsertConditionsAsync(15, It.IsAny<IEnumerable<ConditionCreateDto>>()))
                 .ReturnsAsync(expectedIds);
 
+            repo
+                .Setup(r => r.GetRuleConditionGroupsAsync(5))
+                .ReturnsAsync(new List<ConditionGroupDetailView>());
+
+            repo
+                .Setup(r => r.GetRuleConditionsAsync(5))
+                .ReturnsAsync(new List<ConditionDetailView>
+                {
+                    new()
+                    {
+                        Id = 21,
+                        GroupId = 15,
+                        ParameterId = 99,
+                        ComparatorId = 7,
+                        ComparatorCode = ComparatorCodes.Eq,
+                        ComparatorFormat = "{0} == {1}",
+                        ParameterKey = "Score",
+                        ParameterSource = "event",
+                        ParameterPath = "$.Score",
+                        Negate = false,
+                        RightValueKind = RightValueKinds.Literal,
+                        RightValueJson = "10",
+                        OrderIndex = 1
+                    }
+                });
+
+            repo
+                .Setup(r => r.UpdateRuleExpressionAsync(5, It.IsAny<string>()))
+                .Returns(Task.CompletedTask);
+
             var service = new RulesAuthoringService(
                 repo.Object,
                 rewardRepo.Object,
@@ -275,6 +305,9 @@ namespace TifoXRCoreWebAPI.Tests.Services
                     15,
                     It.Is<IEnumerable<ConditionCreateDto>>(c => ReferenceEquals(c, payload))),
                 Times.Once);
+            repo.Verify(r => r.GetRuleConditionGroupsAsync(5), Times.Once);
+            repo.Verify(r => r.GetRuleConditionsAsync(5), Times.Once);
+            repo.Verify(r => r.UpdateRuleExpressionAsync(5, "Score == 10"), Times.Once);
             evaluation.Verify(e => e.Invalidate(42), Times.Once);
         }
     }
