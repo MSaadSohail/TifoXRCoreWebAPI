@@ -47,7 +47,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class WorkflowCreateDto
     {
-        public int SpaceId { get; init; }
+        public int SpaceId { get; set; }
         public string Name { get; init; } = default!;
         public int? StateTypeId { get; init; }
     }
@@ -62,8 +62,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class RuleCreateDto
     {
-        public int WorkflowId { get; init; }
-        public int SpaceId { get; init; }
+        public int WorkflowId { get; set; }
+        public int SpaceId { get; set; }
         public string RuleName { get; init; } = default!;
         public string? Expression { get; init; }
         public string? TargetType { get; init; }
@@ -202,7 +202,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public class ConditionGroupCreateDto
     {
-        public int RuleId { get; init; }
+        public int RuleId { get; set; }
         public int? ParentGroupId { get; init; }
         public int LogicalOperatorId { get; init; }
         public int OrderIndex { get; init; } = 1;
@@ -212,7 +212,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class ConditionGroupUpdateDto : ConditionGroupCreateDto
     {
-        public int Id { get; init; }
+        public int Id { get; set; }
     }
 
     public class ConditionGroupView
@@ -232,7 +232,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public class ConditionCreateDto
     {
-        public int GroupId { get; init; }
+        public int GroupId { get; set; }
         public int ParameterId { get; init; }
         public int ComparatorId { get; init; }
         public bool Negate { get; init; } = false;
@@ -243,7 +243,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class ConditionUpdateDto : ConditionCreateDto
     {
-        public int Id { get; init; }
+        public int Id { get; set; }
     }
 
     public class ConditionView
@@ -269,8 +269,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class RuleDefinitionUpdateDto
     {
-        public int RuleId { get; init; }
-        public int SpaceId { get; init; }
+        public int RuleId { get; set; }
+        public int SpaceId { get; set; }
         public string RuleName { get; init; } = default!;
         public string? TargetType { get; init; }
         public string? SuccessEvent { get; init; }
@@ -301,7 +301,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
     public sealed class RuleActionCreateDto
     {
-        public int RuleId { get; init; }
+        public int RuleId { get; set; }
         public int ActionTypeId { get; init; }
         public string ActionName { get; init; } = default!;
         public string ActionKey { get; init; } = default!;
