@@ -42,9 +42,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ErrorMessages.Validation.PositiveIntRequired,
                     paramName: nameof(spaceId));
 
-            dto.SpaceId = spaceId;
-
-            var id = await _svc.CreateWorkflowAsync(dto);
+            var id = await _svc.CreateWorkflowAsync(spaceId, dto);
             return CreatedAtAction(nameof(CreateWorkflow), new { id }, new { id });
         }
 
@@ -71,10 +69,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dto),
                     parameters: new { spaceId, ruleId });
 
-            dto.RuleId = ruleId;
-            dto.SpaceId = spaceId;
-
-            var result = await _svc.UpdateRuleDefinitionAsync(dto);
+            var result = await _svc.UpdateRuleDefinitionAsync(spaceId, ruleId, dto);
             return Ok(result);
         }
 
@@ -101,10 +96,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(spaceId),
                     parameters: new { workflowId });
 
-            dto.WorkflowId = workflowId;
-            dto.SpaceId = spaceId;
-
-            var id = await _svc.CreateRuleAsync(dto);
+            var id = await _svc.CreateRuleAsync(spaceId, workflowId, dto);
             return CreatedAtAction(nameof(CreateRule), new { workflowId, id }, new { id });
         }
 
@@ -172,10 +164,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dto),
                     parameters: new { ruleId, groupId });
 
-            dto.Id = groupId;
-            dto.RuleId = ruleId;
-
-            var result = await _svc.UpdateConditionGroupAsync(dto);
+            var result = await _svc.UpdateConditionGroupAsync(ruleId, groupId, dto);
             return Ok(result);
         }
 
@@ -195,10 +184,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dto),
                     parameters: new { groupId, conditionId });
 
-            dto.Id = conditionId;
-            dto.GroupId = groupId;
-
-            var result = await _svc.UpdateConditionAsync(dto);
+            var result = await _svc.UpdateConditionAsync(groupId, conditionId, dto);
             return Ok(result);
         }
 
@@ -217,9 +203,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dto),
                     parameters: new { ruleId });
 
-            dto.RuleId = ruleId;
-
-            var id = await _svc.CreateRuleActionAsync(dto);
+            var id = await _svc.CreateRuleActionAsync(ruleId, dto);
             return CreatedAtAction(nameof(CreateRuleAction), new { ruleId, id }, new { id });
         }
 
