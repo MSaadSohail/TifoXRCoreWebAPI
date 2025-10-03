@@ -115,6 +115,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     paramName: nameof(dtos),
                     parameters: new { ruleId });
 
+            foreach (var dto in dtos)
+            {
+                dto.RuleId = ruleId;
+            }
+
             var ids = await _svc.AddConditionGroupsAsync(ruleId, dtos);
             return Ok(new { ids });
         }
@@ -133,6 +138,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ErrorMessages.Validation.MissingParameter,
                     paramName: nameof(dtos),
                     parameters: new { groupId });
+
+            foreach (var dto in dtos)
+            {
+                dto.GroupId = groupId;
+            }
 
             var ids = await _svc.AddConditionsAsync(groupId, dtos);
             return Ok(new { ids });
