@@ -12,6 +12,8 @@ namespace GMS.TifoXRCoreWebAPI.Services
 {
     public interface IRulesAuthoringService
     {
+        Task<RuleDetailView> GetRuleDetailAsync(int spaceId, int ruleId);
+        Task<RuleExpressionUpdateResult> UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto);
         Task<int> CreateWorkflowAsync(WorkflowCreateDto dto);
         Task<int> CreateRuleAsync(RuleCreateDto dto);
         Task<IReadOnlyList<int>> AddConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> groups);
