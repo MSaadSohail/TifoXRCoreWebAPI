@@ -181,6 +181,144 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return stateTypeId;
         }
 
+        public async Task<RuleDetailRecord?> GetRuleDetailAsync(int ruleId)
+        {
+            _logger.LogDebug("Fetching rule detail for rule {RuleId}.", ruleId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.GetRuleDetail);
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
+
+            await using var rdr = await cmd.ExecuteReaderAsync();
+            if (!await rdr.ReadAsync())
+            {
+                _logger.LogDebug("Rule detail not found for rule {RuleId}.", ruleId);
+                return null;
+            }
+
+            var record = new RuleDetailRecord
+            {
+                RuleId = rdr.GetInt32(rdr.GetOrdinal("RuleId")),
+                WorkflowId = rdr.GetInt32(rdr.GetOrdinal("WorkflowId")),
+                SpaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId")),
+                RuleName = rdr.GetString(rdr.GetOrdinal("RuleName")),
+                WorkflowName = rdr.GetString(rdr.GetOrdinal("WorkflowName")),
+                Expression = rdr.IsDBNull(rdr.GetOrdinal("Expression")) ? null : rdr.GetString(rdr.GetOrdinal("Expression")),
+                TargetType = rdr.IsDBNull(rdr.GetOrdinal("TargetType")) ? null : rdr.GetString(rdr.GetOrdinal("TargetType")),
+                SuccessEvent = rdr.IsDBNull(rdr.GetOrdinal("SuccessEvent")) ? null : rdr.GetString(rdr.GetOrdinal("SuccessEvent")),
+                Priority = rdr.GetInt32(rdr.GetOrdinal("Priority")),
+                RuleCooldownSeconds = rdr.GetInt32(rdr.GetOrdinal("RuleCooldownSeconds")),
+                StateTypeId = rdr.GetInt32(rdr.GetOrdinal("StateTypeId")),
+                Version = rdr.IsDBNull(rdr.GetOrdinal("Version")) ? null : rdr.GetInt32(rdr.GetOrdinal("Version")),
+                ParentRuleId = rdr.IsDBNull(rdr.GetOrdinal("ParentRuleId")) ? null : rdr.GetInt32(rdr.GetOrdinal("ParentRuleId")),
+                EventTypeId = rdr.IsDBNull(rdr.GetOrdinal("EventTypeId")) ? null : rdr.GetInt32(rdr.GetOrdinal("EventTypeId"))
+            };
+
+            _logger.LogDebug(
+                "Fetched rule detail for rule {RuleId} with workflow {WorkflowId} in space {SpaceId}.",
+                record.RuleId,
+                record.WorkflowId,
+                record.SpaceId);
+
+            return record;
+        }
+
+        public async Task<IReadOnlyList<ConditionGroupDetailView>> GetRuleConditionGroupsAsync(int ruleId)
+        {
+            _logger.LogDebug("Fetching condition groups for rule {RuleId}.", ruleId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.GetRuleConditionGroups);
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
+
+            var list = new List<ConditionGroupDetailView>();
+
+            await using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+            {
+                list.Add(new ConditionGroupDetailView
+                {
+                    Id = rdr.GetInt32(rdr.GetOrdinal("Id")),
+                    RuleId = rdr.GetInt32(rdr.GetOrdinal("RuleId")),
+                    ParentGroupId = rdr.IsDBNull(rdr.GetOrdinal("ParentGroupId"))
+                        ? null
+                        : rdr.GetInt32(rdr.GetOrdinal("ParentGroupId")),
+                    LogicalOperatorId = rdr.GetInt32(rdr.GetOrdinal("LogicalOperatorId")),
+                    OrderIndex = rdr.GetInt32(rdr.GetOrdinal("OrderIndex")),
+                    LogicalOperatorCode = rdr.GetString(rdr.GetOrdinal("LogicalOperatorCode")),
+                    LogicalOperatorFormat = rdr.GetString(rdr.GetOrdinal("LogicalOperatorFormat"))
+                });
+            }
+
+            _logger.LogDebug(
+                "Fetched {Count} condition groups for rule {RuleId}.",
+                list.Count,
+                ruleId);
+
+            return list;
+        }
+
+        public async Task<IReadOnlyList<ConditionDetailView>> GetRuleConditionsAsync(int ruleId)
+        {
+            _logger.LogDebug("Fetching conditions for rule {RuleId}.", ruleId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.GetRuleConditions);
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
+
+            var list = new List<ConditionDetailView>();
+
+            await using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+            {
+                list.Add(new ConditionDetailView
+                {
+                    Id = rdr.GetInt32(rdr.GetOrdinal("Id")),
+                    GroupId = rdr.GetInt32(rdr.GetOrdinal("GroupId")),
+                    ParameterId = rdr.GetInt32(rdr.GetOrdinal("ParameterId")),
+                    ComparatorId = rdr.GetInt32(rdr.GetOrdinal("ComparatorId")),
+                    Negate = rdr.GetInt32(rdr.GetOrdinal("Negate")) == 1,
+                    RightValueKind = rdr.GetString(rdr.GetOrdinal("RightValueKind")),
+                    RightValueJson = rdr.IsDBNull(rdr.GetOrdinal("RightValueJson"))
+                        ? null
+                        : rdr.GetString(rdr.GetOrdinal("RightValueJson")),
+                    OrderIndex = rdr.GetInt32(rdr.GetOrdinal("OrderIndex")),
+                    ComparatorCode = rdr.GetString(rdr.GetOrdinal("ComparatorCode")),
+                    ComparatorFormat = rdr.GetString(rdr.GetOrdinal("ComparatorFormat")),
+                    ParameterKey = rdr.GetString(rdr.GetOrdinal("ParameterKey")),
+                    ParameterSource = rdr.GetString(rdr.GetOrdinal("ParameterSource")),
+                    ParameterPath = rdr.GetString(rdr.GetOrdinal("ParameterPath"))
+                });
+            }
+
+            _logger.LogDebug(
+                "Fetched {Count} conditions for rule {RuleId}.",
+                list.Count,
+                ruleId);
+
+            return list;
+        }
+
+        public async Task UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto, string expression)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Updating rule {RuleId} definition with payload {Payload} and expression {Expression}.",
+                dto.RuleId,
+                Serialize(dto),
+                expression);
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateRuleDefinition);
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", dto.RuleId));
+            cmd.Parameters.Add(_db.CreateParameter("@RuleName", dto.RuleName));
+            cmd.Parameters.Add(_db.CreateParameter("@TargetType", (object?)dto.TargetType ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@SuccessEvent", (object?)dto.SuccessEvent ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@Priority", dto.Priority));
+            cmd.Parameters.Add(_db.CreateParameter("@RuleCooldownSeconds", dto.RuleCooldownSeconds));
+            cmd.Parameters.Add(_db.CreateParameter("@Expression", expression ?? string.Empty));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         public async Task<int> CreateWorkflowAsync(WorkflowCreateDto dto, int stateTypeId)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));

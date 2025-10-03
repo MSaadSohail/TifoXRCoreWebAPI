@@ -89,6 +89,35 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int StateTypeId { get; init; }
     }
 
+    public sealed class RuleDetailRecord
+    {
+        public int RuleId { get; init; }
+        public int WorkflowId { get; init; }
+        public int SpaceId { get; init; }
+        public string RuleName { get; init; } = default!;
+        public string WorkflowName { get; init; } = default!;
+        public string? Expression { get; init; }
+        public string? TargetType { get; init; }
+        public string? SuccessEvent { get; init; }
+        public int Priority { get; init; }
+        public int RuleCooldownSeconds { get; init; }
+        public int StateTypeId { get; init; }
+        public int? Version { get; init; }
+        public int? ParentRuleId { get; init; }
+        public int? EventTypeId { get; init; }
+    }
+
+    public sealed class RuleDetailView
+    {
+        public RuleDetailRecord Rule { get; init; } = default!;
+        public IReadOnlyList<ConditionGroupDetailView> ConditionGroups { get; init; }
+            = Array.Empty<ConditionGroupDetailView>();
+        public IReadOnlyList<ConditionDetailView> Conditions { get; init; }
+            = Array.Empty<ConditionDetailView>();
+        public IReadOnlyList<EventTypeParameterView> EventTypeParameters { get; init; }
+            = Array.Empty<EventTypeParameterView>();
+    }
+
     // =========================
     // Authoring: Parameters & Event Types
     // =========================
@@ -192,6 +221,12 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int OrderIndex { get; init; }
     }
 
+    public sealed class ConditionGroupDetailView : ConditionGroupView
+    {
+        public string LogicalOperatorCode { get; init; } = default!;
+        public string LogicalOperatorFormat { get; init; } = default!;
+    }
+
     public sealed class ConditionCreateDto
     {
         public int GroupId { get; init; }
@@ -213,6 +248,32 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string RightValueKind { get; init; } = default!;
         public string? RightValueJson { get; init; }
         public int OrderIndex { get; init; }
+    }
+
+    public sealed class ConditionDetailView : ConditionView
+    {
+        public string ComparatorCode { get; init; } = default!;
+        public string ComparatorFormat { get; init; } = default!;
+        public string ParameterKey { get; init; } = default!;
+        public string ParameterSource { get; init; } = default!;
+        public string ParameterPath { get; init; } = default!;
+    }
+
+    public sealed class RuleDefinitionUpdateDto
+    {
+        public int RuleId { get; init; }
+        public int SpaceId { get; init; }
+        public string RuleName { get; init; } = default!;
+        public string? TargetType { get; init; }
+        public string? SuccessEvent { get; init; }
+        public int Priority { get; init; } = 100;
+        public int RuleCooldownSeconds { get; init; }
+    }
+
+    public sealed class RuleExpressionUpdateResult
+    {
+        public int RuleId { get; init; }
+        public string Expression { get; init; } = string.Empty;
     }
 
     // =========================

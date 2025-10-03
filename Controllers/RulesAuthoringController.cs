@@ -44,6 +44,49 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return CreatedAtAction(nameof(CreateWorkflow), new { id }, new { id });
         }
 
+        [HttpGet("rules/{ruleId:int}")]
+        [ProducesResponseType(typeof(RuleDetailView), StatusCodes.Status200OK)]
+        public async Task<ActionResult<RuleDetailView>> GetRule(int spaceId, int ruleId)
+        {
+            var detail = await _svc.GetRuleDetailAsync(spaceId, ruleId);
+            return Ok(detail);
+        }
+
+        [HttpPut("rules/{ruleId:int}")]
+        [ProducesResponseType(typeof(RuleExpressionUpdateResult), StatusCodes.Status200OK)]
+        public async Task<ActionResult<RuleExpressionUpdateResult>> UpdateRule(
+            int spaceId,
+            int ruleId,
+            [FromBody] RuleDefinitionUpdateDto dto)
+        {
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateRule),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, ruleId });
+
+            if (dto.RuleId != ruleId)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateRule),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(dto.RuleId),
+                    parameters: new { expected = ruleId, actual = dto.RuleId });
+
+            if (dto.SpaceId != spaceId)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateRule),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(dto.SpaceId),
+                    parameters: new { expected = spaceId, actual = dto.SpaceId });
+
+            var result = await _svc.UpdateRuleDefinitionAsync(dto);
+            return Ok(result);
+        }
+
         [HttpPost("workflows/{workflowId:int}/rules")]
         [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
         public async Task<ActionResult<object>> CreateRule(int workflowId, [FromBody] RuleCreateDto dto)

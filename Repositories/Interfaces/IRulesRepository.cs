@@ -20,6 +20,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<bool> ActionBelongsToRuleAsync(int actionId, int ruleId);
         Task<int?> GetStateTypeIdByNameAsync(string type);
 
+        Task<RuleDetailRecord?> GetRuleDetailAsync(int ruleId);
+        Task<IReadOnlyList<ConditionGroupDetailView>> GetRuleConditionGroupsAsync(int ruleId);
+        Task<IReadOnlyList<ConditionDetailView>> GetRuleConditionsAsync(int ruleId);
+
+        Task UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto, string expression);
+
         Task<int> CreateWorkflowAsync(WorkflowCreateDto dto, int stateTypeId);
         Task<int> CreateRuleAsync(RuleCreateDto dto, int stateTypeId);
         Task<IReadOnlyList<int>> InsertConditionGroupsAsync(IEnumerable<ConditionGroupCreateDto> dtos);
