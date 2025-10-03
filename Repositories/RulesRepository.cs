@@ -126,6 +126,32 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return (true, ruleId, spaceId);
         }
 
+        public async Task<(bool exists, int groupId, int ruleId, int spaceId)> TryGetConditionContextAsync(int conditionId)
+        {
+            _logger.LogDebug("Fetching condition context for condition {ConditionId}.", conditionId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.GetConditionContext);
+            cmd.Parameters.Add(_db.CreateParameter("@Id", conditionId));
+
+            await using var rdr = await cmd.ExecuteReaderAsync();
+            if (!await rdr.ReadAsync())
+            {
+                _logger.LogDebug("Condition context not found for condition {ConditionId}.", conditionId);
+                return (false, 0, 0, 0);
+            }
+
+            var groupId = rdr.GetInt32(rdr.GetOrdinal("GroupId"));
+            var ruleId = rdr.GetInt32(rdr.GetOrdinal("RuleId"));
+            var spaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId"));
+            _logger.LogDebug(
+                "Condition context for condition {ConditionId}: GroupId={GroupId}, RuleId={RuleId}, SpaceId={SpaceId}.",
+                conditionId,
+                groupId,
+                ruleId,
+                spaceId);
+            return (true, groupId, ruleId, spaceId);
+        }
+
         public async Task<bool> ConditionGroupBelongsToRuleAsync(int groupId, int ruleId)
         {
             _logger.LogDebug(
@@ -461,6 +487,63 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 Serialize(ids),
                 Serialize(dtoList));
             return ids;
+        }
+
+        public async Task UpdateConditionGroupAsync(ConditionGroupUpdateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Updating condition group {GroupId} with payload {Payload}.",
+                dto.Id,
+                Serialize(dto));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateConditionGroup);
+            cmd.Parameters.Add(_db.CreateParameter("@Id", dto.Id));
+            cmd.Parameters.Add(_db.CreateParameter("@ParentGroupId", (object?)dto.ParentGroupId ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@LogicalOperatorId", dto.LogicalOperatorId));
+            cmd.Parameters.Add(_db.CreateParameter("@OrderIndex", dto.OrderIndex));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task UpdateConditionAsync(ConditionUpdateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Updating condition {ConditionId} with payload {Payload}.",
+                dto.Id,
+                Serialize(dto));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateCondition);
+            cmd.Parameters.Add(_db.CreateParameter("@Id", dto.Id));
+            cmd.Parameters.Add(_db.CreateParameter("@GroupId", dto.GroupId));
+            cmd.Parameters.Add(_db.CreateParameter("@ParameterId", dto.ParameterId));
+            cmd.Parameters.Add(_db.CreateParameter("@ComparatorId", dto.ComparatorId));
+            cmd.Parameters.Add(_db.CreateParameter("@Negate", dto.Negate ? 1 : 0));
+            cmd.Parameters.Add(_db.CreateParameter("@RightValueKind", dto.RightValueKind));
+            cmd.Parameters.Add(_db.CreateParameter("@RightValueJson", (object?)dto.RightValueJson ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@OrderIndex", dto.OrderIndex));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task UpdateRuleExpressionAsync(int ruleId, string expression)
+        {
+            _logger.LogInformation(
+                "Updating rule {RuleId} expression to {Expression}.",
+                ruleId,
+                expression);
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateRuleExpression);
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
+            cmd.Parameters.Add(_db.CreateParameter("@Expression", expression ?? string.Empty));
+
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)

@@ -210,6 +210,11 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? DescriptionKey { get; init; }
     }
 
+    public sealed class ConditionGroupUpdateDto : ConditionGroupCreateDto
+    {
+        public int Id { get; init; }
+    }
+
     public class ConditionGroupView
     {
         public int Id { get; init; }
@@ -234,6 +239,11 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string RightValueKind { get; init; } = RightValueKinds.Literal;
         public string? RightValueJson { get; init; }
         public int OrderIndex { get; init; } = 1;
+    }
+
+    public sealed class ConditionUpdateDto : ConditionCreateDto
+    {
+        public int Id { get; init; }
     }
 
     public class ConditionView

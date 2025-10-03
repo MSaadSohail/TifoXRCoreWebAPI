@@ -151,6 +151,76 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return Ok(new { ids });
         }
 
+        [HttpPut("rules/{ruleId:int}/condition-groups/{groupId:int}")]
+        [ProducesResponseType(typeof(RuleExpressionUpdateResult), StatusCodes.Status200OK)]
+        public async Task<ActionResult<RuleExpressionUpdateResult>> UpdateConditionGroup(
+            int ruleId,
+            int groupId,
+            [FromBody] ConditionGroupUpdateDto dto)
+        {
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateConditionGroup),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { ruleId, groupId });
+
+            if (dto.Id != groupId)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateConditionGroup),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(dto.Id),
+                    parameters: new { expected = groupId, actual = dto.Id });
+
+            if (dto.RuleId != ruleId)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateConditionGroup),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(dto.RuleId),
+                    parameters: new { expected = ruleId, actual = dto.RuleId });
+
+            var result = await _svc.UpdateConditionGroupAsync(dto);
+            return Ok(result);
+        }
+
+        [HttpPut("condition-groups/{groupId:int}/conditions/{conditionId:int}")]
+        [ProducesResponseType(typeof(RuleExpressionUpdateResult), StatusCodes.Status200OK)]
+        public async Task<ActionResult<RuleExpressionUpdateResult>> UpdateCondition(
+            int groupId,
+            int conditionId,
+            [FromBody] ConditionUpdateDto dto)
+        {
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateCondition),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { groupId, conditionId });
+
+            if (dto.Id != conditionId)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateCondition),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(dto.Id),
+                    parameters: new { expected = conditionId, actual = dto.Id });
+
+            if (dto.GroupId != groupId)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateCondition),
+                    ErrorMessages.Validation.RouteBodyMismatch,
+                    paramName: nameof(dto.GroupId),
+                    parameters: new { expected = groupId, actual = dto.GroupId });
+
+            var result = await _svc.UpdateConditionAsync(dto);
+            return Ok(result);
+        }
+
         [HttpPost("rules/{ruleId:int}/actions")]
         [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
         public async Task<ActionResult<object>> CreateRuleAction(int ruleId, [FromBody] RuleActionCreateDto dto)
