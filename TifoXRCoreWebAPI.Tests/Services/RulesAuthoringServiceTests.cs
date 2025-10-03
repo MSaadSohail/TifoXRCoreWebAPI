@@ -312,7 +312,7 @@ namespace TifoXRCoreWebAPI.Tests.Services
         }
 
         [Fact]
-        public async Task UpdateConditionAsync_RecomposesExpressionWithRootGroup()
+        public async Task AddConditionsAsync_EscapesFormatArgumentsWithJsonRightValue()
         {
             var repo = new Mock<IRulesRepository>();
             var rewardRepo = new Mock<IRewardRepository>();
@@ -320,40 +320,16 @@ namespace TifoXRCoreWebAPI.Tests.Services
             var metadata = new Mock<IRulesMetadataRepository>();
 
             repo
-                .Setup(r => r.TryGetConditionContextAsync(200))
-                .ReturnsAsync((true, 100, 5, 42));
+                .Setup(r => r.TryGetConditionGroupContextAsync(15))
+                .ReturnsAsync((true, 5, 42));
 
             repo
-                .Setup(r => r.UpdateConditionAsync(200, 100, It.IsAny<ConditionUpdateDto>()))
-                .Returns(Task.CompletedTask);
-
-            var groups = new List<ConditionGroupDetailView>
-            {
-                new()
-                {
-                    Id = 100,
-                    RuleId = 5,
-                    ParentGroupId = null,
-                    LogicalOperatorId = 1,
-                    LogicalOperatorCode = "and",
-                    LogicalOperatorFormat = "({0} && {1})",
-                    OrderIndex = 1
-                },
-                new()
-                {
-                    Id = 101,
-                    RuleId = 5,
-                    ParentGroupId = 100,
-                    LogicalOperatorId = 1,
-                    LogicalOperatorCode = "and",
-                    LogicalOperatorFormat = "({0} && {1})",
-                    OrderIndex = 2
-                }
-            };
+                .Setup(r => r.InsertConditionsAsync(15, It.IsAny<IEnumerable<ConditionCreateDto>>()))
+                .ReturnsAsync(new List<int> { 21 });
 
             repo
                 .Setup(r => r.GetRuleConditionGroupsAsync(5))
-                .ReturnsAsync(groups);
+                .ReturnsAsync(new List<ConditionGroupDetailView>());
 
             repo
                 .Setup(r => r.GetRuleConditionsAsync(5))
@@ -361,34 +337,18 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 {
                     new()
                     {
-                        Id = 200,
-                        GroupId = 100,
+                        Id = 21,
+                        GroupId = 15,
                         ParameterId = 99,
                         ComparatorId = 7,
-                        ComparatorCode = ComparatorCodes.Gte,
-                        ComparatorFormat = "{0} >= {1}",
+                        ComparatorCode = ComparatorCodes.Eq,
+                        ComparatorFormat = "{0} == {1}",
                         ParameterKey = "Score",
                         ParameterSource = "event",
                         ParameterPath = "$.Score",
                         Negate = false,
                         RightValueKind = RightValueKinds.Literal,
-                        RightValueJson = "50",
-                        OrderIndex = 1
-                    },
-                    new()
-                    {
-                        Id = 201,
-                        GroupId = 101,
-                        ParameterId = 100,
-                        ComparatorId = 8,
-                        ComparatorCode = ComparatorCodes.Lte,
-                        ComparatorFormat = "{0} <= {1}",
-                        ParameterKey = "Score",
-                        ParameterSource = "event",
-                        ParameterPath = "$.Score",
-                        Negate = false,
-                        RightValueKind = RightValueKinds.Literal,
-                        RightValueJson = "100",
+                        RightValueJson = "{\"value\":10}",
                         OrderIndex = 1
                     }
                 });
@@ -403,21 +363,25 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 evaluation.Object,
                 metadata.Object);
 
-            var dto = new ConditionUpdateDto
+            var payload = new[]
             {
-                ParameterId = 99,
-                ComparatorId = 7,
-                Negate = false,
-                RightValueKind = RightValueKinds.Literal,
-                RightValueJson = "50",
-                OrderIndex = 1
+                new ConditionCreateDto
+                {
+                    ParameterId = 99,
+                    ComparatorId = 7,
+                    Negate = false,
+                    RightValueKind = RightValueKinds.Literal,
+                    RightValueJson = "{\"value\":10}",
+                    OrderIndex = 1
+                }
             };
 
-            var result = await service.UpdateConditionAsync(100, 200, dto);
+            var ids = await service.AddConditionsAsync(15, payload);
 
-            result.Expression.Should().Be("((Score >= 50) && Score <= 100)");
-            repo.Verify(r => r.UpdateRuleExpressionAsync(5, "((Score >= 50) && Score <= 100)"), Times.Once);
-            evaluation.Verify(e => e.Invalidate(42), Times.Once);
+            ids.Should().BeEquivalentTo(new List<int> { 21 });
+            repo.Verify(
+                r => r.UpdateRuleExpressionAsync(5, "Score == {\"value\":10}"),
+                Times.Once);
         }
     }
 }

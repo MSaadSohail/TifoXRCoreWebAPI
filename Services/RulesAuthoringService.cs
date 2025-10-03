@@ -355,11 +355,21 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 ? "{0} == {1}"
                 : condition.ComparatorFormat;
 
-            var left = condition.ParameterKey;
-            var right = FormatRightValue(condition);
+            var left = EscapeFormatArgument(condition.ParameterKey);
+            var right = EscapeFormatArgument(FormatRightValue(condition));
             var expression = string.Format(CultureInfo.InvariantCulture, format, left, right);
 
             return condition.Negate ? $"!({expression})" : expression;
+        }
+
+        private static string EscapeFormatArgument(string? value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value ?? string.Empty;
+            }
+
+            return value.Replace("{", "{{").Replace("}", "}}");
         }
 
         private static string CombineUsingFormat(string format, IReadOnlyList<string> expressions)
