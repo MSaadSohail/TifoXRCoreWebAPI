@@ -16,6 +16,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<(bool exists, int spaceId, int workflowId)> TryGetRuleContextAsync(int ruleId);
         Task<(bool exists, int ruleId, int spaceId)> TryGetActionContextAsync(int actionId);
         Task<(bool exists, int ruleId, int spaceId)> TryGetConditionGroupContextAsync(int groupId);
+        Task<(bool exists, int groupId, int ruleId, int spaceId)> TryGetConditionContextAsync(int conditionId);
         Task<bool> ConditionGroupBelongsToRuleAsync(int groupId, int ruleId);
         Task<bool> ActionBelongsToRuleAsync(int actionId, int ruleId);
         Task<int?> GetStateTypeIdByNameAsync(string type);
@@ -30,6 +31,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<int> CreateRuleAsync(RuleCreateDto dto, int stateTypeId);
         Task<IReadOnlyList<int>> InsertConditionGroupsAsync(IEnumerable<ConditionGroupCreateDto> dtos);
         Task<IReadOnlyList<int>> InsertConditionsAsync(IEnumerable<ConditionCreateDto> dtos);
+        Task UpdateConditionGroupAsync(ConditionGroupUpdateDto dto);
+        Task UpdateConditionAsync(ConditionUpdateDto dto);
+        Task UpdateRuleExpressionAsync(int ruleId, string expression);
         Task<int> CreateRuleActionAsync(RuleActionCreateDto dto);
         Task BindRewardToActionAsync(int actionId, int rewardId);
 

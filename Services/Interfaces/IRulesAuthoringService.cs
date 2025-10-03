@@ -18,6 +18,8 @@ namespace GMS.TifoXRCoreWebAPI.Services
         Task<int> CreateRuleAsync(RuleCreateDto dto);
         Task<IReadOnlyList<int>> AddConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> groups);
         Task<IReadOnlyList<int>> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions);
+        Task<RuleExpressionUpdateResult> UpdateConditionGroupAsync(ConditionGroupUpdateDto dto);
+        Task<RuleExpressionUpdateResult> UpdateConditionAsync(ConditionUpdateDto dto);
         Task<int> CreateRuleActionAsync(RuleActionCreateDto dto);
         Task BindRewardAsync(int actionId, int rewardId);
     }

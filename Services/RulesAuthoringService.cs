@@ -153,6 +153,66 @@ namespace GMS.TifoXRCoreWebAPI.Services
             return ids;
         }
 
+        public async Task<RuleExpressionUpdateResult> UpdateConditionGroupAsync(ConditionGroupUpdateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            var (exists, ruleId, spaceId) = await _repo.TryGetConditionGroupContextAsync(dto.Id);
+            if (!exists)
+                throw new InvalidOperationException($"Condition group {dto.Id} does not exist.");
+
+            if (dto.RuleId != ruleId)
+                throw new InvalidOperationException(
+                    $"Condition group {dto.Id} belongs to rule {ruleId} and cannot be updated for rule {dto.RuleId}.");
+
+            if (dto.ParentGroupId.HasValue)
+            {
+                var belongs = await _repo.ConditionGroupBelongsToRuleAsync(dto.ParentGroupId.Value, ruleId);
+                if (!belongs)
+                    throw new InvalidOperationException(
+                        $"Parent condition group {dto.ParentGroupId.Value} does not belong to rule {ruleId}.");
+            }
+
+            await _repo.UpdateConditionGroupAsync(dto);
+
+            var expression = await RefreshRuleExpressionAsync(ruleId);
+            _evaluationService.Invalidate(spaceId);
+
+            return new RuleExpressionUpdateResult
+            {
+                RuleId = ruleId,
+                Expression = expression
+            };
+        }
+
+        public async Task<RuleExpressionUpdateResult> UpdateConditionAsync(ConditionUpdateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            var (exists, currentGroupId, ruleId, spaceId) = await _repo.TryGetConditionContextAsync(dto.Id);
+            if (!exists)
+                throw new InvalidOperationException($"Condition {dto.Id} does not exist.");
+
+            if (dto.GroupId != currentGroupId)
+            {
+                var belongs = await _repo.ConditionGroupBelongsToRuleAsync(dto.GroupId, ruleId);
+                if (!belongs)
+                    throw new InvalidOperationException(
+                        $"Condition group {dto.GroupId} does not belong to rule {ruleId}.");
+            }
+
+            await _repo.UpdateConditionAsync(dto);
+
+            var expression = await RefreshRuleExpressionAsync(ruleId);
+            _evaluationService.Invalidate(spaceId);
+
+            return new RuleExpressionUpdateResult
+            {
+                RuleId = ruleId,
+                Expression = expression
+            };
+        }
+
         public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
@@ -189,6 +249,15 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 throw new InvalidOperationException($"State type '{DefaultStateTypeName}' is not configured.");
 
             return fallback.Value;
+        }
+
+        private async Task<string> RefreshRuleExpressionAsync(int ruleId)
+        {
+            var groups = await _repo.GetRuleConditionGroupsAsync(ruleId);
+            var conditions = await _repo.GetRuleConditionsAsync(ruleId);
+            var expression = ComposeExpression(groups, conditions);
+            await _repo.UpdateRuleExpressionAsync(ruleId, expression);
+            return expression;
         }
 
         private static string ComposeExpression(
