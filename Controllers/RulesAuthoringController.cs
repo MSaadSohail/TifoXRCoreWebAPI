@@ -135,8 +135,8 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { groupId });
 
 
-            var ids = await _svc.AddConditionsAsync(groupId, dtos);
-            return Ok(new { ids });
+            var result = await _svc.AddConditionsAsync(groupId, dtos);
+            return Ok(new { ids = result.Ids, expression = result.Expression });
         }
 
         [HttpPut("rules/{ruleId:int}/condition-groups/{groupId:int}")]

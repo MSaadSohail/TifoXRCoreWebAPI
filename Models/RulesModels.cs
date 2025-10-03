@@ -5,6 +5,8 @@
 // <date>09/24/2025</date>
 // <summary>DTOs for Rules Engine authoring, runtime ingestion, and auditing.</summary>
 
+using System;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace GMS.TifoXRCoreWebAPI.Models
@@ -283,6 +285,12 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public sealed class RuleExpressionUpdateResult
     {
         public int RuleId { get; init; }
+        public string Expression { get; init; } = string.Empty;
+    }
+
+    public sealed class ConditionCreateResult
+    {
+        public IReadOnlyList<int> Ids { get; init; } = Array.Empty<int>();
         public string Expression { get; init; } = string.Empty;
     }
 
