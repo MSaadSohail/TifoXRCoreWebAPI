@@ -23,6 +23,23 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private readonly IRulesMetadataRepository _metadataRepo;
         private const string DefaultStateTypeName = "Published";
 
+        private static readonly IReadOnlyDictionary<string, string> ComparatorFallbackFormats =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [ComparatorCodes.Eq] = "{0} == {1}",
+                [ComparatorCodes.Neq] = "{0} != {1}",
+                [ComparatorCodes.Gt] = "{0} > {1}",
+                [ComparatorCodes.Gte] = "{0} >= {1}",
+                [ComparatorCodes.Lt] = "{0} < {1}",
+                [ComparatorCodes.Lte] = "{0} <= {1}",
+                [ComparatorCodes.Contains] = "{0}.Contains({1})",
+                [ComparatorCodes.StartsWith] = "{0}.StartsWith({1})",
+                [ComparatorCodes.EndsWith] = "{0}.EndsWith({1})",
+                [ComparatorCodes.In] = "{1}.Contains({0})",
+                [ComparatorCodes.NotIn] = "!{1}.Contains({0})",
+                [ComparatorCodes.Exists] = "{0} != null"
+            };
+
         public RulesAuthoringService(
             IRulesRepository repo,
             IRewardRepository rewardRepo,
@@ -351,15 +368,35 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
         private static string ComposeCondition(ConditionDetailView condition)
         {
-            var format = string.IsNullOrWhiteSpace(condition.ComparatorFormat)
-                ? "{0} == {1}"
-                : condition.ComparatorFormat;
-
             var left = EscapeFormatArgument(condition.ParameterKey);
             var right = EscapeFormatArgument(FormatRightValue(condition));
-            var expression = string.Format(CultureInfo.InvariantCulture, format, left, right);
+            var format = string.IsNullOrWhiteSpace(condition.ComparatorFormat)
+                ? GetComparatorFallbackFormat(condition.ComparatorCode)
+                : condition.ComparatorFormat;
+
+            string expression;
+            try
+            {
+                expression = string.Format(CultureInfo.InvariantCulture, format, left, right);
+            }
+            catch (FormatException)
+            {
+                var fallback = GetComparatorFallbackFormat(condition.ComparatorCode);
+                expression = string.Format(CultureInfo.InvariantCulture, fallback, left, right);
+            }
 
             return condition.Negate ? $"!({expression})" : expression;
+        }
+
+        private static string GetComparatorFallbackFormat(string? comparatorCode)
+        {
+            if (!string.IsNullOrWhiteSpace(comparatorCode) &&
+                ComparatorFallbackFormats.TryGetValue(comparatorCode, out var format))
+            {
+                return format;
+            }
+
+            return "{0} == {1}";
         }
 
         private static string EscapeFormatArgument(string? value)
