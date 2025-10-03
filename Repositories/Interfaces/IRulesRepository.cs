@@ -25,16 +25,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<IReadOnlyList<ConditionGroupDetailView>> GetRuleConditionGroupsAsync(int ruleId);
         Task<IReadOnlyList<ConditionDetailView>> GetRuleConditionsAsync(int ruleId);
 
-        Task UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto, string expression);
+        Task UpdateRuleDefinitionAsync(int ruleId, RuleDefinitionUpdateDto dto, string expression);
 
-        Task<int> CreateWorkflowAsync(WorkflowCreateDto dto, int stateTypeId);
-        Task<int> CreateRuleAsync(RuleCreateDto dto, int stateTypeId);
-        Task<IReadOnlyList<int>> InsertConditionGroupsAsync(IEnumerable<ConditionGroupCreateDto> dtos);
-        Task<IReadOnlyList<int>> InsertConditionsAsync(IEnumerable<ConditionCreateDto> dtos);
-        Task UpdateConditionGroupAsync(ConditionGroupUpdateDto dto);
-        Task UpdateConditionAsync(ConditionUpdateDto dto);
+        Task<int> CreateWorkflowAsync(int spaceId, WorkflowCreateDto dto, int stateTypeId);
+        Task<int> CreateRuleAsync(int spaceId, int workflowId, RuleCreateDto dto, int stateTypeId);
+        Task<IReadOnlyList<int>> InsertConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> dtos);
+        Task<IReadOnlyList<int>> InsertConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> dtos);
+        Task UpdateConditionGroupAsync(int groupId, ConditionGroupUpdateDto dto);
+        Task UpdateConditionAsync(int conditionId, int groupId, ConditionUpdateDto dto);
         Task UpdateRuleExpressionAsync(int ruleId, string expression);
-        Task<int> CreateRuleActionAsync(RuleActionCreateDto dto);
+        Task<int> CreateRuleActionAsync(int ruleId, RuleActionCreateDto dto);
         Task BindRewardToActionAsync(int actionId, int rewardId);
 
         Task<IReadOnlyList<RuntimeWorkflowDefinition>> GetRuntimeWorkflowsAsync(int spaceId);

@@ -62,7 +62,10 @@ namespace TifoXRCoreWebAPI.Tests.Services
                 });
 
             repo
-                .Setup(r => r.UpdateRuleDefinitionAsync(It.IsAny<RuleDefinitionUpdateDto>(), It.IsAny<string>()))
+                .Setup(r => r.UpdateRuleDefinitionAsync(
+                    It.IsAny<int>(),
+                    It.IsAny<RuleDefinitionUpdateDto>(),
+                    It.IsAny<string>()))
                 .Returns(Task.CompletedTask);
 
             var service = new RulesAuthoringService(
@@ -73,17 +76,15 @@ namespace TifoXRCoreWebAPI.Tests.Services
 
             var dto = new RuleDefinitionUpdateDto
             {
-                RuleId = 1,
-                SpaceId = 42,
                 RuleName = "Test Rule",
                 Priority = 1,
                 RuleCooldownSeconds = 0
             };
 
-            var result = await service.UpdateRuleDefinitionAsync(dto);
+            var result = await service.UpdateRuleDefinitionAsync(42, 1, dto);
 
             result.Expression.Should().Be("ScoreValue >= 50");
-            repo.Verify(r => r.UpdateRuleDefinitionAsync(dto, "ScoreValue >= 50"), Times.Once);
+            repo.Verify(r => r.UpdateRuleDefinitionAsync(1, dto, "ScoreValue >= 50"), Times.Once);
             evaluation.Verify(e => e.Invalidate(42), Times.Once);
         }
 

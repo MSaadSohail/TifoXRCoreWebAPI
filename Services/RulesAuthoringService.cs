@@ -63,55 +63,58 @@ namespace GMS.TifoXRCoreWebAPI.Services
             };
         }
 
-        public async Task<RuleExpressionUpdateResult> UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto)
+        public async Task<RuleExpressionUpdateResult> UpdateRuleDefinitionAsync(
+            int spaceId,
+            int ruleId,
+            RuleDefinitionUpdateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-            var (exists, spaceId, _) = await _repo.TryGetRuleContextAsync(dto.RuleId);
+            var (exists, currentSpaceId, _) = await _repo.TryGetRuleContextAsync(ruleId);
             if (!exists)
-                throw new InvalidOperationException($"Rule {dto.RuleId} does not exist.");
+                throw new InvalidOperationException($"Rule {ruleId} does not exist.");
 
-            if (spaceId != dto.SpaceId)
+            if (currentSpaceId != spaceId)
                 throw new InvalidOperationException(
-                    $"Rule {dto.RuleId} belongs to space {spaceId} and cannot be updated from space {dto.SpaceId}.");
+                    $"Rule {ruleId} belongs to space {currentSpaceId} and cannot be updated from space {spaceId}.");
 
-            var groups = await _repo.GetRuleConditionGroupsAsync(dto.RuleId);
-            var conditions = await _repo.GetRuleConditionsAsync(dto.RuleId);
+            var groups = await _repo.GetRuleConditionGroupsAsync(ruleId);
+            var conditions = await _repo.GetRuleConditionsAsync(ruleId);
             var expression = ComposeExpression(groups, conditions);
 
-            await _repo.UpdateRuleDefinitionAsync(dto, expression);
-            _evaluationService.Invalidate(spaceId);
+            await _repo.UpdateRuleDefinitionAsync(ruleId, dto, expression);
+            _evaluationService.Invalidate(currentSpaceId);
 
             return new RuleExpressionUpdateResult
             {
-                RuleId = dto.RuleId,
+                RuleId = ruleId,
                 Expression = expression
             };
         }
 
-        public async Task<int> CreateWorkflowAsync(WorkflowCreateDto dto)
+        public async Task<int> CreateWorkflowAsync(int spaceId, WorkflowCreateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
             var stateTypeId = await ResolveStateTypeIdAsync(dto.StateTypeId);
-            var id = await _repo.CreateWorkflowAsync(dto, stateTypeId);
-            _evaluationService.Invalidate(dto.SpaceId);
+            var id = await _repo.CreateWorkflowAsync(spaceId, dto, stateTypeId);
+            _evaluationService.Invalidate(spaceId);
             return id;
         }
 
-        public async Task<int> CreateRuleAsync(RuleCreateDto dto)
+        public async Task<int> CreateRuleAsync(int spaceId, int workflowId, RuleCreateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-            var (workflowExists, workflowSpace) = await _repo.TryGetWorkflowSpaceAsync(dto.WorkflowId);
+            var (workflowExists, workflowSpace) = await _repo.TryGetWorkflowSpaceAsync(workflowId);
             if (!workflowExists)
-                throw new InvalidOperationException($"Workflow {dto.WorkflowId} does not exist.");
+                throw new InvalidOperationException($"Workflow {workflowId} does not exist.");
 
-            if (workflowSpace != dto.SpaceId)
+            if (workflowSpace != spaceId)
                 throw new InvalidOperationException("Rule space id must match the workflow's space id.");
 
             var stateTypeId = await ResolveStateTypeIdAsync(dto.StateTypeId);
-            var id = await _repo.CreateRuleAsync(dto, stateTypeId);
-            _evaluationService.Invalidate(dto.SpaceId);
+            var id = await _repo.CreateRuleAsync(spaceId, workflowId, dto, stateTypeId);
+            _evaluationService.Invalidate(spaceId);
             return id;
         }
 
@@ -123,13 +126,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
             if (!exists)
                 throw new InvalidOperationException($"Rule {ruleId} does not exist.");
 
-            foreach (var group in groups)
-            {
-                if (group.RuleId != ruleId)
-                    throw new InvalidOperationException("Condition group payload rule id must match the route rule id.");
-            }
-
-            var ids = await _repo.InsertConditionGroupsAsync(groups);
+            var ids = await _repo.InsertConditionGroupsAsync(ruleId, groups);
             _evaluationService.Invalidate(spaceId);
             return ids;
         }
@@ -142,66 +139,66 @@ namespace GMS.TifoXRCoreWebAPI.Services
             if (!exists)
                 throw new InvalidOperationException($"Condition group {groupId} does not exist.");
 
-            foreach (var condition in conditions)
-            {
-                if (condition.GroupId != groupId)
-                    throw new InvalidOperationException("Condition payload group id must match the route group id.");
-            }
-
-            var ids = await _repo.InsertConditionsAsync(conditions);
+            var ids = await _repo.InsertConditionsAsync(groupId, conditions);
             _evaluationService.Invalidate(spaceId);
             return ids;
         }
 
-        public async Task<RuleExpressionUpdateResult> UpdateConditionGroupAsync(ConditionGroupUpdateDto dto)
+        public async Task<RuleExpressionUpdateResult> UpdateConditionGroupAsync(
+            int ruleId,
+            int groupId,
+            ConditionGroupUpdateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-            var (exists, ruleId, spaceId) = await _repo.TryGetConditionGroupContextAsync(dto.Id);
+            var (exists, currentRuleId, spaceId) = await _repo.TryGetConditionGroupContextAsync(groupId);
             if (!exists)
-                throw new InvalidOperationException($"Condition group {dto.Id} does not exist.");
+                throw new InvalidOperationException($"Condition group {groupId} does not exist.");
 
-            if (dto.RuleId != ruleId)
+            if (currentRuleId != ruleId)
                 throw new InvalidOperationException(
-                    $"Condition group {dto.Id} belongs to rule {ruleId} and cannot be updated for rule {dto.RuleId}.");
+                    $"Condition group {groupId} belongs to rule {currentRuleId} and cannot be updated for rule {ruleId}.");
 
             if (dto.ParentGroupId.HasValue)
             {
-                var belongs = await _repo.ConditionGroupBelongsToRuleAsync(dto.ParentGroupId.Value, ruleId);
+                var belongs = await _repo.ConditionGroupBelongsToRuleAsync(dto.ParentGroupId.Value, currentRuleId);
                 if (!belongs)
                     throw new InvalidOperationException(
-                        $"Parent condition group {dto.ParentGroupId.Value} does not belong to rule {ruleId}.");
+                        $"Parent condition group {dto.ParentGroupId.Value} does not belong to rule {currentRuleId}.");
             }
 
-            await _repo.UpdateConditionGroupAsync(dto);
+            await _repo.UpdateConditionGroupAsync(groupId, dto);
 
-            var expression = await RefreshRuleExpressionAsync(ruleId);
+            var expression = await RefreshRuleExpressionAsync(currentRuleId);
             _evaluationService.Invalidate(spaceId);
 
             return new RuleExpressionUpdateResult
             {
-                RuleId = ruleId,
+                RuleId = currentRuleId,
                 Expression = expression
             };
         }
 
-        public async Task<RuleExpressionUpdateResult> UpdateConditionAsync(ConditionUpdateDto dto)
+        public async Task<RuleExpressionUpdateResult> UpdateConditionAsync(
+            int groupId,
+            int conditionId,
+            ConditionUpdateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-            var (exists, currentGroupId, ruleId, spaceId) = await _repo.TryGetConditionContextAsync(dto.Id);
+            var (exists, currentGroupId, ruleId, spaceId) = await _repo.TryGetConditionContextAsync(conditionId);
             if (!exists)
-                throw new InvalidOperationException($"Condition {dto.Id} does not exist.");
+                throw new InvalidOperationException($"Condition {conditionId} does not exist.");
 
-            if (dto.GroupId != currentGroupId)
+            if (groupId != currentGroupId)
             {
-                var belongs = await _repo.ConditionGroupBelongsToRuleAsync(dto.GroupId, ruleId);
+                var belongs = await _repo.ConditionGroupBelongsToRuleAsync(groupId, ruleId);
                 if (!belongs)
                     throw new InvalidOperationException(
-                        $"Condition group {dto.GroupId} does not belong to rule {ruleId}.");
+                        $"Condition group {groupId} does not belong to rule {ruleId}.");
             }
 
-            await _repo.UpdateConditionAsync(dto);
+            await _repo.UpdateConditionAsync(conditionId, groupId, dto);
 
             var expression = await RefreshRuleExpressionAsync(ruleId);
             _evaluationService.Invalidate(spaceId);
@@ -213,15 +210,15 @@ namespace GMS.TifoXRCoreWebAPI.Services
             };
         }
 
-        public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)
+        public async Task<int> CreateRuleActionAsync(int ruleId, RuleActionCreateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-            var (ruleExists, spaceId, _) = await _repo.TryGetRuleContextAsync(dto.RuleId);
+            var (ruleExists, spaceId, _) = await _repo.TryGetRuleContextAsync(ruleId);
             if (!ruleExists)
-                throw new InvalidOperationException($"Rule {dto.RuleId} does not exist.");
+                throw new InvalidOperationException($"Rule {ruleId} does not exist.");
 
-            var id = await _repo.CreateRuleActionAsync(dto);
+            var id = await _repo.CreateRuleActionAsync(ruleId, dto);
             _evaluationService.Invalidate(spaceId);
             return id;
         }
