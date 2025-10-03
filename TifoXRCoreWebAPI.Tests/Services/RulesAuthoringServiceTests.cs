@@ -184,5 +184,98 @@ namespace TifoXRCoreWebAPI.Tests.Services
             result.EventTypeParameters.Should().ContainSingle()
                 .Which.ParameterKey.Should().Be("ScoreValue");
         }
+
+        [Fact]
+        public async Task AddConditionGroupsAsync_UsesRouteRuleId()
+        {
+            var repo = new Mock<IRulesRepository>();
+            var rewardRepo = new Mock<IRewardRepository>();
+            var evaluation = new Mock<IRulesEvaluationService>();
+            var metadata = new Mock<IRulesMetadataRepository>();
+
+            repo
+                .Setup(r => r.TryGetRuleContextAsync(5))
+                .ReturnsAsync((true, 42, 9));
+
+            var expectedIds = new List<int> { 11, 12 };
+            repo
+                .Setup(r => r.InsertConditionGroupsAsync(5, It.IsAny<IEnumerable<ConditionGroupCreateDto>>()))
+                .ReturnsAsync(expectedIds);
+
+            var service = new RulesAuthoringService(
+                repo.Object,
+                rewardRepo.Object,
+                evaluation.Object,
+                metadata.Object);
+
+            var payload = new[]
+            {
+                new ConditionGroupCreateDto
+                {
+                    ParentGroupId = null,
+                    LogicalOperatorId = 1,
+                    OrderIndex = 1,
+                    NameKey = "root",
+                    DescriptionKey = null
+                }
+            };
+
+            var ids = await service.AddConditionGroupsAsync(5, payload);
+
+            ids.Should().BeEquivalentTo(expectedIds);
+            repo.Verify(
+                r => r.InsertConditionGroupsAsync(
+                    5,
+                    It.Is<IEnumerable<ConditionGroupCreateDto>>(g => ReferenceEquals(g, payload))),
+                Times.Once);
+            evaluation.Verify(e => e.Invalidate(42), Times.Once);
+        }
+
+        [Fact]
+        public async Task AddConditionsAsync_UsesRouteGroupId()
+        {
+            var repo = new Mock<IRulesRepository>();
+            var rewardRepo = new Mock<IRewardRepository>();
+            var evaluation = new Mock<IRulesEvaluationService>();
+            var metadata = new Mock<IRulesMetadataRepository>();
+
+            repo
+                .Setup(r => r.TryGetConditionGroupContextAsync(15))
+                .ReturnsAsync((true, 5, 42));
+
+            var expectedIds = new List<int> { 21 };
+            repo
+                .Setup(r => r.InsertConditionsAsync(15, It.IsAny<IEnumerable<ConditionCreateDto>>()))
+                .ReturnsAsync(expectedIds);
+
+            var service = new RulesAuthoringService(
+                repo.Object,
+                rewardRepo.Object,
+                evaluation.Object,
+                metadata.Object);
+
+            var payload = new[]
+            {
+                new ConditionCreateDto
+                {
+                    ParameterId = 99,
+                    ComparatorId = 7,
+                    Negate = false,
+                    RightValueKind = RightValueKinds.Literal,
+                    RightValueJson = "{\"value\":10}",
+                    OrderIndex = 1
+                }
+            };
+
+            var ids = await service.AddConditionsAsync(15, payload);
+
+            ids.Should().BeEquivalentTo(expectedIds);
+            repo.Verify(
+                r => r.InsertConditionsAsync(
+                    15,
+                    It.Is<IEnumerable<ConditionCreateDto>>(c => ReferenceEquals(c, payload))),
+                Times.Once);
+            evaluation.Verify(e => e.Invalidate(42), Times.Once);
+        }
     }
 }
