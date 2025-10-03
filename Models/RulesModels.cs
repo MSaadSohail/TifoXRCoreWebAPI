@@ -5,8 +5,6 @@
 // <date>09/24/2025</date>
 // <summary>DTOs for Rules Engine authoring, runtime ingestion, and auditing.</summary>
 
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
 
 namespace GMS.TifoXRCoreWebAPI.Models
@@ -122,7 +120,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     // Authoring: Parameters & Event Types
     // =========================
 
-    public sealed class ContextParameterCreateDto
+    public class ContextParameterCreateDto
     {
         public string Key { get; init; } = default!;
         public string Source { get; init; } = "event";
@@ -159,7 +157,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? ExampleValue { get; init; }
     }
 
-    public sealed class EventTypeCreateDto
+    public class EventTypeCreateDto
     {
         public string Name { get; init; } = default!;
     }
@@ -175,7 +173,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string Name { get; init; } = default!;
     }
 
-    public sealed class EventTypeParameterCreateDto
+    public class EventTypeParameterCreateDto
     {
         public int ReEventTypeId { get; init; }
         public int ParameterId { get; init; }
@@ -212,7 +210,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? DescriptionKey { get; init; }
     }
 
-    public sealed class ConditionGroupView
+    public class ConditionGroupView
     {
         public int Id { get; init; }
         public int RuleId { get; init; }
@@ -238,7 +236,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int OrderIndex { get; init; } = 1;
     }
 
-    public sealed class ConditionView
+    public class ConditionView
     {
         public int Id { get; init; }
         public int GroupId { get; init; }
