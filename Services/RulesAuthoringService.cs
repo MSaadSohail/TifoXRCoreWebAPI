@@ -135,11 +135,12 @@ namespace GMS.TifoXRCoreWebAPI.Services
         {
             if (conditions is null) throw new ArgumentNullException(nameof(conditions));
 
-            var (exists, _, spaceId) = await _repo.TryGetConditionGroupContextAsync(groupId);
+            var (exists, ruleId, spaceId) = await _repo.TryGetConditionGroupContextAsync(groupId);
             if (!exists)
                 throw new InvalidOperationException($"Condition group {groupId} does not exist.");
 
             var ids = await _repo.InsertConditionsAsync(groupId, conditions);
+            await RefreshRuleExpressionAsync(ruleId);
             _evaluationService.Invalidate(spaceId);
             return ids;
         }
