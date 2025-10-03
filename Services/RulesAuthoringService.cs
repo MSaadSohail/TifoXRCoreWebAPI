@@ -275,7 +275,8 @@ namespace GMS.TifoXRCoreWebAPI.Services
             }
 
             var groupedChildren = groups
-                .GroupBy(g => g.ParentGroupId)
+                .Where(g => g.ParentGroupId.HasValue)
+                .GroupBy(g => g.ParentGroupId!.Value)
                 .ToDictionary(
                     g => g.Key,
                     g => g.OrderBy(x => x.OrderIndex).ThenBy(x => x.Id).ToList());
@@ -307,7 +308,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
         private static string ComposeGroup(
             ConditionGroupDetailView group,
-            IReadOnlyDictionary<int?, List<ConditionGroupDetailView>> groupedChildren,
+            IReadOnlyDictionary<int, List<ConditionGroupDetailView>> groupedChildren,
             IReadOnlyDictionary<int, List<ConditionDetailView>> conditionLookup)
         {
             var parts = new List<string>();

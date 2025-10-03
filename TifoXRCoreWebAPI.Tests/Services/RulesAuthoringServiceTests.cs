@@ -310,5 +310,114 @@ namespace TifoXRCoreWebAPI.Tests.Services
             repo.Verify(r => r.UpdateRuleExpressionAsync(5, "Score == 10"), Times.Once);
             evaluation.Verify(e => e.Invalidate(42), Times.Once);
         }
+
+        [Fact]
+        public async Task UpdateConditionAsync_RecomposesExpressionWithRootGroup()
+        {
+            var repo = new Mock<IRulesRepository>();
+            var rewardRepo = new Mock<IRewardRepository>();
+            var evaluation = new Mock<IRulesEvaluationService>();
+            var metadata = new Mock<IRulesMetadataRepository>();
+
+            repo
+                .Setup(r => r.TryGetConditionContextAsync(200))
+                .ReturnsAsync((true, 100, 5, 42));
+
+            repo
+                .Setup(r => r.UpdateConditionAsync(200, 100, It.IsAny<ConditionUpdateDto>()))
+                .Returns(Task.CompletedTask);
+
+            var groups = new List<ConditionGroupDetailView>
+            {
+                new()
+                {
+                    Id = 100,
+                    RuleId = 5,
+                    ParentGroupId = null,
+                    LogicalOperatorId = 1,
+                    LogicalOperatorCode = "and",
+                    LogicalOperatorFormat = "({0} && {1})",
+                    OrderIndex = 1
+                },
+                new()
+                {
+                    Id = 101,
+                    RuleId = 5,
+                    ParentGroupId = 100,
+                    LogicalOperatorId = 1,
+                    LogicalOperatorCode = "and",
+                    LogicalOperatorFormat = "({0} && {1})",
+                    OrderIndex = 2
+                }
+            };
+
+            repo
+                .Setup(r => r.GetRuleConditionGroupsAsync(5))
+                .ReturnsAsync(groups);
+
+            repo
+                .Setup(r => r.GetRuleConditionsAsync(5))
+                .ReturnsAsync(new List<ConditionDetailView>
+                {
+                    new()
+                    {
+                        Id = 200,
+                        GroupId = 100,
+                        ParameterId = 99,
+                        ComparatorId = 7,
+                        ComparatorCode = ComparatorCodes.Gte,
+                        ComparatorFormat = "{0} >= {1}",
+                        ParameterKey = "Score",
+                        ParameterSource = "event",
+                        ParameterPath = "$.Score",
+                        Negate = false,
+                        RightValueKind = RightValueKinds.Literal,
+                        RightValueJson = "50",
+                        OrderIndex = 1
+                    },
+                    new()
+                    {
+                        Id = 201,
+                        GroupId = 101,
+                        ParameterId = 100,
+                        ComparatorId = 8,
+                        ComparatorCode = ComparatorCodes.Lte,
+                        ComparatorFormat = "{0} <= {1}",
+                        ParameterKey = "Score",
+                        ParameterSource = "event",
+                        ParameterPath = "$.Score",
+                        Negate = false,
+                        RightValueKind = RightValueKinds.Literal,
+                        RightValueJson = "100",
+                        OrderIndex = 1
+                    }
+                });
+
+            repo
+                .Setup(r => r.UpdateRuleExpressionAsync(5, It.IsAny<string>()))
+                .Returns(Task.CompletedTask);
+
+            var service = new RulesAuthoringService(
+                repo.Object,
+                rewardRepo.Object,
+                evaluation.Object,
+                metadata.Object);
+
+            var dto = new ConditionUpdateDto
+            {
+                ParameterId = 99,
+                ComparatorId = 7,
+                Negate = false,
+                RightValueKind = RightValueKinds.Literal,
+                RightValueJson = "50",
+                OrderIndex = 1
+            };
+
+            var result = await service.UpdateConditionAsync(100, 200, dto);
+
+            result.Expression.Should().Be("((Score >= 50) && Score <= 100)");
+            repo.Verify(r => r.UpdateRuleExpressionAsync(5, "((Score >= 50) && Score <= 100)"), Times.Once);
+            evaluation.Verify(e => e.Invalidate(42), Times.Once);
+        }
     }
 }
