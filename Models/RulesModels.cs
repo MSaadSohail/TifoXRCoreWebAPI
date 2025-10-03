@@ -200,7 +200,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     // Authoring: Condition Tree
     // =========================
 
-    public sealed class ConditionGroupCreateDto
+    public class ConditionGroupCreateDto
     {
         public int RuleId { get; init; }
         public int? ParentGroupId { get; init; }
@@ -230,7 +230,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string LogicalOperatorFormat { get; init; } = default!;
     }
 
-    public sealed class ConditionCreateDto
+    public class ConditionCreateDto
     {
         public int GroupId { get; init; }
         public int ParameterId { get; init; }
