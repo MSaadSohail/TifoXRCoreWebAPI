@@ -7,7 +7,7 @@
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models
-{//Event
+{
     public class Event
     {
         public int SpaceId { get; set; }

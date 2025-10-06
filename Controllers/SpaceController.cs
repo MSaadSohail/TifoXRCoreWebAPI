@@ -4,13 +4,17 @@
 // <author>Syed Hussain</author>
 // <date>08/12/2025</date>
 // <summary>Controller to handle space routes</summary>
+
 using GMS.TifoXRCoreWebAPI.Middleware;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
+//
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -22,6 +26,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public SpaceController(ISpaceRepository spaceRepo)
             => _spaceRepo = spaceRepo;
 
+        /// <summary>
+        /// GET /api/space/{id}
+        /// Returns a space by id.
+        /// </summary>
         [HttpGet("{id:int}")]
         [ProducesResponseType(typeof(SpaceData), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -30,30 +38,29 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<SpaceData>> GetSpaceById(int id)
         {
             if (id <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "id must be a positive integer.",
-                        nameof(GetSpaceById),
-                        new { id }
-                    ),
-                    nameof(id)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetSpaceById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(id),
+                    parameters: new { id });
 
             var space = await _spaceRepo.GetSpaceByIdAsync(id);
 
             if (space is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Space not found.",
-                        nameof(GetSpaceById),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetSpaceById),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
 
             return Ok(space);
         }
 
-
+        /// <summary>
+        /// POST /api/space
+        /// Creates a new space.
+        /// </summary>
         [HttpPost("")]
         [ProducesResponseType(typeof(SpaceData), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -61,37 +68,37 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<SpaceData>> CreateSpace([FromBody] Space dto)
         {
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(CreateSpace)
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateSpace),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto));
 
             if (dto.LocalizedDescription is null || dto.LocalizedDescription.Values is null || !dto.LocalizedDescription.Values.Any())
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedDescription.Values cannot be null or empty.",
-                        nameof(CreateSpace)
-                    ),
-                    nameof(dto.LocalizedDescription)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateSpace),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(dto.LocalizedDescription),
+                    parameters: new { field = "LocalizedDescription.Values" });
+
 
             var created = await _spaceRepo.CreateSpaceAsync(dto);
 
             if (created is null)
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                        "Creation failed.",
-                        nameof(CreateSpace)
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(CreateSpace),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { dto });
 
             return CreatedAtAction(nameof(GetSpaceById), new { id = created.Id }, created);
         }
 
-
+        /// <summary>
+        /// PUT /api/space/{id}
+        /// Updates an existing space by id.
+        /// </summary>
         [HttpPut("{id:int}")]
         [ProducesResponseType(typeof(SpaceData), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -100,47 +107,39 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<SpaceData>> UpdateSpaceById(int id, [FromBody] Space spaceDto)
         {
             if (id <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "id must be a positive integer.",
-                        nameof(UpdateSpaceById),
-                        new { id }
-                    ),
-                    nameof(id)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateSpaceById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(id),
+                    parameters: new { id });
 
             if (spaceDto is null)
-                throw new ArgumentNullException(
-                    nameof(spaceDto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(UpdateSpaceById),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateSpaceById),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(spaceDto),
+                    parameters: new { id });
 
             if (spaceDto.LocalizedDescription is null ||
                 spaceDto.LocalizedDescription.Values is null ||
                 !spaceDto.LocalizedDescription.Values.Any())
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "LocalizedDescription.Values cannot be null or empty.",
-                        nameof(UpdateSpaceById),
-                        new { id }
-                    ),
-                    nameof(spaceDto.LocalizedDescription)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateSpaceById),
+                    ErrorMessages.Validation.EmptyCollection,
+                    paramName: nameof(spaceDto.LocalizedDescription),
+                    parameters: new { id, field = "LocalizedDescription.Values" });
 
             var updated = await _spaceRepo.UpdateSpaceAsync(id, spaceDto);
 
             if (updated is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Space not found.",
-                        nameof(UpdateSpaceById),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdateSpaceById),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
 
             return Ok(updated);
         }

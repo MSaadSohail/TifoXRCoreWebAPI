@@ -4,8 +4,7 @@
 // <author>Syed Hussain</author>
 // <date>07/25/2025</date>
 // <summary>Personality Model for Personality Controller</summary>
-using System;
-using System.Collections.Generic;
+
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models

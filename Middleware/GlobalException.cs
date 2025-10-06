@@ -1,20 +1,18 @@
 ﻿// <copyright file="GlobalException.cs" company="Global Mobile Software LLC">
 // Copyright © 2025 All Rights Reserved
 // </copyright>
-// <author>Saad Sohail</author>
+// <author>Urvashi Dhingra</author>
 // <date>08/19/2025</date>
 // <summary>Middleware Class for global exception handling with structured logging</summary>
 
-using GMS.TifoXRCoreWebAPI.Errors;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface; // IAppLogger<T>
-using Microsoft.Extensions.Logging;
-using System.ComponentModel.DataAnnotations;
 using System.Data;
-using System.IO;
-using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.ComponentModel.DataAnnotations;
+//
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
+using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Middleware
 {
@@ -101,48 +99,70 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
         // --- Exception → error code/status/message mapping ---
         private static (int code, int status, string message) GetErrorInfo(Exception exception)
         {
-            int code = (int)ErrorCodes.InternalServerError;
-            int status = (int)HttpStatusCode.InternalServerError;
+            // Prefer structured data supplied by ErrorService.Log(...)
+            if (exception.Data.Contains("ErrorCode"))
+            {
+                var code = (int)exception.Data["ErrorCode"];
+
+                // Default: most codes align to their HTTP status
+                var status = code;
+
+                // Adjust where our enum uses non-HTTP codes or special mappings
+                if (code == (int)ErrorCodes.ValidationFailed) status = StatusCodes.Status422UnprocessableEntity; // 422
+                if (code == (int)ErrorCodes.ResourceLocked) status = StatusCodes.Status423Locked;             // 423
+                if (code == (int)ErrorCodes.Timeout) status = StatusCodes.Status504GatewayTimeout;    // 504
+                if (code == (int)ErrorCodes.DatabaseError) status = StatusCodes.Status500InternalServerError;// 500
+                if (code == (int)ErrorCodes.StateNotPermitted) status = StatusCodes.Status409Conflict;          // 409
+                if (code == (int)ErrorCodes.DependencyFailure) status = StatusCodes.Status502BadGateway;        // 502
+                if (code == (int)ErrorCodes.ServiceUnavailable) status = StatusCodes.Status503ServiceUnavailable;// 503
+
+                var msg = exception.Data.Contains("UserMessage")
+                    ? exception.Data["UserMessage"]?.ToString() ?? ErrorService.Resolve((ErrorCodes)code).Template
+                    : ErrorService.Resolve((ErrorCodes)code).Template;
+
+                return (code, status, msg);
+            }
+
+            // Fallback to existing type-based mapping
+            int codeFallback = (int)ErrorCodes.InternalServerError;
+            int statusFallback = StatusCodes.Status500InternalServerError;
 
             switch (exception)
             {
                 case ArgumentNullException:
-                    code = (int)ErrorCodes.MissingParameter; status = StatusCodes.Status400BadRequest; break;
+                    codeFallback = (int)ErrorCodes.MissingParameter; statusFallback = StatusCodes.Status400BadRequest; break;
                 case ArgumentException:
-                    code = (int)ErrorCodes.InvalidParameter; status = StatusCodes.Status400BadRequest; break;
+                    codeFallback = (int)ErrorCodes.InvalidParameter; statusFallback = StatusCodes.Status400BadRequest; break;
                 case FormatException:
-                    code = (int)ErrorCodes.InvalidFormat; status = StatusCodes.Status400BadRequest; break;
+                    codeFallback = (int)ErrorCodes.InvalidFormat; statusFallback = StatusCodes.Status400BadRequest; break;
                 case ValidationException:
-                    code = (int)ErrorCodes.ValidationFailed; status = StatusCodes.Status422UnprocessableEntity; break;
+                    codeFallback = (int)ErrorCodes.ValidationFailed; statusFallback = StatusCodes.Status422UnprocessableEntity; break;
                 case KeyNotFoundException:
-                    code = (int)ErrorCodes.NotFound; status = StatusCodes.Status404NotFound; break;
+                    codeFallback = (int)ErrorCodes.NotFound; statusFallback = StatusCodes.Status404NotFound; break;
                 case NotSupportedException:
-                    code = (int)ErrorCodes.MethodNotAllowed; status = StatusCodes.Status405MethodNotAllowed; break;
+                    codeFallback = (int)ErrorCodes.MethodNotAllowed; statusFallback = StatusCodes.Status405MethodNotAllowed; break;
                 case UnauthorizedAccessException:
-                    code = (int)ErrorCodes.AccessDenied; status = StatusCodes.Status403Forbidden; break;
+                    codeFallback = (int)ErrorCodes.AccessDenied; statusFallback = StatusCodes.Status403Forbidden; break;
                 case InvalidOperationException:
-                    code = (int)ErrorCodes.StateNotPermitted; status = StatusCodes.Status409Conflict; break;
+                    codeFallback = (int)ErrorCodes.StateNotPermitted; statusFallback = StatusCodes.Status409Conflict; break;
                 case TimeoutException:
-                    code = (int)ErrorCodes.Timeout; status = StatusCodes.Status504GatewayTimeout; break;
+                    codeFallback = (int)ErrorCodes.Timeout; statusFallback = StatusCodes.Status504GatewayTimeout; break;
                 case DBConcurrencyException:
-                    code = (int)ErrorCodes.Conflict; status = StatusCodes.Status409Conflict; break;
+                    codeFallback = (int)ErrorCodes.Conflict; statusFallback = StatusCodes.Status409Conflict; break;
                 case DataException:
-                    code = (int)ErrorCodes.DatabaseError; status = StatusCodes.Status500InternalServerError; break;
+                    codeFallback = (int)ErrorCodes.DatabaseError; statusFallback = StatusCodes.Status500InternalServerError; break;
                 case NotImplementedException:
-                    code = (int)ErrorCodes.NotImplemented; status = StatusCodes.Status501NotImplemented; break;
+                    codeFallback = (int)ErrorCodes.NotImplemented; statusFallback = StatusCodes.Status501NotImplemented; break;
                 case HttpRequestException:
-                    code = (int)ErrorCodes.DependencyFailure; status = StatusCodes.Status502BadGateway; break;
+                    codeFallback = (int)ErrorCodes.DependencyFailure; statusFallback = StatusCodes.Status502BadGateway; break;
                 case ResourceNotFoundException:
-                    code = (int)ErrorCodes.NotFound; status = StatusCodes.Status404NotFound; break;
+                    codeFallback = (int)ErrorCodes.NotFound; statusFallback = StatusCodes.Status404NotFound; break;
                 case ConflictException:
-                    code = (int)ErrorCodes.Conflict; status = StatusCodes.Status409Conflict; break;
+                    codeFallback = (int)ErrorCodes.Conflict; statusFallback = StatusCodes.Status409Conflict; break;
             }
 
-            var message = ErrorMessages.Messages.TryGetValue(code, out var msg)
-                ? msg
-                : ErrorMessages.Messages[(int)ErrorCodes.InternalServerError];
-
-            return (code, status, message);
+            var message = ErrorService.Resolve((ErrorCodes)codeFallback).Template;
+            return (codeFallback, statusFallback, message);
         }
 
         // --- Safe, capped, redacted request body preview (JSON only) ---
@@ -212,7 +232,6 @@ namespace GMS.TifoXRCoreWebAPI.Middleware
             return ua.Length > cap ? ua[..cap] : ua;
         }
 
-        // --- Your original formatters (kept) ---
         public static string FormatExceptionMessage(string issue, string methodName, object? parameters = null, string? extra = null)
         {
             var paramStr = parameters == null ? "" : $" | Params: {JsonSerializer.Serialize(parameters)}";

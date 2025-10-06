@@ -4,13 +4,12 @@
 // <author>Syed Hussain</author>
 // <date>07/23/2025</date>
 // <summary>Personality HTTP methods</summary>
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
-using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+
 using Microsoft.AspNetCore.Mvc;
+//
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
 {
@@ -24,6 +23,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             _personalityRepository = repository;
         }
 
+        /// <summary>
+        /// GET /api/personality/{id}
+        /// Returns a personality by id.
+        /// </summary>
         [HttpGet("api/personality/{id:int}")]
         [ProducesResponseType(typeof(PersonalityData), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -32,25 +35,21 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<PersonalityData>> GetPersonalityById(int id)
         {
             if (id <= 0)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "id must be a positive integer.",
-                        nameof(GetPersonalityById),
-                        new { id }
-                    ),
-                    nameof(id)
-                );
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(GetPersonalityById),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(id),
+                    parameters: new { id });
 
             var personality = await _personalityRepository.GetPersonalityByIdAsync(id);
 
             if (personality is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        "Personality not found.",
-                        nameof(GetPersonalityById),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(GetPersonalityById),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
 
             return Ok(personality);
         }
@@ -63,26 +62,22 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<ActionResult<PersonalityData>> CreatePersonality([FromBody] PersonalityCreateDto dto)
         {
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(CreatePersonality)
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreatePersonality),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto));
 
             // Optional: add specific field checks if required (e.g., Name, Bio) and throw ArgumentException
 
             var created = await _personalityRepository.CreatePersonalityAsync(dto);
 
             if (created is null)
-                throw new InvalidOperationException(
-                    GlobalException.FormatExceptionMessage(
-                        "Creation failed.",
-                        nameof(CreatePersonality),
-                        new { dto }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(CreatePersonality),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { dto });
 
             return CreatedAtAction(nameof(GetPersonalityById), new { id = created.Id }, created);
         }

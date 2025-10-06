@@ -62,11 +62,6 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public bool IsActive { get; set; }
     }
 
-    //public class TeleportTableResponse
-    //{
-    //    public TeleportTableData TeleportTable { get; set; } = default!;
-    //}
-
     public class MapSpotData
     {
         public int Id { get; set; }

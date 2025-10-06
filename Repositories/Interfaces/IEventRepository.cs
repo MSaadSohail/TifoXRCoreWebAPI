@@ -6,7 +6,7 @@
 // <summary>Interface layer for event repository</summary>
 using GMS.TifoXRCoreWebAPI.Models;
 
-namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public interface IEventRepository
     {

@@ -6,7 +6,7 @@
 // <summary>Interface layer for Entity repository</summary>
 using GMS.TifoXRCoreWebAPI.Models;
 
-namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces
+namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public interface IEntityRepository
     {

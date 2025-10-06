@@ -4,13 +4,13 @@
 // <author>Syed Hussain</author>
 // <date>08/18/2025</date>
 // <summary>Class to handle booth SQL side</summary>
-using GMS.TifoXRCoreWebAPI.Models;
-using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-//using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
+
 using System.Data;
 using System.Data.Common;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+//
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {

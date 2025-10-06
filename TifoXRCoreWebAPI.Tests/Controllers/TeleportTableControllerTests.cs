@@ -14,9 +14,9 @@ using System.Data;
 using GMS.TifoXRCoreWebAPI.Controllers;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Tests.Helpers;
 using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 
 namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 {
@@ -586,7 +586,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             // ASSERT
             var ok = result.Should().BeOfType<OkObjectResult>().Subject;
             ok.StatusCode.Should().Be(StatusCodes.Status200OK);
-            ok.Value.Should().BeEquivalentTo(new { message = "Teleport Table deleted successfully." });
+            ok.Value.Should().BeEquivalentTo(new { message = "Teleport Table Button deleted successfully." });
             repo.Verify(r => r.DeleteTeleportTableButtonAsync(3, 2), Times.Once);
         }
 
