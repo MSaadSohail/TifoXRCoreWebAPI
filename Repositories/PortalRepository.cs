@@ -10,7 +10,7 @@ using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using System.Data;
 using System.Data.Common;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {

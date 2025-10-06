@@ -10,7 +10,7 @@ using MySqlConnector;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
     public class SpaceRepository : ISpaceRepository
