@@ -5,7 +5,6 @@
 // <date>09/30/2025</date>
 // <summary>Authoring service for workflows, rules, and related objects.</summary>
 
-using System.Collections.Generic;
 using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Services
@@ -13,12 +12,14 @@ namespace GMS.TifoXRCoreWebAPI.Services
     public interface IRulesAuthoringService
     {
         Task<RuleDetailView> GetRuleDetailAsync(int spaceId, int ruleId);
-        Task<RuleExpressionUpdateResult> UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto);
-        Task<int> CreateWorkflowAsync(WorkflowCreateDto dto);
-        Task<int> CreateRuleAsync(RuleCreateDto dto);
+        Task<RuleExpressionUpdateResult> UpdateRuleDefinitionAsync(int spaceId, int ruleId, RuleDefinitionUpdateDto dto);
+        Task<int> CreateWorkflowAsync(int spaceId, WorkflowCreateDto dto);
+        Task<int> CreateRuleAsync(int spaceId, int workflowId, RuleCreateDto dto);
         Task<IReadOnlyList<int>> AddConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> groups);
-        Task<IReadOnlyList<int>> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions);
-        Task<int> CreateRuleActionAsync(RuleActionCreateDto dto);
+        Task<ConditionCreateResult> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions);
+        Task<RuleExpressionUpdateResult> UpdateConditionGroupAsync(int ruleId, int groupId, ConditionGroupUpdateDto dto);
+        Task<RuleExpressionUpdateResult> UpdateConditionAsync(int groupId, int conditionId, ConditionUpdateDto dto);
+        Task<int> CreateRuleActionAsync(int ruleId, RuleActionCreateDto dto);
         Task BindRewardAsync(int actionId, int rewardId);
     }
 }
