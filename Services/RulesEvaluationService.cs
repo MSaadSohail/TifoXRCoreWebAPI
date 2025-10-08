@@ -332,7 +332,20 @@ public sealed class RulesEvaluationService : IRulesEvaluationService
         {
             foreach (var (key, value) in request.Properties)
             {
-                dict[key] = ConvertJsonElement(value);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                var trimmedKey = key.Trim();
+                var convertedValue = ConvertJsonElement(value);
+
+                dict[trimmedKey] = convertedValue;
+
+                if (!string.Equals(trimmedKey, key, StringComparison.Ordinal))
+                {
+                    dict[key] = convertedValue;
+                }
             }
         }
 

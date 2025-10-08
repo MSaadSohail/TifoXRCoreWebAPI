@@ -38,6 +38,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             WHERE rcg.id = @Id
             LIMIT 1;";
 
+        public const string GetConditionContext = @"
+            SELECT rc.group_id AS GroupId,
+                   rcg.rule_id AS RuleId,
+                   r.space_id AS SpaceId
+            FROM rule_condition rc
+            JOIN rule_condition_group rcg ON rcg.id = rc.group_id
+            JOIN rules r ON r.id = rcg.rule_id
+            WHERE rc.id = @Id
+            LIMIT 1;";
+
         public const string GetStateTypeIdByName = @"
             SELECT id FROM state_type WHERE type = @Type LIMIT 1;";
 
@@ -138,6 +148,35 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             INSERT INTO rule_condition (group_id, parameter_id, comparator_id, negate, right_value_kind, right_value_json, order_index, creation_time, modified_by)
             VALUES (@GroupId, @ParameterId, @ComparatorId, @Negate, @RightValueKind, @RightValueJson, @OrderIndex, NOW(6), 'system');
             SELECT LAST_INSERT_ID();";
+
+        public const string UpdateConditionGroup = @"
+            UPDATE rule_condition_group
+            SET parent_group_id = @ParentGroupId,
+                re_logical_operator_id = @LogicalOperatorId,
+                order_index = @OrderIndex,
+                modified_time = NOW(6),
+                modified_by = 'system'
+            WHERE id = @Id;";
+
+        public const string UpdateCondition = @"
+            UPDATE rule_condition
+            SET group_id = @GroupId,
+                parameter_id = @ParameterId,
+                comparator_id = @ComparatorId,
+                negate = @Negate,
+                right_value_kind = @RightValueKind,
+                right_value_json = @RightValueJson,
+                order_index = @OrderIndex,
+                modified_time = NOW(6),
+                modified_by = 'system'
+            WHERE id = @Id;";
+
+        public const string UpdateRuleExpression = @"
+            UPDATE rules
+            SET expression = @Expression,
+                modified_time = NOW(6),
+                modified_by = 'system'
+            WHERE id = @RuleId;";
 
         public const string InsertRuleAction = @"
             INSERT INTO rule_actions (rule_id, action_type_id, action_name, action_key, action_parameters_json, action_target_ref, order_index, is_active, creation_time, modified_by)

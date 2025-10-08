@@ -126,6 +126,32 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return (true, ruleId, spaceId);
         }
 
+        public async Task<(bool exists, int groupId, int ruleId, int spaceId)> TryGetConditionContextAsync(int conditionId)
+        {
+            _logger.LogDebug("Fetching condition context for condition {ConditionId}.", conditionId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.GetConditionContext);
+            cmd.Parameters.Add(_db.CreateParameter("@Id", conditionId));
+
+            await using var rdr = await cmd.ExecuteReaderAsync();
+            if (!await rdr.ReadAsync())
+            {
+                _logger.LogDebug("Condition context not found for condition {ConditionId}.", conditionId);
+                return (false, 0, 0, 0);
+            }
+
+            var groupId = rdr.GetInt32(rdr.GetOrdinal("GroupId"));
+            var ruleId = rdr.GetInt32(rdr.GetOrdinal("RuleId"));
+            var spaceId = rdr.GetInt32(rdr.GetOrdinal("SpaceId"));
+            _logger.LogDebug(
+                "Condition context for condition {ConditionId}: GroupId={GroupId}, RuleId={RuleId}, SpaceId={SpaceId}.",
+                conditionId,
+                groupId,
+                ruleId,
+                spaceId);
+            return (true, groupId, ruleId, spaceId);
+        }
+
         public async Task<bool> ConditionGroupBelongsToRuleAsync(int groupId, int ruleId)
         {
             _logger.LogDebug(
@@ -296,19 +322,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return list;
         }
 
-        public async Task UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto, string expression)
+        public async Task UpdateRuleDefinitionAsync(int ruleId, RuleDefinitionUpdateDto dto, string expression)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
             _logger.LogInformation(
                 "Updating rule {RuleId} definition with payload {Payload} and expression {Expression}.",
-                dto.RuleId,
+                ruleId,
                 Serialize(dto),
                 expression);
 
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateRuleDefinition);
-            cmd.Parameters.Add(_db.CreateParameter("@RuleId", dto.RuleId));
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
             cmd.Parameters.Add(_db.CreateParameter("@RuleName", dto.RuleName));
             cmd.Parameters.Add(_db.CreateParameter("@TargetType", (object?)dto.TargetType ?? DBNull.Value));
             cmd.Parameters.Add(_db.CreateParameter("@SuccessEvent", (object?)dto.SuccessEvent ?? DBNull.Value));
@@ -319,18 +345,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task<int> CreateWorkflowAsync(WorkflowCreateDto dto, int stateTypeId)
+        public async Task<int> CreateWorkflowAsync(int spaceId, WorkflowCreateDto dto, int stateTypeId)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
             _logger.LogInformation(
-                "Creating workflow with payload {Payload} and state type {StateTypeId}.",
+                "Creating workflow in space {SpaceId} with payload {Payload} and state type {StateTypeId}.",
+                spaceId,
                 Serialize(dto),
                 stateTypeId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.InsertWorkflow);
 
-            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", dto.SpaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
             cmd.Parameters.Add(_db.CreateParameter("@Name", dto.Name));
             cmd.Parameters.Add(_db.CreateParameter("@StateTypeId", stateTypeId));
 
@@ -339,23 +366,25 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             _logger.LogInformation(
                 "Workflow created with id {WorkflowId} for space {SpaceId}.",
                 workflowId,
-                dto.SpaceId);
+                spaceId);
             return workflowId;
         }
 
-        public async Task<int> CreateRuleAsync(RuleCreateDto dto, int stateTypeId)
+        public async Task<int> CreateRuleAsync(int spaceId, int workflowId, RuleCreateDto dto, int stateTypeId)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
             _logger.LogInformation(
-                "Creating rule with payload {Payload} and state type {StateTypeId}.",
+                "Creating rule for workflow {WorkflowId} in space {SpaceId} with payload {Payload} and state type {StateTypeId}.",
+                workflowId,
+                spaceId,
                 Serialize(dto),
                 stateTypeId);
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.InsertRule);
 
-            cmd.Parameters.Add(_db.CreateParameter("@WorkflowId", dto.WorkflowId));
-            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", dto.SpaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@WorkflowId", workflowId));
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
             cmd.Parameters.Add(_db.CreateParameter("@RuleName", dto.RuleName));
             cmd.Parameters.Add(_db.CreateParameter("@Expression", dto.Expression ?? string.Empty));
             cmd.Parameters.Add(_db.CreateParameter("@TargetType", (object?)dto.TargetType ?? DBNull.Value));
@@ -371,19 +400,20 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             _logger.LogInformation(
                 "Rule created with id {RuleId} for workflow {WorkflowId} in space {SpaceId}.",
                 ruleId,
-                dto.WorkflowId,
-                dto.SpaceId);
+                workflowId,
+                spaceId);
             return ruleId;
         }
 
-        public async Task<IReadOnlyList<int>> InsertConditionGroupsAsync(IEnumerable<ConditionGroupCreateDto> dtos)
+        public async Task<IReadOnlyList<int>> InsertConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> dtos)
         {
             if (dtos is null) throw new ArgumentNullException(nameof(dtos));
 
             var dtoList = dtos.ToList();
             _logger.LogInformation(
-                "Inserting {Count} condition groups with payload {Payload}.",
+                "Inserting {Count} condition groups for rule {RuleId} with payload {Payload}.",
                 dtoList.Count,
+                ruleId,
                 Serialize(dtoList));
             await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
@@ -394,7 +424,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 foreach (var dto in dtoList)
                 {
                     await using var cmd = _db.CreateCommand(conn, RulesSql.InsertConditionGroup, tx);
-                    cmd.Parameters.Add(_db.CreateParameter("@RuleId", dto.RuleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
                     cmd.Parameters.Add(_db.CreateParameter("@ParentGroupId", (object?)dto.ParentGroupId ?? DBNull.Value));
                     cmd.Parameters.Add(_db.CreateParameter("@LogicalOperatorId", dto.LogicalOperatorId));
                     cmd.Parameters.Add(_db.CreateParameter("@OrderIndex", dto.OrderIndex));
@@ -412,20 +442,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
 
             _logger.LogInformation(
-                "Inserted condition groups with ids {Ids} for payload {Payload}.",
+                "Inserted condition groups with ids {Ids} for rule {RuleId} and payload {Payload}.",
                 Serialize(ids),
+                ruleId,
                 Serialize(dtoList));
             return ids;
         }
 
-        public async Task<IReadOnlyList<int>> InsertConditionsAsync(IEnumerable<ConditionCreateDto> dtos)
+        public async Task<IReadOnlyList<int>> InsertConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> dtos)
         {
             if (dtos is null) throw new ArgumentNullException(nameof(dtos));
 
             var dtoList = dtos.ToList();
             _logger.LogInformation(
-                "Inserting {Count} conditions with payload {Payload}.",
+                "Inserting {Count} conditions for group {GroupId} with payload {Payload}.",
                 dtoList.Count,
+                groupId,
                 Serialize(dtoList));
             await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
@@ -436,7 +468,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 foreach (var dto in dtoList)
                 {
                     await using var cmd = _db.CreateCommand(conn, RulesSql.InsertCondition, tx);
-                    cmd.Parameters.Add(_db.CreateParameter("@GroupId", dto.GroupId));
+                    cmd.Parameters.Add(_db.CreateParameter("@GroupId", groupId));
                     cmd.Parameters.Add(_db.CreateParameter("@ParameterId", dto.ParameterId));
                     cmd.Parameters.Add(_db.CreateParameter("@ComparatorId", dto.ComparatorId));
                     cmd.Parameters.Add(_db.CreateParameter("@Negate", dto.Negate ? 1 : 0));
@@ -457,23 +489,82 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             }
 
             _logger.LogInformation(
-                "Inserted conditions with ids {Ids} for payload {Payload}.",
+                "Inserted conditions with ids {Ids} for group {GroupId} and payload {Payload}.",
                 Serialize(ids),
+                groupId,
                 Serialize(dtoList));
             return ids;
         }
 
-        public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)
+        public async Task UpdateConditionGroupAsync(int groupId, ConditionGroupUpdateDto dto)
         {
             if (dto is null) throw new ArgumentNullException(nameof(dto));
 
             _logger.LogInformation(
-                "Creating rule action with payload {Payload}.",
+                "Updating condition group {GroupId} with payload {Payload}.",
+                groupId,
+                Serialize(dto));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateConditionGroup);
+            cmd.Parameters.Add(_db.CreateParameter("@Id", groupId));
+            cmd.Parameters.Add(_db.CreateParameter("@ParentGroupId", (object?)dto.ParentGroupId ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@LogicalOperatorId", dto.LogicalOperatorId));
+            cmd.Parameters.Add(_db.CreateParameter("@OrderIndex", dto.OrderIndex));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task UpdateConditionAsync(int conditionId, int groupId, ConditionUpdateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Updating condition {ConditionId} with payload {Payload}.",
+                conditionId,
+                Serialize(dto));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateCondition);
+            cmd.Parameters.Add(_db.CreateParameter("@Id", conditionId));
+            cmd.Parameters.Add(_db.CreateParameter("@GroupId", groupId));
+            cmd.Parameters.Add(_db.CreateParameter("@ParameterId", dto.ParameterId));
+            cmd.Parameters.Add(_db.CreateParameter("@ComparatorId", dto.ComparatorId));
+            cmd.Parameters.Add(_db.CreateParameter("@Negate", dto.Negate ? 1 : 0));
+            cmd.Parameters.Add(_db.CreateParameter("@RightValueKind", dto.RightValueKind));
+            cmd.Parameters.Add(_db.CreateParameter("@RightValueJson", (object?)dto.RightValueJson ?? DBNull.Value));
+            cmd.Parameters.Add(_db.CreateParameter("@OrderIndex", dto.OrderIndex));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task UpdateRuleExpressionAsync(int ruleId, string expression)
+        {
+            _logger.LogInformation(
+                "Updating rule {RuleId} expression to {Expression}.",
+                ruleId,
+                expression);
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, RulesSql.UpdateRuleExpression);
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
+            cmd.Parameters.Add(_db.CreateParameter("@Expression", expression ?? string.Empty));
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<int> CreateRuleActionAsync(int ruleId, RuleActionCreateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            _logger.LogInformation(
+                "Creating rule action for rule {RuleId} with payload {Payload}.",
+                ruleId,
                 Serialize(dto));
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesSql.InsertRuleAction);
 
-            cmd.Parameters.Add(_db.CreateParameter("@RuleId", dto.RuleId));
+            cmd.Parameters.Add(_db.CreateParameter("@RuleId", ruleId));
             cmd.Parameters.Add(_db.CreateParameter("@ActionTypeId", dto.ActionTypeId));
             cmd.Parameters.Add(_db.CreateParameter("@ActionName", dto.ActionName));
             cmd.Parameters.Add(_db.CreateParameter("@ActionKey", dto.ActionKey));
@@ -487,7 +578,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             _logger.LogInformation(
                 "Rule action created with id {ActionId} for rule {RuleId}.",
                 actionId,
-                dto.RuleId);
+                ruleId);
             return actionId;
         }
 
