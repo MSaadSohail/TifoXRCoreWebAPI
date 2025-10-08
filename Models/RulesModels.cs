@@ -5,19 +5,13 @@
 // <date>09/24/2025</date>
 // <summary>DTOs for Rules Engine authoring, runtime ingestion, and auditing.</summary>
 
-using System;
+using System.Text.Json;
 
 namespace GMS.TifoXRCoreWebAPI.Models
 {
     // =========================
     // Lookups / Enums
     // =========================
-
-    public enum StateType { Draft = 1, Published = 2, Archived = 3 }
-
-    public enum RuleActionType { Reward = 1, Moderation = 2 }
-
-    public enum LogicalOperator { AND = 1, OR = 2 }
 
     /// <summary>String codes for comparators</summary>
     public static class ComparatorCodes
@@ -55,7 +49,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int SpaceId { get; init; }
         public string Name { get; init; } = default!;
-        public int StateTypeId { get; init; } = (int)StateType.Published;
+        public int? StateTypeId { get; init; }
     }
 
     public sealed class WorkflowView
@@ -64,9 +58,6 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int SpaceId { get; init; }
         public string Name { get; init; } = default!;
         public int StateTypeId { get; init; }
-        public DateTime CreationTime { get; init; }
-        public DateTime ModifiedTime { get; init; }
-        public string ModifiedBy { get; init; } = default!;
     }
 
     public sealed class RuleCreateDto
@@ -81,7 +72,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? SuccessEvent { get; init; }
         public int Priority { get; init; } = 100;
         public int RuleCooldownSeconds { get; init; } = 0;
-        public int StateTypeId { get; init; } = (int)StateType.Published;
+        public int? StateTypeId { get; init; }
     }
 
     public sealed class RuleView
@@ -94,16 +85,42 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int Priority { get; init; }
         public int RuleCooldownSeconds { get; init; }
         public int StateTypeId { get; init; }
-        public DateTime CreationTime { get; init; }
-        public DateTime ModifiedTime { get; init; }
-        public string ModifiedBy { get; init; } = default!;
+    }
+
+    public sealed class RuleDetailRecord
+    {
+        public int RuleId { get; init; }
+        public int WorkflowId { get; init; }
+        public int SpaceId { get; init; }
+        public string RuleName { get; init; } = default!;
+        public string WorkflowName { get; init; } = default!;
+        public string? Expression { get; init; }
+        public string? TargetType { get; init; }
+        public string? SuccessEvent { get; init; }
+        public int Priority { get; init; }
+        public int RuleCooldownSeconds { get; init; }
+        public int StateTypeId { get; init; }
+        public int? Version { get; init; }
+        public int? ParentRuleId { get; init; }
+        public int? EventTypeId { get; init; }
+    }
+
+    public sealed class RuleDetailView
+    {
+        public RuleDetailRecord Rule { get; init; } = default!;
+        public IReadOnlyList<ConditionGroupDetailView> ConditionGroups { get; init; }
+            = Array.Empty<ConditionGroupDetailView>();
+        public IReadOnlyList<ConditionDetailView> Conditions { get; init; }
+            = Array.Empty<ConditionDetailView>();
+        public IReadOnlyList<EventTypeParameterView> EventTypeParameters { get; init; }
+            = Array.Empty<EventTypeParameterView>();
     }
 
     // =========================
     // Authoring: Parameters & Event Types
     // =========================
 
-    public sealed class ContextParameterCreateDto
+    public class ContextParameterCreateDto
     {
         public string Key { get; init; } = default!;
         public string Source { get; init; } = "event";
@@ -111,10 +128,15 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int RePathTypeId { get; init; }
         public string DataType { get; init; } = default!;
         public string UiLabel { get; init; } = default!;
-        public string? UiHelpKey { get; init; }
+        public string UiHelpKey { get; init; } = default!;
         public string? Unit { get; init; }
         public int? ReDropdownValueProviderId { get; init; }
         public string? ExampleValue { get; init; }
+    }
+
+    public sealed class ContextParameterUpdateDto : ContextParameterCreateDto
+    {
+        public int Id { get; init; }
     }
 
     public sealed class ContextParameterView
@@ -126,12 +148,23 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int RePathTypeId { get; init; }
         public string DataType { get; init; } = default!;
         public string UiLabel { get; init; } = default!;
+        public string UiHelpKey { get; init; } = default!;
         public string? Unit { get; init; }
+        public int? DropdownProviderId { get; init; }
+        public int? ProviderTypeId { get; init; }
+        public string? ProviderType { get; init; }
+        public string? DropdownConfigJson { get; init; }
+        public string? ExampleValue { get; init; }
     }
 
-    public sealed class EventTypeCreateDto
+    public class EventTypeCreateDto
     {
         public string Name { get; init; } = default!;
+    }
+
+    public sealed class EventTypeUpdateDto : EventTypeCreateDto
+    {
+        public int Id { get; init; }
     }
 
     public sealed class EventTypeView
@@ -140,11 +173,26 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string Name { get; init; } = default!;
     }
 
-    public sealed class EventTypeParameterUpsertDto
+    public class EventTypeParameterCreateDto
     {
         public int ReEventTypeId { get; init; }
         public int ParameterId { get; init; }
         public bool IsRequired { get; init; } = true;
+        public string? DefaultValueJson { get; init; }
+    }
+
+    public sealed class EventTypeParameterUpdateDto : EventTypeParameterCreateDto
+    {
+        public int Id { get; init; }
+    }
+
+    public sealed class EventTypeParameterView
+    {
+        public int Id { get; init; }
+        public int EventTypeId { get; init; }
+        public int ParameterId { get; init; }
+        public string ParameterKey { get; init; } = default!;
+        public bool IsRequired { get; init; }
         public string? DefaultValueJson { get; init; }
     }
 
@@ -156,19 +204,25 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         public int RuleId { get; init; }
         public int? ParentGroupId { get; init; }
-        public int LogicalOperatorId { get; init; } = (int)LogicalOperator.AND;
+        public int LogicalOperatorId { get; init; }
         public int OrderIndex { get; init; } = 1;
         public string? NameKey { get; init; }
         public string? DescriptionKey { get; init; }
     }
 
-    public sealed class ConditionGroupView
+    public class ConditionGroupView
     {
         public int Id { get; init; }
         public int RuleId { get; init; }
         public int? ParentGroupId { get; init; }
         public int LogicalOperatorId { get; init; }
         public int OrderIndex { get; init; }
+    }
+
+    public sealed class ConditionGroupDetailView : ConditionGroupView
+    {
+        public string LogicalOperatorCode { get; init; } = default!;
+        public string LogicalOperatorFormat { get; init; } = default!;
     }
 
     public sealed class ConditionCreateDto
@@ -182,7 +236,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int OrderIndex { get; init; } = 1;
     }
 
-    public sealed class ConditionView
+    public class ConditionView
     {
         public int Id { get; init; }
         public int GroupId { get; init; }
@@ -192,6 +246,32 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string RightValueKind { get; init; } = default!;
         public string? RightValueJson { get; init; }
         public int OrderIndex { get; init; }
+    }
+
+    public sealed class ConditionDetailView : ConditionView
+    {
+        public string ComparatorCode { get; init; } = default!;
+        public string ComparatorFormat { get; init; } = default!;
+        public string ParameterKey { get; init; } = default!;
+        public string ParameterSource { get; init; } = default!;
+        public string ParameterPath { get; init; } = default!;
+    }
+
+    public sealed class RuleDefinitionUpdateDto
+    {
+        public int RuleId { get; init; }
+        public int SpaceId { get; init; }
+        public string RuleName { get; init; } = default!;
+        public string? TargetType { get; init; }
+        public string? SuccessEvent { get; init; }
+        public int Priority { get; init; } = 100;
+        public int RuleCooldownSeconds { get; init; }
+    }
+
+    public sealed class RuleExpressionUpdateResult
+    {
+        public int RuleId { get; init; }
+        public string Expression { get; init; } = string.Empty;
     }
 
     // =========================
@@ -212,7 +292,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public sealed class RuleActionCreateDto
     {
         public int RuleId { get; init; }
-        public int ActionTypeId { get; init; } = (int)RuleActionType.Reward;
+        public int ActionTypeId { get; init; }
         public string ActionName { get; init; } = default!;
         public string ActionKey { get; init; } = default!;
         public string? ActionParametersJson { get; init; }
@@ -236,6 +316,11 @@ namespace GMS.TifoXRCoreWebAPI.Models
     {
         /// <summary>FK to parent rule_actions.id</summary>
         public int Id { get; init; }
+        public int RewardId { get; init; }
+    }
+
+    public sealed class RuleActionRewardBindDto
+    {
         public int RewardId { get; init; }
     }
 
@@ -280,6 +365,75 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public DateTime OccurredAt { get; init; }
         public string? PropertiesJson { get; init; }
         public DateTime IngestedAt { get; init; }
+    }
+
+    // =========================
+    // Runtime: Rules evaluation
+    // =========================
+
+    public sealed class RulesEngineEvaluationRequest
+    {
+        public int SpaceId { get; set; }
+        public string EventType { get; init; } = default!;
+        public DateTime OccurredAt { get; init; }
+        public string? ActorUserId { get; init; }
+        public string? TargetUserId { get; init; }
+        public string? ContentOwnerUserId { get; init; }
+        public string? ContentRef { get; init; }
+        public Dictionary<string, JsonElement>? Properties { get; init; }
+    }
+
+    public sealed class RuntimeWorkflowDefinition
+    {
+        public int WorkflowId { get; init; }
+        public string WorkflowName { get; init; } = default!;
+        public string EventType { get; init; } = default!;
+        public int? EventTypeId { get; init; }
+        public IReadOnlyList<RuntimeRuleDefinition> Rules { get; init; } = Array.Empty<RuntimeRuleDefinition>();
+        public IReadOnlyDictionary<string, RuntimeParameterDefinition> Parameters { get; init; }
+            = new Dictionary<string, RuntimeParameterDefinition>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public sealed class RuntimeRuleDefinition
+    {
+        public int RuleId { get; init; }
+        public string RuleName { get; init; } = default!;
+        public string Expression { get; init; } = default!;
+        public string? SuccessEvent { get; init; }
+    }
+
+    public sealed class RuntimeParameterDefinition
+    {
+        public string Key { get; init; } = default!;
+        public string Source { get; init; } = default!;
+        public string Path { get; init; } = default!;
+        public bool IsRequired { get; init; }
+        public string? DefaultValueJson { get; init; }
+    }
+
+    public sealed class RulesEngineEvaluationResponse
+    {
+        public bool AnyRuleMatched { get; init; }
+        public IReadOnlyList<RuleEvaluationOutcome> Outcomes { get; init; } = Array.Empty<RuleEvaluationOutcome>();
+        public IReadOnlyList<RewardDecision> RewardDecisions { get; init; } = Array.Empty<RewardDecision>();
+        public IReadOnlyList<string> Messages { get; init; } = Array.Empty<string>();
+    }
+
+    public sealed class RuleEvaluationOutcome
+    {
+        public string RuleName { get; init; } = default!;
+        public bool IsSuccess { get; init; }
+        public string? SuccessEvent { get; init; }
+        public string? ErrorMessage { get; init; }
+        public string? RewardCode { get; init; }
+    }
+
+    public sealed class RewardDecision
+    {
+        public string RuleName { get; init; } = default!;
+        public bool Granted { get; init; }
+        public string? RewardCode { get; init; }
+        public string? Notes { get; init; }
     }
 
     // =========================

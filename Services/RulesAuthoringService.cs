@@ -1,0 +1,361 @@
+﻿// <copyright file="RulesAuthoringService.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Saad Sohail</author>
+// <date>09/30/2025</date>
+// <summary>Coordinates repository operations for rules engine authoring.</summary>
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text.Json;
+using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Repositories;
+
+namespace GMS.TifoXRCoreWebAPI.Services
+{
+    public sealed class RulesAuthoringService : IRulesAuthoringService
+    {
+        private readonly IRulesRepository _repo;
+        private readonly IRewardRepository _rewardRepo;
+        private readonly IRulesEvaluationService _evaluationService;
+        private readonly IRulesMetadataRepository _metadataRepo;
+        private const string DefaultStateTypeName = "Published";
+
+        public RulesAuthoringService(
+            IRulesRepository repo,
+            IRewardRepository rewardRepo,
+            IRulesEvaluationService evaluationService,
+            IRulesMetadataRepository metadataRepo)
+        {
+            _repo = repo ?? throw new ArgumentNullException(nameof(repo));
+            _rewardRepo = rewardRepo ?? throw new ArgumentNullException(nameof(rewardRepo));
+            _evaluationService = evaluationService ?? throw new ArgumentNullException(nameof(evaluationService));
+            _metadataRepo = metadataRepo ?? throw new ArgumentNullException(nameof(metadataRepo));
+        }
+
+        public async Task<RuleDetailView> GetRuleDetailAsync(int spaceId, int ruleId)
+        {
+            var rule = await _repo.GetRuleDetailAsync(ruleId);
+            if (rule is null)
+                throw new InvalidOperationException($"Rule {ruleId} does not exist.");
+
+            if (rule.SpaceId != spaceId)
+                throw new InvalidOperationException(
+                    $"Rule {ruleId} belongs to space {rule.SpaceId} and cannot be accessed from space {spaceId}.");
+
+            var groups = await _repo.GetRuleConditionGroupsAsync(ruleId);
+            var conditions = await _repo.GetRuleConditionsAsync(ruleId);
+
+            IReadOnlyList<EventTypeParameterView> eventTypeParameters = Array.Empty<EventTypeParameterView>();
+            if (rule.EventTypeId.HasValue)
+            {
+                eventTypeParameters = await _metadataRepo.GetEventTypeParametersAsync(rule.EventTypeId.Value);
+            }
+
+            return new RuleDetailView
+            {
+                Rule = rule,
+                ConditionGroups = groups,
+                Conditions = conditions,
+                EventTypeParameters = eventTypeParameters
+            };
+        }
+
+        public async Task<RuleExpressionUpdateResult> UpdateRuleDefinitionAsync(RuleDefinitionUpdateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            var (exists, spaceId, _) = await _repo.TryGetRuleContextAsync(dto.RuleId);
+            if (!exists)
+                throw new InvalidOperationException($"Rule {dto.RuleId} does not exist.");
+
+            if (spaceId != dto.SpaceId)
+                throw new InvalidOperationException(
+                    $"Rule {dto.RuleId} belongs to space {spaceId} and cannot be updated from space {dto.SpaceId}.");
+
+            var groups = await _repo.GetRuleConditionGroupsAsync(dto.RuleId);
+            var conditions = await _repo.GetRuleConditionsAsync(dto.RuleId);
+            var expression = ComposeExpression(groups, conditions);
+
+            await _repo.UpdateRuleDefinitionAsync(dto, expression);
+            _evaluationService.Invalidate(spaceId);
+
+            return new RuleExpressionUpdateResult
+            {
+                RuleId = dto.RuleId,
+                Expression = expression
+            };
+        }
+
+        public async Task<int> CreateWorkflowAsync(WorkflowCreateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+            var stateTypeId = await ResolveStateTypeIdAsync(dto.StateTypeId);
+            var id = await _repo.CreateWorkflowAsync(dto, stateTypeId);
+            _evaluationService.Invalidate(dto.SpaceId);
+            return id;
+        }
+
+        public async Task<int> CreateRuleAsync(RuleCreateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            var (workflowExists, workflowSpace) = await _repo.TryGetWorkflowSpaceAsync(dto.WorkflowId);
+            if (!workflowExists)
+                throw new InvalidOperationException($"Workflow {dto.WorkflowId} does not exist.");
+
+            if (workflowSpace != dto.SpaceId)
+                throw new InvalidOperationException("Rule space id must match the workflow's space id.");
+
+            var stateTypeId = await ResolveStateTypeIdAsync(dto.StateTypeId);
+            var id = await _repo.CreateRuleAsync(dto, stateTypeId);
+            _evaluationService.Invalidate(dto.SpaceId);
+            return id;
+        }
+
+        public async Task<IReadOnlyList<int>> AddConditionGroupsAsync(int ruleId, IEnumerable<ConditionGroupCreateDto> groups)
+        {
+            if (groups is null) throw new ArgumentNullException(nameof(groups));
+
+            var (exists, spaceId, _) = await _repo.TryGetRuleContextAsync(ruleId);
+            if (!exists)
+                throw new InvalidOperationException($"Rule {ruleId} does not exist.");
+
+            foreach (var group in groups)
+            {
+                if (group.RuleId != ruleId)
+                    throw new InvalidOperationException("Condition group payload rule id must match the route rule id.");
+            }
+
+            var ids = await _repo.InsertConditionGroupsAsync(groups);
+            _evaluationService.Invalidate(spaceId);
+            return ids;
+        }
+
+        public async Task<IReadOnlyList<int>> AddConditionsAsync(int groupId, IEnumerable<ConditionCreateDto> conditions)
+        {
+            if (conditions is null) throw new ArgumentNullException(nameof(conditions));
+
+            var (exists, _, spaceId) = await _repo.TryGetConditionGroupContextAsync(groupId);
+            if (!exists)
+                throw new InvalidOperationException($"Condition group {groupId} does not exist.");
+
+            foreach (var condition in conditions)
+            {
+                if (condition.GroupId != groupId)
+                    throw new InvalidOperationException("Condition payload group id must match the route group id.");
+            }
+
+            var ids = await _repo.InsertConditionsAsync(conditions);
+            _evaluationService.Invalidate(spaceId);
+            return ids;
+        }
+
+        public async Task<int> CreateRuleActionAsync(RuleActionCreateDto dto)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+
+            var (ruleExists, spaceId, _) = await _repo.TryGetRuleContextAsync(dto.RuleId);
+            if (!ruleExists)
+                throw new InvalidOperationException($"Rule {dto.RuleId} does not exist.");
+
+            var id = await _repo.CreateRuleActionAsync(dto);
+            _evaluationService.Invalidate(spaceId);
+            return id;
+        }
+
+        public async Task BindRewardAsync(int actionId, int rewardId)
+        {
+            var (actionExists, _, spaceId) = await _repo.TryGetActionContextAsync(actionId);
+            if (!actionExists)
+                throw new InvalidOperationException($"Rule action {actionId} does not exist.");
+
+            var reward = await _rewardRepo.GetAsync(rewardId, spaceId);
+            if (reward is null)
+                throw new InvalidOperationException($"Reward {rewardId} does not exist in space {spaceId}.");
+
+            await _repo.BindRewardToActionAsync(actionId, rewardId);
+        }
+
+        private async Task<int> ResolveStateTypeIdAsync(int? stateTypeId)
+        {
+            if (stateTypeId.HasValue)
+                return stateTypeId.Value;
+
+            var fallback = await _repo.GetStateTypeIdByNameAsync(DefaultStateTypeName);
+            if (!fallback.HasValue)
+                throw new InvalidOperationException($"State type '{DefaultStateTypeName}' is not configured.");
+
+            return fallback.Value;
+        }
+
+        private static string ComposeExpression(
+            IReadOnlyList<ConditionGroupDetailView> groups,
+            IReadOnlyList<ConditionDetailView> conditions)
+        {
+            if (groups is null || groups.Count == 0)
+            {
+                var conditionExpressions = conditions
+                    .OrderBy(c => c.OrderIndex)
+                    .ThenBy(c => c.Id)
+                    .Select(ComposeCondition)
+                    .Where(static expr => !string.IsNullOrWhiteSpace(expr))
+                    .ToList();
+
+                return CombineUsingFormat("({0} && {1})", conditionExpressions);
+            }
+
+            var groupedChildren = groups
+                .GroupBy(g => g.ParentGroupId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(x => x.OrderIndex).ThenBy(x => x.Id).ToList());
+
+            var conditionLookup = conditions
+                .GroupBy(c => c.GroupId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(x => x.OrderIndex).ThenBy(x => x.Id).ToList());
+
+            var rootGroups = groups
+                .Where(g => g.ParentGroupId is null)
+                .OrderBy(g => g.OrderIndex)
+                .ThenBy(g => g.Id)
+                .ToList();
+
+            var rootExpressions = new List<string>();
+            foreach (var root in rootGroups)
+            {
+                var expr = ComposeGroup(root, groupedChildren, conditionLookup);
+                if (!string.IsNullOrWhiteSpace(expr))
+                {
+                    rootExpressions.Add(expr);
+                }
+            }
+
+            return CombineUsingFormat("({0} && {1})", rootExpressions);
+        }
+
+        private static string ComposeGroup(
+            ConditionGroupDetailView group,
+            IReadOnlyDictionary<int?, List<ConditionGroupDetailView>> groupedChildren,
+            IReadOnlyDictionary<int, List<ConditionDetailView>> conditionLookup)
+        {
+            var parts = new List<string>();
+
+            if (conditionLookup.TryGetValue(group.Id, out var groupConditions))
+            {
+                foreach (var condition in groupConditions)
+                {
+                    var expr = ComposeCondition(condition);
+                    if (!string.IsNullOrWhiteSpace(expr))
+                    {
+                        parts.Add(expr);
+                    }
+                }
+            }
+
+            if (groupedChildren.TryGetValue(group.Id, out var childGroups))
+            {
+                foreach (var child in childGroups)
+                {
+                    var expr = ComposeGroup(child, groupedChildren, conditionLookup);
+                    if (!string.IsNullOrWhiteSpace(expr))
+                    {
+                        parts.Add(expr);
+                    }
+                }
+            }
+
+            if (parts.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var format = string.IsNullOrWhiteSpace(group.LogicalOperatorFormat)
+                ? "({0} && {1})"
+                : group.LogicalOperatorFormat;
+
+            return CombineUsingFormat(format, parts);
+        }
+
+        private static string ComposeCondition(ConditionDetailView condition)
+        {
+            var format = string.IsNullOrWhiteSpace(condition.ComparatorFormat)
+                ? "{0} == {1}"
+                : condition.ComparatorFormat;
+
+            var left = condition.ParameterKey;
+            var right = FormatRightValue(condition);
+            var expression = string.Format(CultureInfo.InvariantCulture, format, left, right);
+
+            return condition.Negate ? $"!({expression})" : expression;
+        }
+
+        private static string CombineUsingFormat(string format, IReadOnlyList<string> expressions)
+        {
+            if (expressions.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (expressions.Count == 1)
+            {
+                return expressions[0];
+            }
+
+            var result = expressions[0];
+            for (var i = 1; i < expressions.Count; i++)
+            {
+                result = string.Format(CultureInfo.InvariantCulture, format, result, expressions[i]);
+            }
+
+            return result;
+        }
+
+        private static string FormatRightValue(ConditionDetailView condition)
+        {
+            if (string.IsNullOrWhiteSpace(condition.RightValueJson))
+            {
+                return "null";
+            }
+
+            if (string.Equals(condition.RightValueKind, RightValueKinds.Parameter, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(condition.RightValueJson);
+                    var root = doc.RootElement;
+
+                    if (root.ValueKind == JsonValueKind.String)
+                    {
+                        return root.GetString() ?? "null";
+                    }
+
+                    if (root.ValueKind == JsonValueKind.Object)
+                    {
+                        if (root.TryGetProperty("parameterKey", out var key))
+                        {
+                            return key.GetString() ?? "null";
+                        }
+
+                        if (root.TryGetProperty("key", out var alt))
+                        {
+                            return alt.GetString() ?? "null";
+                        }
+                    }
+                }
+                catch (JsonException)
+                {
+                    return condition.RightValueJson.Trim();
+                }
+
+                return "null";
+            }
+
+            return condition.RightValueJson.Trim();
+        }
+    }
+}

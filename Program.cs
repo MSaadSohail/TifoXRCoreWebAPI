@@ -66,6 +66,7 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.AddControllers();
     services.AddEndpointsApiExplorer();
     services.AddSwaggerGen();
+    services.AddMemoryCache();
 
     #endregion
 
@@ -151,6 +152,10 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
 
     #region REWARDS
 
+    services.AddScoped<ILookupService, LookupService>();
+    services.AddScoped<IRulesAuthoringService, RulesAuthoringService>();
+    services.AddScoped<IRulesEvaluationService, RulesEvaluationService>();
+    services.AddScoped<IRulesMetadataService, RulesMetadataService>();
     services.AddScoped<IRewardService, RewardService>();
 
     #endregion
