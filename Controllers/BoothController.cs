@@ -284,6 +284,56 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// DELETE /api/space/{spaceId}/booth/{boothId}/media/{mediaId}
+        /// Removes a media record from the booth along with its localized values.
+        /// </summary>
+        [HttpDelete("{spaceId}/booth/{boothId}/media/{mediaId}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteBoothMedia(
+            [FromRoute] int spaceId,
+            [FromRoute] int boothId,
+            [FromRoute] string mediaId)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId, mediaId });
+
+            if (boothId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId, mediaId });
+
+            if (string.IsNullOrWhiteSpace(mediaId))
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(mediaId),
+                    parameters: new { spaceId, boothId, mediaId });
+
+            var deleted = await _boothRepository.DeleteBoothMediaAsync(spaceId, boothId, mediaId);
+
+            if (!deleted)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId, mediaId });
+
+            return NoContent();
+        }
+
         #endregion
     }
 }

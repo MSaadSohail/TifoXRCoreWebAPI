@@ -15,6 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         Task<BoothModel?> UpdateBoothAsync(int spaceId, int boothId, BoothUpdateDto dto);
         Task<BoothModel> CreateBoothAsync(int spaceId, BoothCreateDto boothDto);
         Task<MediaData?> AddMediaToBoothAsync(int spaceId, int boothId, MediaCreateDto dto);
+        Task<bool> DeleteBoothMediaAsync(int spaceId, int boothId, string mediaId);
         Task<bool> DeleteBoothCascadeAsync(int spaceId, int boothId);
     }
 }
