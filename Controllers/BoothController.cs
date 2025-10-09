@@ -195,6 +195,59 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             );
         }
 
+        /// <summary>
+        /// POST /api/space/{spaceId}/booth/{boothId}/media
+        /// Adds a new media item to the specified booth.
+        /// </summary>
+        [HttpPost("{spaceId}/booth/{boothId}/media")]
+        [ProducesResponseType(typeof(MediaData), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<MediaData>> AddMediaToBooth(
+            [FromRoute] int spaceId,
+            [FromRoute] int boothId,
+            [FromBody] MediaCreateDto mediaDto)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId });
+
+            if (boothId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId });
+
+            if (mediaDto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(mediaDto),
+                    parameters: new { spaceId, boothId });
+
+            var created = await _boothRepository.AddMediaToBoothAsync(spaceId, boothId, mediaDto);
+
+            if (created is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId });
+
+            return CreatedAtAction(
+                nameof(GetAllBoothsBySpace),
+                new { spaceId },
+                created);
+        }
+
         #endregion
 
         #region DELETE

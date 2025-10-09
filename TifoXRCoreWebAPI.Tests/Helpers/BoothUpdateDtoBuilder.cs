@@ -15,15 +15,12 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
     /// </summary>
     public class BoothUpdateDtoBuilder
     {
-        private string _key = "booth_key";
         private List<LocalizedValue>? _values = new()
         {
             new LocalizedValue { LocaleId = "en_us", Value = "Booth Name" }
         };
-        private MapSpotModel? _mapSpot = new() { X = 1.0m, Y = 2.0m, Z = 3.0m };
-
+        private int _mapSpotId = 1;
         private bool _nullLocalizedPairs = false;
-        private bool _nullMapSpot = false;
 
         /// <summary>
         /// Explicitly nulls the LocalizedPairs object to model invalid input scenarios.
@@ -34,12 +31,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
             return this;
         }
 
-        /// <summary>
-        /// Explicitly nulls the MapSpot object to model invalid input scenarios.
-        /// </summary>
-        public BoothUpdateDtoBuilder WithNullMapSpot()
+        public BoothUpdateDtoBuilder WithMapSpotId(int mapSpotId)
         {
-            _nullMapSpot = true;
+            _mapSpotId = mapSpotId;
             return this;
         }
 
@@ -52,12 +46,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
             {
                 LocalizedPairs = _nullLocalizedPairs
                     ? null!
-                    : new LocalizedPairs
+                    : new BoothLocalizedPairsUpdateDto
                     {
-                        Key = _key,
                         Values = _values ?? new List<LocalizedValue>()
                     },
-                MapSpot = _nullMapSpot ? null! : _mapSpot!
+                MapSpotId = _mapSpotId
             };
         }
     }

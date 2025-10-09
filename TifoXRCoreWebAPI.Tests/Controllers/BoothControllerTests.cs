@@ -236,6 +236,72 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
             wrapper.booth.Should().BeEquivalentTo(created);
         }
 
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public async Task AddMediaToBooth_ThrowsArgEx_OnInvalidSpaceId(int spaceId)
+        {
+            var mediaDto = new MediaCreateDto { MediaTypeId = 1 };
+
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.AddMediaToBooth(spaceId, 10, mediaDto));
+
+            repo.Verify(r => r.AddMediaToBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<MediaCreateDto>()), Times.Never);
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-5)]
+        public async Task AddMediaToBooth_ThrowsArgEx_OnInvalidBoothId(int boothId)
+        {
+            var mediaDto = new MediaCreateDto { MediaTypeId = 1 };
+
+            await Assert.ThrowsAsync<ArgumentException>(() => sut.AddMediaToBooth(3, boothId, mediaDto));
+
+            repo.Verify(r => r.AddMediaToBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<MediaCreateDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AddMediaToBooth_ThrowsArgNullEx_OnNullDto()
+        {
+            await Assert.ThrowsAsync<ArgumentNullException>(() => sut.AddMediaToBooth(3, 4, null!));
+
+            repo.Verify(r => r.AddMediaToBoothAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<MediaCreateDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AddMediaToBooth_ThrowsNotFound_WhenRepoReturnsNull()
+        {
+            repo.Setup(r => r.AddMediaToBoothAsync(3, 4, It.IsAny<MediaCreateDto>()))
+                .ReturnsAsync((MediaData?)null);
+
+            var dto = new MediaCreateDto { MediaTypeId = 2 };
+
+            await Assert.ThrowsAsync<ResourceNotFoundException>(() => sut.AddMediaToBooth(3, 4, dto));
+        }
+
+        [Fact]
+        public async Task AddMediaToBooth_ReturnsCreated_OnSuccess()
+        {
+            var dto = new MediaCreateDto { MediaTypeId = 2 };
+            var created = new MediaData
+            {
+                Id = "media-guid",
+                MediaTypeId = 2,
+                LinkLocalizations = new List<MediaLocalization>
+                {
+                    new() { LocaleId = "en_us", MediaLink = "https://cdn/en" }
+                }
+            };
+
+            repo.Setup(r => r.AddMediaToBoothAsync(5, 9, dto)).ReturnsAsync(created);
+
+            var result = await sut.AddMediaToBooth(5, 9, dto);
+
+            var createdResult = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
+            createdResult.Value.Should().Be(created);
+            repo.Verify(r => r.AddMediaToBoothAsync(5, 9, dto), Times.Once);
+        }
+
         #endregion
 
         #region PUT
@@ -356,15 +422,15 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         /// The repository throws an ArgumentException and the controller propagates it.
         /// </summary>
         [Fact]
-        public async Task UpdateBooth_ThrowsArgEx_WhenMapSpotIsNull()
+        public async Task UpdateBooth_ThrowsArgEx_WhenMapSpotIdInvalid()
         {
             // ARRANGE
             var dto = new BoothUpdateDtoBuilder()
-                        .WithNullMapSpot()
+                        .WithMapSpotId(0)
                         .Build();
 
             repo.Setup(r => r.UpdateBoothAsync(1, 1, dto))
-                .ThrowsAsync(new ArgumentException("MapSpot cannot be null."));
+                .ThrowsAsync(new ArgumentException("MapSpotId must be positive."));
 
             // ACT & ASSERT
             await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateBooth(1, 1, dto));
