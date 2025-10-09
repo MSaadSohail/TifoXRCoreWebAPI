@@ -16,6 +16,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
 
         public MapSpotModel MapSpot { get; set; }
 
+        public List<MediaCreateDto>? MediaItems { get; set; }
+
     }
 
     public class BoothWrapper
@@ -30,6 +32,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int MapSpotId { get; set; }
         public MapSpotModel? MapSpot { get; set; }
         public LocalizedPairs LocalizedPairs { get; set; }
+        public List<MediaData> MediaItems { get; set; } = new();
     }
     public class MapSpotModel
     {
@@ -45,6 +48,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int MapSpotId { get; set; }
 
         public MapSpotModel MapSpot { get; set; }
+
+        public List<MediaUpdateDto>? MediaItems { get; set; }
 
     }
 
