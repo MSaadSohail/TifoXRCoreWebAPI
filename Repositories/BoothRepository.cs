@@ -963,6 +963,60 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             }
         }
 
+        public async Task<bool> DeleteBoothMediaAsync(int spaceId, int boothId, string mediaId)
+        {
+            if (string.IsNullOrWhiteSpace(mediaId))
+                throw new ArgumentException("Media ID is required.", nameof(mediaId));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                const string lookupSql = @"
+                SELECT m.text_key, m.description_key
+                  FROM booth_media bm
+                  INNER JOIN booth b ON bm.booth_id = b.id
+                  LEFT JOIN media m ON m.id = bm.media_id
+                 WHERE b.space_id = @SpaceId
+                   AND b.id = @BoothId
+                   AND bm.media_id = @MediaId;";
+
+                string? textKey = null;
+                string? descriptionKey = null;
+
+                await using (var lookupCmd = _db.CreateCommand(conn, lookupSql))
+                {
+                    lookupCmd.Transaction = tx;
+                    lookupCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    lookupCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                    lookupCmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+
+                    await using var reader = await lookupCmd.ExecuteReaderAsync();
+                    if (!await reader.ReadAsync())
+                    {
+                        await tx.RollbackAsync();
+                        return false;
+                    }
+
+                    if (!reader.IsDBNull(0))
+                        textKey = reader.GetString(0);
+                    if (!reader.IsDBNull(1))
+                        descriptionKey = reader.GetString(1);
+                }
+
+                await DeleteMediaCascadeAsync(conn, tx, boothId, mediaId, textKey, descriptionKey, spaceId);
+
+                await tx.CommitAsync();
+                return true;
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
         private async Task<BoothModel?> LoadBoothByIdAsync(DbConnection conn, int spaceId, int boothId)
         {
             const string sql = @"
