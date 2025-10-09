@@ -22,13 +22,12 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
     public class BoothRepositoryTests
     {
 
-        private static BoothUpdateDto Dto(int spotId, string key, params (string loc, string val)[] pairs)
+        private static BoothUpdateDto Dto(int spotId, params (string loc, string val)[] pairs)
             => new BoothUpdateDto
             {
                 MapSpotId = spotId,
-                LocalizedPairs = new LocalizedPairs
+                LocalizedPairs = new BoothLocalizedPairsUpdateDto
                 {
-                    Key = key,
                     Values = pairs.Select(p => new LocalizedValue { LocaleId = p.loc, Value = p.val }).ToList()
                 }
             };
@@ -376,10 +375,11 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         public async Task MapSpotMissingThrows()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no reader expected"));
+            fake.EnqueueScalar("bth_key"); // existing booth name key
             fake.EnqueueScalar(0); // validate spot
 
             var sut = new BoothRepository(MakeConfig(), fake);
-            var act = () => sut.UpdateBoothAsync(1, 99, Dto(999, "bth_key", ("en_us", "X")));
+            var act = () => sut.UpdateBoothAsync(1, 99, Dto(999, ("en_us", "X")));
 
             await act.Should().ThrowAsync<InvalidOperationException>()
                      .WithMessage("MapSpot*does not exist*");
@@ -390,11 +390,12 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         public async Task UpdateNoRowsNull()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("no reader expected"));
+            fake.EnqueueScalar("bth_key"); // existing booth name key
             fake.EnqueueScalar(1); // spot ok
             fake.EnqueueNonQuery(0); // update 0 rows
 
             var sut = new BoothRepository(MakeConfig(), fake);
-            var res = await sut.UpdateBoothAsync(1, 10, Dto(5, "bth_key", ("en_us", "Booth")));
+            var res = await sut.UpdateBoothAsync(1, 10, Dto(5, ("en_us", "Booth")));
 
             res.Should().BeNull();
         }
@@ -404,12 +405,13 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         public async Task UnsupportedLocalesThrows()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
+            fake.EnqueueScalar("bth_key");          // existing booth name key
             fake.EnqueueScalar(1);          // spot ok
             fake.EnqueueNonQuery(1);        // update ok
             fake.EnqueueReader(() => Langs("en_us")); // supported langs
 
             var sut = new BoothRepository(MakeConfig(), fake);
-            var act = () => sut.UpdateBoothAsync(1, 10, Dto(5, "bth_key", ("en_us", "Hello"), ("fr_fr", "Bonjour")));
+            var act = () => sut.UpdateBoothAsync(1, 10, Dto(5, ("en_us", "Hello"), ("fr_fr", "Bonjour")));
 
             await act.Should().ThrowAsync<InvalidOperationException>()
                      .WithMessage("*Unsupported locales:*fr_fr*");
@@ -420,6 +422,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         public async Task UpdateOkUpsertAndReload()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
+            fake.EnqueueScalar("bth_key");          // existing booth name key
             fake.EnqueueScalar(1);                 // spot ok
             fake.EnqueueNonQuery(1);               // update booth -> 1
             fake.EnqueueReader(() => Langs("en_us", "es_es")); // both supported
@@ -435,7 +438,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fake.EnqueueReader(BoothMediaEmpty);   // reload media
 
             var sut = new BoothRepository(MakeConfig(), fake);
-            var dto = Dto(5, "bth_key", ("en_us", "Hello"), ("es_es", "Hola"));
+            var dto = Dto(5, ("en_us", "Hello"), ("es_es", "Hola"));
 
             var res = await sut.UpdateBoothAsync(1, 10, dto);
 
@@ -456,8 +459,9 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         public async Task UpdateOkNoLocalesReloadOnly()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
-            var dto = new BoothUpdateDto { MapSpotId = 7, LocalizedPairs = new LocalizedPairs { Key = "bth_key", Values = null } };
+            var dto = new BoothUpdateDto { MapSpotId = 7, LocalizedPairs = new BoothLocalizedPairsUpdateDto { Values = null } };
 
+            fake.EnqueueScalar("bth_key"); // existing booth name key
             fake.EnqueueScalar(1); // spot ok
             fake.EnqueueNonQuery(1); // update booth
             fake.EnqueueReader(BoothMediaEmpty); // existing booth_media
@@ -480,21 +484,20 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
         }
 
         [Fact]
-        public async Task UpdateAddsNewMedia()
+        public async Task UpdateRejectsAddingNewMedia()
         {
             var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
             var dto = new BoothUpdateDto
             {
                 MapSpotId = 9,
-                LocalizedPairs = new LocalizedPairs
+                LocalizedPairs = new BoothLocalizedPairsUpdateDto
                 {
-                    Key = "bth_key",
                     Values = new List<LocalizedValue>
                     {
                         new() { LocaleId = "en_us", Value = "Name" }
                     }
                 },
-                MediaItems = new List<MediaUpdateDto>
+                MediaItems = new List<BoothMediaUpdateDto>
                 {
                     new()
                     {
@@ -507,33 +510,69 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
                 }
             };
 
+            fake.EnqueueScalar("bth_key"); // existing booth name key
             fake.EnqueueScalar(1); // map spot ok
             fake.EnqueueNonQuery(1); // update booth
             fake.EnqueueReader(() => Langs("en_us")); // supported locales
-            fake.EnqueueNonQuery(0); // update i18n -> 0 rows
-            fake.EnqueueNonQuery(1); // insert i18n
-            fake.EnqueueReader(BoothMediaEmpty); // fetch existing booth media
-            fake.EnqueueScalar("media-new"); // SELECT UUID()
-            fake.EnqueueNonQuery(1); // insert media row
-            fake.EnqueueNonQuery(1); // insert media localization
-            fake.EnqueueNonQuery(1); // delete existing booth_media mapping (none)
-            fake.EnqueueNonQuery(1); // insert booth_media mapping
-            fake.EnqueueReader(() => ReloadRows(
-                id: 33, spaceId: 2, key: "bth_key", mapSpotId: 9,
-                x: 0m, y: 0m, z: 0m,
-                ("en_us", "Name")
-            ));
-            fake.EnqueueReader(() => BoothMediaRows(
-                (33, "media-new", 4, null, null, "en_us", "https://cdn/en")
-            ));
+            fake.EnqueueReader(BoothMediaEmpty); // fetch existing booth media (none)
 
             var sut = new BoothRepository(MakeConfig(), fake);
-            var result = await sut.UpdateBoothAsync(2, 33, dto);
+            var act = () => sut.UpdateBoothAsync(2, 33, dto);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("No media exists for this booth to update.");
+        }
+
+        [Fact]
+        public async Task AddMediaToBoothReturnsNullWhenBoothMissing()
+        {
+            var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
+            fake.EnqueueScalar(0); // booth count
+
+            var sut = new BoothRepository(MakeConfig(), fake);
+            var dto = new MediaCreateDto
+            {
+                MediaTypeId = 4,
+                LinkLocalizations = new List<MediaLocalization>
+                {
+                    new() { LocaleId = "en_us", MediaLink = "https://cdn/en" }
+                }
+            };
+
+            var result = await sut.AddMediaToBoothAsync(1, 99, dto);
+
+            result.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task AddMediaToBoothCreatesMediaAndMapping()
+        {
+            var fake = new FakeDbProvider(() => throw new InvalidOperationException("unexpected fallback"));
+            var dto = new MediaCreateDto
+            {
+                MediaTypeId = 4,
+                LinkLocalizations = new List<MediaLocalization>
+                {
+                    new() { LocaleId = "en_us", MediaLink = "https://cdn/en" },
+                    new() { LocaleId = "jp_jp", MediaLink = "https://cdn/jp" }
+                }
+            };
+
+            fake.EnqueueScalar(1); // booth exists
+            fake.EnqueueReader(() => Langs("en_us")); // supported locales (jp_jp filtered)
+            fake.EnqueueScalar("media-guid"); // SELECT UUID()
+            fake.EnqueueNonQuery(1); // insert media row
+            fake.EnqueueNonQuery(1); // insert media_localization en_us
+            fake.EnqueueNonQuery(0); // delete existing booth_media mapping
+            fake.EnqueueNonQuery(1); // insert booth_media mapping
+
+            var sut = new BoothRepository(MakeConfig(), fake);
+            var result = await sut.AddMediaToBoothAsync(1, 33, dto);
 
             result.Should().NotBeNull();
-            result!.MediaItems.Should().ContainSingle(m => m.Id == "media-new");
-            result.MediaItems[0].LinkLocalizations.Should()
-                .ContainSingle(l => l.LocaleId == "en_us" && l.MediaLink == "https://cdn/en");
+            result!.Id.Should().Be("media-guid");
+            result.LinkLocalizations.Should().ContainSingle(l => l.LocaleId == "en_us" && l.MediaLink == "https://cdn/en");
+            result.LinkLocalizations.Should().NotContain(l => l.LocaleId == "jp_jp");
         }
 
 
