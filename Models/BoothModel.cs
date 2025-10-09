@@ -4,6 +4,7 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Data for Booth </summary>
+
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models

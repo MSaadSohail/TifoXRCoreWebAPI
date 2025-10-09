@@ -5,34 +5,25 @@
 // <date>09/30/2025</date>
 // <summary>Rules engine authoring data access.</summary>
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Sql;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
-using Microsoft.Extensions.Logging;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class RulesRepository : IRulesRepository
+    public sealed class RulesRepository(IDbProvider db, ILogger<RulesRepository> logger) : IRulesRepository
     {
-        private readonly IDbProvider _db;
-        private readonly ILogger<RulesRepository> _logger;
+        private readonly IDbProvider _db = db ?? throw new ArgumentNullException(nameof(db));
+        private readonly ILogger<RulesRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = false,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
-
-        public RulesRepository(IDbProvider db, ILogger<RulesRepository> logger)
-        {
-            _db = db ?? throw new ArgumentNullException(nameof(db));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
 
         private static string Serialize(object? value)
             => JsonSerializer.Serialize(value, JsonOptions);

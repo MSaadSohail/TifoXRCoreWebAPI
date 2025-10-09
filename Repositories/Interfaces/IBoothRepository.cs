@@ -4,6 +4,7 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Interface layer for booth repository</summary>
+
 using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories

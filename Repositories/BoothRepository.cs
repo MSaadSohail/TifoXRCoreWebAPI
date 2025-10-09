@@ -5,11 +5,8 @@
 // <date>08/18/2025</date>
 // <summary>Class to handle booth SQL side</summary>
 
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Linq;
 //
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
@@ -17,17 +14,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class BoothRepository : IBoothRepository
+    public class BoothRepository(IConfiguration configuration, IDbProvider db) : IBoothRepository
     {
-
-        private readonly IDbProvider _db;
-        //private readonly IAppLogger<BoothRepository>? _log;
-
-        public BoothRepository(IConfiguration configuration, IDbProvider db /*IAppLogger<BoothRepository> log*/)
-        {
-            _db = db;
-            //_log = log;
-        }
+        private readonly IDbProvider _db = db;
 
         public async Task<List<BoothModel>> GetAllBoothsBySpaceAsync(int spaceId)
         {
@@ -89,14 +78,6 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Id = id,
                             SpaceId = reader.GetInt32(o_space_id),
                             MapSpotId = reader.IsDBNull(o_map_spot_id) ? default : reader.GetInt32(o_map_spot_id),
-                            //MapSpot = hasCoords
-                            //    ? new MapSpotModel
-                            //    {
-                            //        X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
-                            //        Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
-                            //        Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z)
-                            //    }
-                            //    : null,
                             LocalizedPairs = new LocalizedPairs
                             {
                                 Key = reader.GetString(o_name_key),
@@ -1078,7 +1059,6 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             return booth;
         }
 
-
         public async Task<BoothModel> CreateBoothAsync(int spaceId, BoothCreateDto boothDto)
         {
             await using var conn = await _db.OpenConnectionAsync();
@@ -1430,6 +1410,5 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                 throw;
             }
         }
-
     }
 }

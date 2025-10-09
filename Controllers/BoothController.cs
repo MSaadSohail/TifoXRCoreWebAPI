@@ -9,11 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 //
 using Serilog;
 //
-using GMS.TifoXRCoreWebAPI.Middleware.Errors;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -65,16 +63,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 diag.Set("SpaceId", spaceId);
                 diag.Set("RepoDurationMs", sw.ElapsedMilliseconds);
                 diag.Set("BoothCount", booths?.Count ?? 0);
-
-                // Optional: surface slow path without spamming (Warning = unexpected but not fatal)
-                //if (sw.ElapsedMilliseconds > ErrorMessages.SlowRepositoryThresholdMs)
-                //{
-                //    log.Warn(
-                //        ErrorMessages.SlowRepositoryCallMessage,
-                //        "Fetching booths",
-                //        sw.ElapsedMilliseconds
-                //    );
-                //}
 
                 // Not found is an expected branch -> throw; GlobalException will log once and return 404
                 if (booths is null || booths.Count == 0)
@@ -187,7 +175,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ErrorMessages.Http.Conflict,
                     parameters: new { spaceId });
 
-            // If you have GET-by-id, prefer CreatedAtAction(nameof(GetBoothById), new { spaceId, boothId = createdBooth.Id }, ...)
             return CreatedAtAction(
                 nameof(GetAllBoothsBySpace),
                 new { spaceId },
