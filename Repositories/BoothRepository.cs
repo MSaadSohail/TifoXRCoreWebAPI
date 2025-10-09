@@ -89,14 +89,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Id = id,
                             SpaceId = reader.GetInt32(o_space_id),
                             MapSpotId = reader.IsDBNull(o_map_spot_id) ? default : reader.GetInt32(o_map_spot_id),
-                            MapSpot = hasCoords
-                                ? new MapSpotModel
-                                {
-                                    X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
-                                    Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
-                                    Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z)
-                                }
-                                : null,
+                            //MapSpot = hasCoords
+                            //    ? new MapSpotModel
+                            //    {
+                            //        X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
+                            //        Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
+                            //        Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z)
+                            //    }
+                            //    : null,
                             LocalizedPairs = new LocalizedPairs
                             {
                                 Key = reader.GetString(o_name_key),
@@ -1038,12 +1038,12 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                         Id = reader.GetInt32(o_id),
                         SpaceId = reader.GetInt32(o_space_id),
                         MapSpotId = reader.IsDBNull(o_map_spot_id) ? 0 : reader.GetInt32(o_map_spot_id),
-                        MapSpot = reader.IsDBNull(o_x) ? null : new MapSpotModel
-                        {
-                            X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
-                            Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
-                            Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z),
-                        },
+                        //MapSpot = reader.IsDBNull(o_x) ? null : new MapSpotModel
+                        //{
+                        //    X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
+                        //    Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
+                        //    Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z),
+                        //},
                         LocalizedPairs = new LocalizedPairs
                         {
                             Key = reader.GetString(o_name_key),
@@ -1229,7 +1229,7 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                     Id = newBoothId,
                     SpaceId = spaceId,
                     MapSpotId = boothDto.MapSpotId,
-                    MapSpot = mapSpot!,
+                   //MapSpot = mapSpot!,
                     LocalizedPairs = new LocalizedPairs
                     {
                         Key = boothDto.LocalizedPairs.Key,
