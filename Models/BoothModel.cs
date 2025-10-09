@@ -41,15 +41,24 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public decimal Z { get; set; }
     }
 
+    public class BoothLocalizedPairsUpdateDto
+    {
+        public List<LocalizedValue>? Values { get; set; }
+    }
+
+    public class BoothMediaUpdateDto
+    {
+        public int MediaTypeId { get; set; }
+        public string? TextKey { get; set; }
+        public string? DescriptionKey { get; set; }
+        public List<MediaLocalization>? LinkLocalizations { get; set; }
+    }
 
     public class BoothUpdateDto
     {
-        public LocalizedPairs LocalizedPairs { get; set; }
+        public BoothLocalizedPairsUpdateDto? LocalizedPairs { get; set; }
         public int MapSpotId { get; set; }
-
-        public MapSpotModel MapSpot { get; set; }
-
-        public List<MediaUpdateDto>? MediaItems { get; set; }
+        public List<BoothMediaUpdateDto>? MediaItems { get; set; }
 
     }
 
