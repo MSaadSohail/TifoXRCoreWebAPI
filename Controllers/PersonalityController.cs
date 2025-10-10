@@ -87,34 +87,27 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         public async Task<IActionResult> UpdatePersonality(int id, [FromBody] PersonalityUpdateDto dto)
         {
             if (dto is null)
-                throw new ArgumentNullException(
-                    nameof(dto),
-                    GlobalException.FormatExceptionMessage(
-                        "DTO cannot be null.",
-                        nameof(UpdatePersonality),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(UpdatePersonality),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { dto });
 
             if (!ModelState.IsValid)
-                throw new ArgumentException(
-                    GlobalException.FormatExceptionMessage(
-                        "Model validation failed.",
-                        nameof(UpdatePersonality),
-                        new { id, errors = ModelState }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(UpdatePersonality),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { dto });
 
             var updated = await _personalityRepository.UpdatePersonalityAsync(id, dto);
 
             if (updated is null)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        $"Personality with ID {id} not found.",
-                        nameof(UpdatePersonality),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdatePersonality),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
 
             return Ok(updated);
         }
@@ -128,13 +121,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             var ok = await _personalityRepository.DeletePersonalityAsync(id);
 
             if (!ok)
-                throw new ResourceNotFoundException(
-                    GlobalException.FormatExceptionMessage(
-                        $"Personality with ID {id} not found.",
-                        nameof(Delete),
-                        new { id }
-                    )
-                );
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(Delete),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
 
             return NoContent();
         }

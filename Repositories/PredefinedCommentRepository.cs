@@ -3,7 +3,7 @@ using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using System.Data.Common;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface; // IDbProvider
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {

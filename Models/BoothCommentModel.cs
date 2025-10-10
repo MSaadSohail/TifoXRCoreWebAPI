@@ -18,6 +18,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public bool IsActive { get; set; }
         public DateTime CreationTime { get; set; }
 
+        public string? UserName { get; set; }
+
         // Convenience for client display: the predefined comment's localized text (for this space)
         public LocalizedPairs LocalizedPairs { get; set; }
     }

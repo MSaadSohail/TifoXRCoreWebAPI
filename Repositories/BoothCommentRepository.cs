@@ -4,7 +4,7 @@ using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using System.Data;
 using System.Data.Common;
-using TifoXRCoreWebAPI.Utilities.Infrastructure.Interface; // IDbProvider
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
@@ -193,7 +193,7 @@ VALUES (@S, @U, @Pid, @A, NOW(6), 'system');";
 
         public async Task<List<BoothCommentModel>> GetBoothCommentsBySpaceAsync(int spaceId, bool includeInactive = false)
         {
-            // 1) Load booth_comment + comment_key in one pass
+            // 1) Load booth_comment + comment_key + username in one pass
             const string sqlBase = @"
 SELECT
     bc.id,
@@ -202,10 +202,13 @@ SELECT
     bc.predefined_comment_id,
     bc.is_active,
     bc.creation_time,
-    pc.comment_key
+    pc.comment_key,
+    u.username AS user_name
 FROM booth_comment bc
 INNER JOIN predefined_comments pc
         ON pc.id = bc.predefined_comment_id
+LEFT JOIN `user` u
+       ON u.id = bc.user_id
 WHERE bc.space_id = @S
 {0}
 ORDER BY bc.id;";
@@ -223,7 +226,7 @@ ORDER BY bc.id;";
             await using (var r = await cmd.ExecuteReaderAsync())
             {
                 bool ordReady = false;
-                int o_id = -1, o_sid = -1, o_uid = -1, o_pid = -1, o_act = -1, o_ct = -1, o_ck = -1;
+                int o_id = -1, o_sid = -1, o_uid = -1, o_pid = -1, o_act = -1, o_ct = -1, o_ck = -1, o_un = -1;
 
                 while (await r.ReadAsync())
                 {
@@ -236,6 +239,7 @@ ORDER BY bc.id;";
                         o_act = r.GetOrdinal("is_active");
                         o_ct = r.GetOrdinal("creation_time");
                         o_ck = r.GetOrdinal("comment_key");
+                        o_un = r.GetOrdinal("user_name");
                         ordReady = true;
                     }
 
@@ -250,6 +254,10 @@ ORDER BY bc.id;";
                         PredefinedCommentId = r.GetInt32(o_pid),
                         IsActive = r.GetBoolean(o_act),
                         CreationTime = r.GetDateTime(o_ct),
+
+                        // NEW: user display name (nullable)
+                        UserName = r.IsDBNull(o_un) ? null : r.GetString(o_un),
+
                         LocalizedPairs = new LocalizedPairs
                         {
                             Key = ck,
@@ -321,6 +329,7 @@ ORDER BY `key`, locale_id;";
 
             return rows.Select(x => x.Model).ToList();
         }
+
 
         public async Task<BoothCommentModel?> UpdateBoothCommentAsync(int spaceId, int id, BoothCommentUpdateDto dto)
         {
