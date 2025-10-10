@@ -4,18 +4,17 @@
 // <author>Syed Hussain</author>
 // <date>07/28/2025</date>
 // <summary>Data for Booth </summary>
+
 using GMS.TifoXRCoreWebAPI.Models.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Models
 {
     public class BoothCreateDto
     {
-        public int SpaceId { get; set; }
+        //public int SpaceId { get; set; }
         public LocalizedPairs LocalizedPairs { get; set; }
         public int MapSpotId { get; set; }
-
-        public MapSpotModel MapSpot { get; set; }
-
+        public List<MediaCreateDto>? MediaItems { get; set; }
     }
 
     public class BoothWrapper
@@ -28,8 +27,8 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int Id { get; set; }
         public int SpaceId { get; set; }
         public int MapSpotId { get; set; }
-        public MapSpotModel? MapSpot { get; set; }
         public LocalizedPairs LocalizedPairs { get; set; }
+        public List<MediaData> MediaItems { get; set; } = new();
     }
     public class MapSpotModel
     {
@@ -38,13 +37,24 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public decimal Z { get; set; }
     }
 
+    public class BoothLocalizedPairsUpdateDto
+    {
+        public List<LocalizedValue>? Values { get; set; }
+    }
+
+    public class BoothMediaUpdateDto
+    {
+        public int MediaTypeId { get; set; }
+        public string? TextKey { get; set; }
+        public string? DescriptionKey { get; set; }
+        public List<MediaLocalization>? LinkLocalizations { get; set; }
+    }
 
     public class BoothUpdateDto
     {
-        public LocalizedPairs LocalizedPairs { get; set; }
+        public BoothLocalizedPairsUpdateDto? LocalizedPairs { get; set; }
         public int MapSpotId { get; set; }
-
-        public MapSpotModel MapSpot { get; set; }
+        public List<BoothMediaUpdateDto>? MediaItems { get; set; }
 
     }
 

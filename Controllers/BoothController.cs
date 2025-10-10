@@ -9,11 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 //
 using Serilog;
 //
-using GMS.TifoXRCoreWebAPI.Middleware.Errors;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Middleware.Exceptions;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Middleware.Errors;
 using GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface;
 
 namespace GMS.TifoXRCoreWebAPI.Controllers
@@ -65,16 +63,6 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 diag.Set("SpaceId", spaceId);
                 diag.Set("RepoDurationMs", sw.ElapsedMilliseconds);
                 diag.Set("BoothCount", booths?.Count ?? 0);
-
-                // Optional: surface slow path without spamming (Warning = unexpected but not fatal)
-                //if (sw.ElapsedMilliseconds > ErrorMessages.SlowRepositoryThresholdMs)
-                //{
-                //    log.Warn(
-                //        ErrorMessages.SlowRepositoryCallMessage,
-                //        "Fetching booths",
-                //        sw.ElapsedMilliseconds
-                //    );
-                //}
 
                 // Not found is an expected branch -> throw; GlobalException will log once and return 404
                 if (booths is null || booths.Count == 0)
@@ -187,12 +175,64 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     ErrorMessages.Http.Conflict,
                     parameters: new { spaceId });
 
-            // If you have GET-by-id, prefer CreatedAtAction(nameof(GetBoothById), new { spaceId, boothId = createdBooth.Id }, ...)
             return CreatedAtAction(
                 nameof(GetAllBoothsBySpace),
                 new { spaceId },
                 new BoothWrapper { booth = createdBooth }
             );
+        }
+
+        /// <summary>
+        /// POST /api/space/{spaceId}/booth/{boothId}/media
+        /// Adds a new media item to the specified booth.
+        /// </summary>
+        [HttpPost("{spaceId}/booth/{boothId}/media")]
+        [ProducesResponseType(typeof(MediaData), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<MediaData>> AddMediaToBooth(
+            [FromRoute] int spaceId,
+            [FromRoute] int boothId,
+            [FromBody] MediaCreateDto mediaDto)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId });
+
+            if (boothId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId });
+
+            if (mediaDto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(mediaDto),
+                    parameters: new { spaceId, boothId });
+
+            var created = await _boothRepository.AddMediaToBoothAsync(spaceId, boothId, mediaDto);
+
+            if (created is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(AddMediaToBooth),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId });
+
+            return CreatedAtAction(
+                nameof(GetAllBoothsBySpace),
+                new { spaceId },
+                created);
         }
 
         #endregion
@@ -240,6 +280,56 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     nameof(DeleteBoothCascade),
                     ErrorMessages.Http.NotFound,
                     parameters: new { spaceId, boothId });
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// DELETE /api/space/{spaceId}/booth/{boothId}/media/{mediaId}
+        /// Removes a media record from the booth along with its localized values.
+        /// </summary>
+        [HttpDelete("{spaceId}/booth/{boothId}/media/{mediaId}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteBoothMedia(
+            [FromRoute] int spaceId,
+            [FromRoute] int boothId,
+            [FromRoute] string mediaId)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, boothId, mediaId });
+
+            if (boothId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(boothId),
+                    parameters: new { spaceId, boothId, mediaId });
+
+            if (string.IsNullOrWhiteSpace(mediaId))
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(mediaId),
+                    parameters: new { spaceId, boothId, mediaId });
+
+            var deleted = await _boothRepository.DeleteBoothMediaAsync(spaceId, boothId, mediaId);
+
+            if (!deleted)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(DeleteBoothMedia),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, boothId, mediaId });
 
             return NoContent();
         }

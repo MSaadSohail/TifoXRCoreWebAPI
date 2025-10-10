@@ -14,17 +14,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class BoothRepository : IBoothRepository
+    public class BoothRepository(IConfiguration configuration, IDbProvider db) : IBoothRepository
     {
-
-        private readonly IDbProvider _db;
-        //private readonly IAppLogger<BoothRepository>? _log;
-
-        public BoothRepository(IConfiguration configuration, IDbProvider db /*IAppLogger<BoothRepository> log*/)
-        {
-            _db = db;
-            //_log = log;
-        }
+        private readonly IDbProvider _db = db;
 
         public async Task<List<BoothModel>> GetAllBoothsBySpaceAsync(int spaceId)
         {
@@ -54,209 +46,646 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             var booths = new Dictionary<int, BoothModel>();
 
+            await using (var reader = await cmd.ExecuteReaderAsync())
+            {
+                bool ordReady = false;
+                int o_id = -1, o_space_id = -1, o_name_key = -1, o_map_spot_id = -1;
+                int o_x = -1, o_y = -1, o_z = -1, o_locale_id = -1, o_value = -1;
+
+                while (await reader.ReadAsync())
+                {
+                    if (!ordReady)
+                    {
+                        o_id = reader.GetOrdinal("id");
+                        o_space_id = reader.GetOrdinal("space_id");
+                        o_name_key = reader.GetOrdinal("name_key");
+                        o_map_spot_id = reader.GetOrdinal("map_spot_id");
+                        o_x = reader.GetOrdinal("x");
+                        o_y = reader.GetOrdinal("y");
+                        o_z = reader.GetOrdinal("z");
+                        o_locale_id = reader.GetOrdinal("locale_id");
+                        o_value = reader.GetOrdinal("value");
+                        ordReady = true;
+                    }
+
+                    var id = reader.GetInt32(o_id);
+
+                    if (!booths.TryGetValue(id, out var booth))
+                    {
+                        var hasCoords = !reader.IsDBNull(o_x); // x/y/z are null when no map_spot row
+                        booth = new BoothModel
+                        {
+                            Id = id,
+                            SpaceId = reader.GetInt32(o_space_id),
+                            MapSpotId = reader.IsDBNull(o_map_spot_id) ? default : reader.GetInt32(o_map_spot_id),
+                            LocalizedPairs = new LocalizedPairs
+                            {
+                                Key = reader.GetString(o_name_key),
+                                Values = new List<LocalizedValue>()
+                            },
+                            MediaItems = new List<MediaData>()
+                        };
+
+                        booths[id] = booth;
+                    }
+
+                    var locId = reader.GetString(o_locale_id);
+                    var val = reader.GetString(o_value);
+
+                    // De-dupe per locale just in case
+                    if (!booth.LocalizedPairs.Values.Any(v => v.LocaleId == locId))
+                    {
+                        booth.LocalizedPairs.Values.Add(new LocalizedValue
+                        {
+                            LocaleId = locId,
+                            Value = val
+                        });
+                    }
+                }
+            }
+
+            if (booths.Count > 0)
+            {
+                await LoadBoothMediaAsync(conn, booths, spaceId);
+            }
+
+            return booths.Values.ToList();
+        }
+
+        private async Task LoadBoothMediaAsync(DbConnection conn, IDictionary<int, BoothModel> booths, int spaceId)
+        {
+            if (booths is null || booths.Count == 0)
+            {
+                return;
+            }
+
+            var boothIds = booths.Keys.ToList();
+            var paramNames = boothIds.Select((_, i) => $"@B{i}").ToList();
+
+            var sql = $@"
+            SELECT
+                bm.booth_id,
+                bm.media_id,
+                m.media_type_id,
+                m.text_key,
+                m.description_key,
+                ml.locale_id,
+                ml.media_link
+            FROM booth_media bm
+            INNER JOIN media m
+                ON bm.media_id = m.id
+            LEFT JOIN media_localization ml
+                ON ml.media_id = m.id
+            WHERE bm.booth_id IN ({string.Join(", ", paramNames)})
+              AND m.space_id = @SpaceId
+            ORDER BY bm.booth_id, bm.media_id, ml.locale_id;";
+
+            await using var cmd = _db.CreateCommand(conn, sql);
+            for (int i = 0; i < boothIds.Count; i++)
+            {
+                cmd.Parameters.Add(_db.CreateParameter(paramNames[i], boothIds[i]));
+            }
+
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
             await using var reader = await cmd.ExecuteReaderAsync();
 
+            var mediaCache = new Dictionary<(int BoothId, string MediaId), MediaData>();
+
             bool ordReady = false;
-            int o_id = -1, o_space_id = -1, o_name_key = -1, o_map_spot_id = -1;
-            int o_x = -1, o_y = -1, o_z = -1, o_locale_id = -1, o_value = -1;
+            int oBooth = -1, oMedia = -1, oType = -1, oText = -1, oDesc = -1, oLocale = -1, oLink = -1;
 
             while (await reader.ReadAsync())
             {
                 if (!ordReady)
                 {
-                    o_id = reader.GetOrdinal("id");
-                    o_space_id = reader.GetOrdinal("space_id");
-                    o_name_key = reader.GetOrdinal("name_key");
-                    o_map_spot_id = reader.GetOrdinal("map_spot_id");
-                    o_x = reader.GetOrdinal("x");
-                    o_y = reader.GetOrdinal("y");
-                    o_z = reader.GetOrdinal("z");
-                    o_locale_id = reader.GetOrdinal("locale_id");
-                    o_value = reader.GetOrdinal("value");
+                    oBooth = reader.GetOrdinal("booth_id");
+                    oMedia = reader.GetOrdinal("media_id");
+                    oType = reader.GetOrdinal("media_type_id");
+                    oText = reader.GetOrdinal("text_key");
+                    oDesc = reader.GetOrdinal("description_key");
+                    oLocale = reader.GetOrdinal("locale_id");
+                    oLink = reader.GetOrdinal("media_link");
                     ordReady = true;
                 }
 
-                var id = reader.GetInt32(o_id);
-
-                if (!booths.TryGetValue(id, out var booth))
+                var boothId = reader.GetInt32(oBooth);
+                if (!booths.TryGetValue(boothId, out var booth))
                 {
-                    var hasCoords = !reader.IsDBNull(o_x); // x/y/z are null when no map_spot row
-                    booth = new BoothModel
+                    continue;
+                }
+
+                var mediaId = reader.GetString(oMedia);
+                var key = (boothId, mediaId);
+
+                if (!mediaCache.TryGetValue(key, out var media))
+                {
+                    media = new MediaData
                     {
-                        Id = id,
-                        SpaceId = reader.GetInt32(o_space_id),
-                        MapSpotId = reader.IsDBNull(o_map_spot_id) ? default : reader.GetInt32(o_map_spot_id),
-                        MapSpot = hasCoords
-                            ? new MapSpotModel
-                            {
-                                X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
-                                Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
-                                Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z)
-                            }
-                            : null,
-                        LocalizedPairs = new LocalizedPairs
-                        {
-                            Key = reader.GetString(o_name_key),
-                            Values = new List<LocalizedValue>()
-                        }
+                        Id = mediaId,
+                        MediaTypeId = reader.GetInt32(oType),
+                        TextKey = reader.IsDBNull(oText) ? null : reader.GetString(oText),
+                        DescriptionKey = reader.IsDBNull(oDesc) ? null : reader.GetString(oDesc),
+                        LinkLocalizations = new List<MediaLocalization>()
                     };
 
-                    booths[id] = booth;
+                    mediaCache[key] = media;
+                    booth.MediaItems.Add(media);
                 }
 
-                var locId = reader.GetString(o_locale_id);
-                var val = reader.GetString(o_value);
-
-                // De-dupe per locale just in case
-                if (!booth.LocalizedPairs.Values.Any(v => v.LocaleId == locId))
+                if (!reader.IsDBNull(oLocale) && !reader.IsDBNull(oLink))
                 {
-                    booth.LocalizedPairs.Values.Add(new LocalizedValue
+                    var locale = reader.GetString(oLocale);
+
+                    if (!media.LinkLocalizations.Any(l => string.Equals(l.LocaleId, locale, StringComparison.OrdinalIgnoreCase)))
                     {
-                        LocaleId = locId,
-                        Value = val
-                    });
+                        media.LinkLocalizations.Add(new MediaLocalization
+                        {
+                            LocaleId = locale,
+                            MediaLink = reader.GetString(oLink)
+                        });
+                    }
                 }
             }
-
-            return booths.Values.ToList();
         }
-        //===The following function is an example of how an AppLogger logging can be implemented in the method===
-        /*public async Task<List<BoothModel>> GetAllBoothsBySpaceAsync(int spaceId)
+
+        private async Task SyncBoothMediaAsync(
+            DbConnection conn,
+            DbTransaction tx,
+            int spaceId,
+            int boothId,
+             IReadOnlyList<BoothMediaUpdateDto> mediaItems)
         {
-            const string SqlBoothsBySpace = "BoothsBySpace"; // stable query name for logs
+            var normalizedItems = mediaItems ?? Array.Empty<BoothMediaUpdateDto>();
 
-            const string sql = @"
-    SELECT
-        b.id,
-        b.space_id,
-        b.name_key,
-        b.map_spot_id,
-        ms.x,
-        ms.y,
-        ms.z,
-        i.locale_id,
-        i.value
-    FROM booth b
-    INNER JOIN i18n i
-        ON i.`key` = b.name_key
-       AND i.space_id = b.space_id
-    LEFT JOIN map_spot ms
-        ON b.map_spot_id = ms.id
-    WHERE b.space_id = @SpaceId
-    ORDER BY b.id, i.locale_id;";
+            if (normalizedItems.Count == 0)
+                return;
 
-            using (_log.WithProperties(("SpaceId", spaceId)))
+            var existing = new List<(string MediaId, string? TextKey, string? DescriptionKey)>();
+
+            const string fetchSql = @"
+            SELECT bm.media_id, m.text_key, m.description_key
+              FROM booth_media bm
+              INNER JOIN media m ON bm.media_id = m.id
+             WHERE bm.booth_id = @BoothId
+             ORDER BY bm.media_id;";
+
+            await using (var fetchCmd = _db.CreateCommand(conn, fetchSql))
             {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                var booths = new Dictionary<int, BoothModel>();
-                int rows = 0;
+                fetchCmd.Transaction = tx;
+                fetchCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
-                try
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    await using var conn = await _db.OpenConnectionAsync();
-                    await using var cmd = _db.CreateCommand(conn, sql);
-                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
-
-                    await using var reader = await cmd.ExecuteReaderAsync();
-
-                    bool ordReady = false;
-                    int o_id = -1, o_space_id = -1, o_name_key = -1, o_map_spot_id = -1;
-                    int o_x = -1, o_y = -1, o_z = -1, o_locale_id = -1, o_value = -1;
-
-                    while (await reader.ReadAsync())
-                    {
-                        if (!ordReady)
-                        {
-                            o_id = reader.GetOrdinal("id");
-                            o_space_id = reader.GetOrdinal("space_id");
-                            o_name_key = reader.GetOrdinal("name_key");
-                            o_map_spot_id = reader.GetOrdinal("map_spot_id");
-                            o_x = reader.GetOrdinal("x");
-                            o_y = reader.GetOrdinal("y");
-                            o_z = reader.GetOrdinal("z");
-                            o_locale_id = reader.GetOrdinal("locale_id");
-                            o_value = reader.GetOrdinal("value");
-                            ordReady = true;
-                        }
-
-                        var id = reader.GetInt32(o_id);
-                        if (!booths.TryGetValue(id, out var booth))
-                        {
-                            var hasCoords = !reader.IsDBNull(o_x);
-                            booth = new BoothModel
-                            {
-                                Id = id,
-                                SpaceId = reader.GetInt32(o_space_id),
-                                MapSpotId = reader.IsDBNull(o_map_spot_id) ? default : reader.GetInt32(o_map_spot_id),
-                                MapSpot = hasCoords
-                                    ? new MapSpotModel
-                                    {
-                                        X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
-                                        Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
-                                        Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z)
-                                    }
-                                    : null,
-                                LocalizedPairs = new LocalizedPairs
-                                {
-                                    Key = reader.GetString(o_name_key),
-                                    Values = new List<LocalizedValue>()
-                                }
-                            };
-                            booths[id] = booth;
-                        }
-
-                        var locId = reader.GetString(o_locale_id);
-                        var val = reader.GetString(o_value);
-
-                        if (!booth.LocalizedPairs.Values.Any(v => v.LocaleId == locId))
-                        {
-                            booth.LocalizedPairs.Values.Add(new LocalizedValue
-                            {
-                                LocaleId = locId,
-                                Value = val
-                            });
-                        }
-
-                        rows++;
-                    }
-
-                    sw.Stop();
-
-                    // Push a DEBUG summary (only if enabled) so prod stays quiet
-                    if (_log.IsEnabled(LogLevel.Debug))
-                    {
-                        _log.Debug("DB query {Query} completed (ElapsedMs={ElapsedMs}, Rows={RowCount})",
-                                   SqlBoothsBySpace, sw.ElapsedMilliseconds, rows);
-                        // Optional: include parameters ONLY at Debug
-                        _log.Debug("DB params {Params}", new { SpaceId = spaceId });
-                    }
-
-                    // Warn if the query is slow (tune threshold to your SLO)
-                    if (sw.ElapsedMilliseconds > 500)
-                    {
-                        _log.Warn("Slow DB query {Query} (ElapsedMs={ElapsedMs}, Rows={RowCount})",
-                                  SqlBoothsBySpace, sw.ElapsedMilliseconds, rows);
-                    }
-
-                    return booths.Values.ToList();
-                }
-                catch (DbException ex)
-                {
-                    sw.Stop();
-                    // One structured error with key context; do NOT dump SQL/params at Error level
-                    _log.Error(ex,
-                        "DB failure executing {Query} (ElapsedMs={ElapsedMs})",
-                        SqlBoothsBySpace, sw.ElapsedMilliseconds);
-
-                    // (Optional) include params at Debug for forensics
-                    if (_log.IsEnabled(LogLevel.Debug))
-                        _log.Debug("DB params {Params}", new { SpaceId = spaceId });
-
-                    throw; // let GlobalException produce the API error
+                    var mediaId = reader.GetString(0);
+                    var textKey = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    var descKey = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    existing.Add((
+                        reader.GetString(0),
+                        reader.IsDBNull(1) ? null : reader.GetString(1),
+                        reader.IsDBNull(2) ? null : reader.GetString(2)));
                 }
             }
-        }*/
 
+            if (existing.Count == 0)
+                throw new InvalidOperationException("No media exists for this booth to update.");
+
+            if (normalizedItems.Count > existing.Count)
+                throw new InvalidOperationException("Cannot add new media via booth update. Use the media creation endpoint instead.");
+
+            var usedIndexes = new HashSet<int>();
+
+            foreach (var dto in normalizedItems)
+            {
+                if (dto.LinkLocalizations == null || dto.LinkLocalizations.Count == 0)
+                {
+                    continue;
+                }
+
+                var index = FindMatchingMediaIndex(dto, existing, usedIndexes);
+                if (index < 0)
+                    throw new InvalidOperationException("Unable to match media update request to existing booth media.");
+
+                usedIndexes.Add(index);
+                var mediaMeta = existing[index];
+
+                const string updateSql = @"
+                UPDATE media
+                   SET media_type_id = @MediaTypeId,
+                       text_key = @TextKey,
+                       description_key = @DescKey
+                 WHERE id = @MediaId
+                   AND space_id = @SpaceId;";
+
+                await using (var cmd = _db.CreateCommand(conn, updateSql))
+                {
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", dto.MediaTypeId));
+                    cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)dto.TextKey ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaMeta.MediaId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await ReplaceMediaLocalizationsAsync(conn, tx, mediaMeta.MediaId, dto.LinkLocalizations);
+            }
+        }
+
+        static int FindMatchingMediaIndex(
+                BoothMediaUpdateDto dto,
+                List<(string MediaId, string? TextKey, string? DescriptionKey)> existing,
+                HashSet<int> usedIndexes)
+        {
+            bool MatchEntry(int idx, Func<(string MediaId, string? TextKey, string? DescriptionKey), bool> predicate)
+                => !usedIndexes.Contains(idx) && predicate(existing[idx]);
+
+            string? textKey = dto.TextKey;
+            string? descKey = dto.DescriptionKey;
+
+            // 1) Match on both text & description keys when provided.
+            if (!string.IsNullOrWhiteSpace(textKey) || !string.IsNullOrWhiteSpace(descKey))
+            {
+                for (int i = 0; i < existing.Count; i++)
+                {
+                    if (MatchEntry(i, e =>
+                        (string.Equals(e.TextKey, textKey, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(textKey)) &&
+                        (string.Equals(e.DescriptionKey, descKey, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(descKey))))
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            // 2) Match on text key alone.
+            if (!string.IsNullOrWhiteSpace(textKey))
+            {
+                for (int i = 0; i < existing.Count; i++)
+                {
+                    if (MatchEntry(i, e => string.Equals(e.TextKey, textKey, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            // 3) Match on description key alone.
+            if (!string.IsNullOrWhiteSpace(descKey))
+            {
+                for (int i = 0; i < existing.Count; i++)
+                {
+                    if (MatchEntry(i, e => string.Equals(e.DescriptionKey, descKey, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            // 4) Fallback to the first unused entry (preserve order).
+            for (var i = 0; i < existing.Count; i++)
+            {
+                if (!usedIndexes.Contains(i))
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private async Task<string> InsertMediaAsync(
+            DbConnection conn,
+            DbTransaction tx,
+            int spaceId,
+            MediaCreateDto dto)
+        {
+            string mediaId;
+            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT UUID();"))
+            {
+                uuidCmd.Transaction = tx;
+                var result = await uuidCmd.ExecuteScalarAsync();
+                mediaId = Convert.ToString(result);
+                if (string.IsNullOrWhiteSpace(mediaId))
+                {
+                    mediaId = Guid.NewGuid().ToString("N");
+                }
+            }
+
+            const string insertMediaSql = @"
+            INSERT INTO media (id, space_id, media_type_id, text_key, description_key)
+            VALUES (@Id, @SpaceId, @MediaTypeId, @TextKey, @DescKey);";
+
+            await using (var cmd = _db.CreateCommand(conn, insertMediaSql))
+            {
+                cmd.Transaction = tx;
+                cmd.Parameters.Add(_db.CreateParameter("@Id", mediaId));
+                cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", dto.MediaTypeId));
+                cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)dto.TextKey ?? DBNull.Value));
+                cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value));
+
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            if (dto.TextKey != null && dto.TextLocalizations != null)
+            {
+                const string insTextSql = @"
+INSERT INTO i18n (`key`, locale_id, value, space_id)
+VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+                foreach (var loc in dto.TextLocalizations)
+                {
+                    await using var cmd = _db.CreateCommand(conn, insTextSql);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.TextKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            if (dto.DescriptionKey != null && dto.DescriptionLocalizations != null)
+            {
+                const string insDescSql = @"
+INSERT INTO i18n (`key`, locale_id, value, space_id)
+VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+                foreach (var loc in dto.DescriptionLocalizations)
+                {
+                    await using var cmd = _db.CreateCommand(conn, insDescSql);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.DescriptionKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            if (dto.LinkLocalizations != null)
+            {
+                const string insLocSql = @"
+INSERT INTO media_localization (media_id, locale_id, media_link)
+VALUES (@MediaId, @LocaleId, @MediaLink);";
+
+                foreach (var loc in dto.LinkLocalizations)
+                {
+                    await using var cmdLoc = _db.CreateCommand(conn, insLocSql);
+                    cmdLoc.Transaction = tx;
+                    cmdLoc.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                    cmdLoc.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                    cmdLoc.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
+                    await cmdLoc.ExecuteNonQueryAsync();
+                }
+            }
+
+            return mediaId;
+        }
+
+        private async Task InsertBoothMediaAsync(DbConnection conn, DbTransaction tx, int boothId, string mediaId)
+        {
+            const string deleteSql = @"
+            DELETE FROM booth_media
+             WHERE booth_id = @BoothId AND media_id = @MediaId;";
+
+            await using (var delCmd = _db.CreateCommand(conn, deleteSql))
+            {
+                delCmd.Transaction = tx;
+                delCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                delCmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                await delCmd.ExecuteNonQueryAsync();
+            }
+
+            const string insertSql = @"
+            INSERT INTO booth_media (booth_id, media_id)
+            VALUES (@BoothId, @MediaId);";
+
+            await using var insCmd = _db.CreateCommand(conn, insertSql);
+            insCmd.Transaction = tx;
+            insCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+            insCmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+            await insCmd.ExecuteNonQueryAsync();
+        }
+
+        private async Task ReplaceMediaLocalizationsAsync(
+            DbConnection conn,
+            DbTransaction tx,
+            string mediaId,
+            IEnumerable<MediaLocalization> localizations)
+        {
+            const string deleteSql = @"
+            DELETE FROM media_localization
+             WHERE media_id = @MediaId;";
+
+            await using (var delCmd = _db.CreateCommand(conn, deleteSql))
+            {
+                delCmd.Transaction = tx;
+                delCmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                await delCmd.ExecuteNonQueryAsync();
+            }
+
+            const string insertSql = @"
+            INSERT INTO media_localization (media_id, locale_id, media_link)
+            VALUES (@MediaId, @LocaleId, @MediaLink);";
+
+            foreach (var loc in localizations)
+            {
+                await using var insCmd = _db.CreateCommand(conn, insertSql);
+                insCmd.Transaction = tx;
+                insCmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                insCmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                insCmd.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
+                await insCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        private async Task DeleteMediaCascadeAsync(
+            DbConnection conn,
+            DbTransaction tx,
+            int boothId,
+            string mediaId,
+            string? textKey,
+            string? descriptionKey,
+            int spaceId)
+        {
+            const string deleteLocSql = @"
+            DELETE FROM media_localization
+             WHERE media_id = @MediaId;";
+
+            await using (var delLoc = _db.CreateCommand(conn, deleteLocSql))
+            {
+                delLoc.Transaction = tx;
+                delLoc.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                await delLoc.ExecuteNonQueryAsync();
+            }
+
+            const string deleteMapSql = @"
+            DELETE FROM booth_media
+             WHERE booth_id = @BoothId AND media_id = @MediaId;";
+
+            await using (var delMap = _db.CreateCommand(conn, deleteMapSql))
+            {
+                delMap.Transaction = tx;
+                delMap.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                delMap.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                await delMap.ExecuteNonQueryAsync();
+            }
+
+            const string deleteMediaSql = @"
+            DELETE FROM media
+             WHERE id = @MediaId;";
+
+            await using (var delMedia = _db.CreateCommand(conn, deleteMediaSql))
+            {
+                delMedia.Transaction = tx;
+                delMedia.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                await delMedia.ExecuteNonQueryAsync();
+            }
+
+            if (!string.IsNullOrWhiteSpace(textKey))
+            {
+                const string deleteTextSql = @"
+            DELETE FROM i18n
+             WHERE `key` = @Key AND space_id = @SpaceId;";
+
+                await using var delText = _db.CreateCommand(conn, deleteTextSql);
+                delText.Transaction = tx;
+                delText.Parameters.Add(_db.CreateParameter("@Key", textKey));
+                delText.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                await delText.ExecuteNonQueryAsync();
+            }
+
+            if (!string.IsNullOrWhiteSpace(descriptionKey))
+            {
+                const string deleteDescSql = @"
+            DELETE FROM i18n
+             WHERE `key` = @Key AND space_id = @SpaceId;";
+
+                await using var delDesc = _db.CreateCommand(conn, deleteDescSql);
+                delDesc.Transaction = tx;
+                delDesc.Parameters.Add(_db.CreateParameter("@Key", descriptionKey));
+                delDesc.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                await delDesc.ExecuteNonQueryAsync();
+            }
+        }
+
+        private static List<MediaCreateDto> NormalizeMediaCreates(List<MediaCreateDto>? mediaItems, HashSet<string> supportedLocales)
+        {
+            var result = new List<MediaCreateDto>();
+            if (mediaItems == null)
+                return result;
+
+            foreach (var item in mediaItems)
+            {
+                if (item == null)
+                    continue;
+
+                var links = NormalizeLocalizations(item.LinkLocalizations, supportedLocales);
+                if (links.Count == 0)
+                    continue;
+
+                result.Add(new MediaCreateDto
+                {
+                    MediaTypeId = item.MediaTypeId,
+                    TextKey = item.TextKey,
+                    DescriptionKey = item.DescriptionKey,
+                    LinkLocalizations = links,
+                    TextLocalizations = NormalizeLocalizedValues(item.TextLocalizations, supportedLocales),
+                    DescriptionLocalizations = NormalizeLocalizedValues(item.DescriptionLocalizations, supportedLocales)
+                });
+            }
+
+            return result;
+        }
+
+        private static List<BoothMediaUpdateDto> NormalizeBoothMediaUpdates(List<BoothMediaUpdateDto>? mediaItems, HashSet<string> supportedLocales)
+        {
+            var result = new List<BoothMediaUpdateDto>();
+
+            if (mediaItems == null)
+                return result;
+
+            foreach (var item in mediaItems)
+            {
+                if (item == null)
+                    continue;
+
+                var links = NormalizeLocalizations(item.LinkLocalizations, supportedLocales);
+                if (links.Count == 0)
+                    continue;
+
+                result.Add(new BoothMediaUpdateDto
+                {
+                    MediaTypeId = item.MediaTypeId,
+                    TextKey = item.TextKey,
+                    DescriptionKey = item.DescriptionKey,
+                    LinkLocalizations = links
+                });
+            }
+
+            return result;
+        }
+
+        private static List<MediaLocalization> NormalizeLocalizations(IEnumerable<MediaLocalization>? source, HashSet<string> supportedLocales)
+        {
+            var result = new List<MediaLocalization>();
+            if (source == null)
+                return result;
+
+            foreach (var loc in source)
+            {
+                if (loc == null)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(loc.LocaleId))
+                    continue;
+
+                if (!supportedLocales.Contains(loc.LocaleId))
+                    continue;
+
+                if (result.Any(l => string.Equals(l.LocaleId, loc.LocaleId, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                result.Add(new MediaLocalization
+                {
+                    LocaleId = loc.LocaleId,
+                    MediaLink = loc.MediaLink
+                });
+            }
+
+            return result;
+        }
+
+        private static List<LocalizedValue>? NormalizeLocalizedValues(IEnumerable<LocalizedValue>? source, HashSet<string> supportedLocales)
+        {
+            if (source == null)
+                return null;
+
+            var result = new List<LocalizedValue>();
+
+            foreach (var loc in source)
+            {
+                if (loc == null)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(loc.LocaleId))
+                    continue;
+
+                if (!supportedLocales.Contains(loc.LocaleId))
+                    continue;
+
+                if (result.Any(l => string.Equals(l.LocaleId, loc.LocaleId, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                result.Add(new LocalizedValue
+                {
+                    LocaleId = loc.LocaleId,
+                    Value = loc.Value
+                });
+            }
+
+            return result;
+        }
 
         public async Task<BoothModel?> UpdateBoothAsync(int spaceId, int boothId, BoothUpdateDto dto)
         {
@@ -265,6 +694,32 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             try
             {
+                // 0) Fetch immutable booth data (name_key) and ensure booth exists
+                const string fetchBoothKeySql = @"SELECT name_key FROM booth WHERE id = @BoothId AND space_id = @SpaceId;";
+                string? boothNameKey;
+
+                await using (var fetchCmd = _db.CreateCommand(conn, fetchBoothKeySql))
+                {
+                    fetchCmd.Transaction = tx;
+                    fetchCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                    fetchCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
+                    var result = await fetchCmd.ExecuteScalarAsync();
+                    if (result is null || result == DBNull.Value)
+                    {
+                        await tx.RollbackAsync();
+                        return null;
+                    }
+
+                    boothNameKey = Convert.ToString(result);
+                }
+
+                if (string.IsNullOrWhiteSpace(boothNameKey))
+                {
+                    await tx.RollbackAsync();
+                    return null;
+                }
+
                 // 1) Validate map_spot exists
                 const string validateSpotSql = @"SELECT COUNT(1) FROM map_spot WHERE id = @MapSpotId;";
                 await using (var cmd = _db.CreateCommand(conn, validateSpotSql))
@@ -287,7 +742,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 await using (var cmd = _db.CreateCommand(conn, updBooth))
                 {
                     cmd.Transaction = tx;
-                    cmd.Parameters.Add(_db.CreateParameter("@NameKey", dto.LocalizedPairs.Key));
+                    cmd.Parameters.Add(_db.CreateParameter("@NameKey", boothNameKey));
                     cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
                     cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     cmd.Parameters.Add(_db.CreateParameter("@MapSpotId", dto.MapSpotId));
@@ -303,20 +758,35 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 var allLocales = dto.LocalizedPairs?.Values?
                     .Select(v => v.LocaleId)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList() ?? new List<string>();
 
+                if (dto.MediaItems != null)
+                {
+                    foreach (var locale in dto.MediaItems
+                        .Where(m => m?.LinkLocalizations != null)
+                        .SelectMany(m => m.LinkLocalizations!)
+                        .Select(l => l.LocaleId)
+                        .Where(s => !string.IsNullOrWhiteSpace(s)))
+                    {
+                        allLocales.Add(locale);
+                    }
+                }
+
+                allLocales = allLocales
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var supported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 if (allLocales.Count > 0)
                 {
                     const string checkSupportedLangSqlBase = @"
-                    SELECT locale_id 
-                      FROM supported_languages 
+                    SELECT locale_id
+                      FROM supported_languages
                      WHERE locale_id IN ({0}) AND space_id = @SpaceId;";
 
                     var paramNames = allLocales.Select((_, i) => $"@loc{i}").ToList();
                     var dynamicQuery = string.Format(checkSupportedLangSqlBase, string.Join(", ", paramNames));
 
-                    var supported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     await using (var checkCmd = _db.CreateCommand(conn, dynamicQuery))
                     {
                         checkCmd.Transaction = tx;
@@ -334,6 +804,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         throw new InvalidOperationException($"Unsupported locales: {string.Join(", ", unsupported)}");
                 }
 
+                var normalizedMedia = NormalizeBoothMediaUpdates(dto.MediaItems, supported);
+
                 // 4) Upsert i18n for booth name_key
                 const string updI18n = @"
                 UPDATE i18n
@@ -349,7 +821,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     {
                         await using var cmdUp = _db.CreateCommand(conn, updI18n);
                         cmdUp.Transaction = tx;
-                        cmdUp.Parameters.Add(_db.CreateParameter("@NameKey", dto.LocalizedPairs.Key));
+                        cmdUp.Parameters.Add(_db.CreateParameter("@NameKey", boothNameKey));
                         cmdUp.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
                         cmdUp.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
                         cmdUp.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
@@ -358,7 +830,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         {
                             await using var cmdIn = _db.CreateCommand(conn, insI18n);
                             cmdIn.Transaction = tx;
-                            cmdIn.Parameters.Add(_db.CreateParameter("@NameKey", dto.LocalizedPairs.Key));
+                            cmdIn.Parameters.Add(_db.CreateParameter("@NameKey", boothNameKey));
                             cmdIn.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
                             cmdIn.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
                             cmdIn.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
@@ -367,10 +839,176 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     }
                 }
 
+                await SyncBoothMediaAsync(conn, tx, spaceId, boothId, normalizedMedia);
+
                 await tx.CommitAsync();
 
                 // 5) Reload and return the updated booth
                 return await LoadBoothByIdAsync(conn, spaceId, boothId);
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<MediaData?> AddMediaToBoothAsync(int spaceId, int boothId, MediaCreateDto dto)
+        {
+            if (dto is null)
+                throw new ArgumentNullException(nameof(dto));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                const string boothExistsSql = @"SELECT COUNT(1) FROM booth WHERE id = @BoothId AND space_id = @SpaceId;";
+
+                await using (var existsCmd = _db.CreateCommand(conn, boothExistsSql))
+                {
+                    existsCmd.Transaction = tx;
+                    existsCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                    existsCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
+                    var exists = Convert.ToInt32(await existsCmd.ExecuteScalarAsync()) > 0;
+                    if (!exists)
+                    {
+                        await tx.RollbackAsync();
+                        return null;
+                    }
+                }
+
+                var allLocales = new List<string>();
+
+                void AddLocales(IEnumerable<LocalizedValue>? values)
+                {
+                    if (values == null)
+                        return;
+
+                    foreach (var val in values.Where(v => !string.IsNullOrWhiteSpace(v?.LocaleId)))
+                        allLocales.Add(val!.LocaleId);
+                }
+
+                if (dto.LinkLocalizations != null)
+                {
+                    foreach (var loc in dto.LinkLocalizations.Where(l => !string.IsNullOrWhiteSpace(l?.LocaleId)))
+                        allLocales.Add(loc!.LocaleId);
+                }
+
+                AddLocales(dto.TextLocalizations);
+                AddLocales(dto.DescriptionLocalizations);
+
+                allLocales = allLocales
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var supported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (allLocales.Count > 0)
+                {
+                    const string checkSupportedSqlBase = @"
+                    SELECT locale_id
+                      FROM supported_languages
+                     WHERE locale_id IN ({0})
+                       AND space_id = @SpaceId;";
+
+                    var paramNames = allLocales.Select((_, i) => $"@loc{i}").ToList();
+                    var query = string.Format(checkSupportedSqlBase, string.Join(", ", paramNames));
+
+                    await using (var checkCmd = _db.CreateCommand(conn, query))
+                    {
+                        checkCmd.Transaction = tx;
+                        for (int i = 0; i < allLocales.Count; i++)
+                            checkCmd.Parameters.Add(_db.CreateParameter(paramNames[i], allLocales[i]));
+                        checkCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
+                        await using var rdr = await checkCmd.ExecuteReaderAsync();
+                        while (await rdr.ReadAsync())
+                            supported.Add(rdr.IsDBNull(0) ? string.Empty : rdr.GetString(0));
+                    }
+                }
+
+                var normalizedList = NormalizeMediaCreates(new List<MediaCreateDto> { dto }, supported);
+                if (normalizedList.Count == 0)
+                    throw new InvalidOperationException("Media link localizations are required to add booth media.");
+
+                var normalized = normalizedList[0];
+
+                var mediaId = await InsertMediaAsync(conn, tx, spaceId, normalized);
+                await InsertBoothMediaAsync(conn, tx, boothId, mediaId);
+
+                await tx.CommitAsync();
+
+                return new MediaData
+                {
+                    Id = mediaId,
+                    MediaTypeId = normalized.MediaTypeId,
+                    TextKey = normalized.TextKey,
+                    DescriptionKey = normalized.DescriptionKey,
+                    LinkLocalizations = normalized.LinkLocalizations?
+                        .Select(l => new MediaLocalization
+                        {
+                            LocaleId = l.LocaleId,
+                            MediaLink = l.MediaLink
+                        })
+                        .ToList() ?? new List<MediaLocalization>()
+                };
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<bool> DeleteBoothMediaAsync(int spaceId, int boothId, string mediaId)
+        {
+            if (string.IsNullOrWhiteSpace(mediaId))
+                throw new ArgumentException("Media ID is required.", nameof(mediaId));
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                const string lookupSql = @"
+                SELECT m.text_key, m.description_key
+                  FROM booth_media bm
+                  INNER JOIN booth b ON bm.booth_id = b.id
+                  LEFT JOIN media m ON m.id = bm.media_id
+                 WHERE b.space_id = @SpaceId
+                   AND b.id = @BoothId
+                   AND bm.media_id = @MediaId;";
+
+                string? textKey = null;
+                string? descriptionKey = null;
+
+                await using (var lookupCmd = _db.CreateCommand(conn, lookupSql))
+                {
+                    lookupCmd.Transaction = tx;
+                    lookupCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    lookupCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                    lookupCmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+
+                    await using var reader = await lookupCmd.ExecuteReaderAsync();
+                    if (!await reader.ReadAsync())
+                    {
+                        await tx.RollbackAsync();
+                        return false;
+                    }
+
+                    if (!reader.IsDBNull(0))
+                        textKey = reader.GetString(0);
+                    if (!reader.IsDBNull(1))
+                        descriptionKey = reader.GetString(1);
+                }
+
+                await DeleteMediaCascadeAsync(conn, tx, boothId, mediaId, textKey, descriptionKey, spaceId);
+
+                await tx.CommitAsync();
+                return true;
             }
             catch
             {
@@ -405,64 +1043,75 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
             cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
-            await using var reader = await cmd.ExecuteReaderAsync();
-
             BoothModel? booth = null;
             var values = new List<LocalizedValue>();
 
-            bool ordReady = false;
-            int o_id = -1, o_space_id = -1, o_name_key = -1, o_map_spot_id = -1;
-            int o_x = -1, o_y = -1, o_z = -1, o_locale_id = -1, o_value = -1;
-
-            while (await reader.ReadAsync())
+            await using (var reader = await cmd.ExecuteReaderAsync())
             {
-                if (!ordReady)
-                {
-                    o_id = reader.GetOrdinal("id");
-                    o_space_id = reader.GetOrdinal("space_id");
-                    o_name_key = reader.GetOrdinal("name_key");
-                    o_map_spot_id = reader.GetOrdinal("map_spot_id");
-                    o_x = reader.GetOrdinal("x");
-                    o_y = reader.GetOrdinal("y");
-                    o_z = reader.GetOrdinal("z");
-                    o_locale_id = reader.GetOrdinal("locale_id");
-                    o_value = reader.GetOrdinal("value");
-                    ordReady = true;
-                }
+                bool ordReady = false;
+                int o_id = -1, o_space_id = -1, o_name_key = -1, o_map_spot_id = -1;
+                int o_x = -1, o_y = -1, o_z = -1, o_locale_id = -1, o_value = -1;
 
-                booth ??= new BoothModel
+                while (await reader.ReadAsync())
                 {
-                    Id = reader.GetInt32(o_id),
-                    SpaceId = reader.GetInt32(o_space_id),
-                    MapSpotId = reader.IsDBNull(o_map_spot_id) ? 0 : reader.GetInt32(o_map_spot_id),
-                    MapSpot = reader.IsDBNull(o_x) ? null : new MapSpotModel
+                    if (!ordReady)
                     {
-                        X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
-                        Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
-                        Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z),
-                    },
-                    LocalizedPairs = new LocalizedPairs
-                    {
-                        Key = reader.GetString(o_name_key),
-                        Values = values
+                        o_id = reader.GetOrdinal("id");
+                        o_space_id = reader.GetOrdinal("space_id");
+                        o_name_key = reader.GetOrdinal("name_key");
+                        o_map_spot_id = reader.GetOrdinal("map_spot_id");
+                        o_x = reader.GetOrdinal("x");
+                        o_y = reader.GetOrdinal("y");
+                        o_z = reader.GetOrdinal("z");
+                        o_locale_id = reader.GetOrdinal("locale_id");
+                        o_value = reader.GetOrdinal("value");
+                        ordReady = true;
                     }
+
+                    booth ??= new BoothModel
+                    {
+                        Id = reader.GetInt32(o_id),
+                        SpaceId = reader.GetInt32(o_space_id),
+                        MapSpotId = reader.IsDBNull(o_map_spot_id) ? 0 : reader.GetInt32(o_map_spot_id),
+                        //MapSpot = reader.IsDBNull(o_x) ? null : new MapSpotModel
+                        //{
+                        //    X = reader.IsDBNull(o_x) ? 0 : reader.GetDecimal(o_x),
+                        //    Y = reader.IsDBNull(o_y) ? 0 : reader.GetDecimal(o_y),
+                        //    Z = reader.IsDBNull(o_z) ? 0 : reader.GetDecimal(o_z),
+                        //},
+                        LocalizedPairs = new LocalizedPairs
+                        {
+                            Key = reader.GetString(o_name_key),
+                            Values = values
+                        },
+                        MediaItems = new List<MediaData>()
+                    };
+
+                    // accumulate locales
+                    var locId = reader.GetString(o_locale_id);
+                    if (!values.Any(v => v.LocaleId == locId))
+                    {
+                        values.Add(new LocalizedValue
+                        {
+                            LocaleId = locId,
+                            Value = reader.GetString(o_value)
+                        });
+                    }
+                }
+            }
+
+            if (booth is not null)
+            {
+                var map = new Dictionary<int, BoothModel>
+                {
+                    [booth.Id] = booth
                 };
 
-                // accumulate locales
-                var locId = reader.GetString(o_locale_id);
-                if (!values.Any(v => v.LocaleId == locId))
-                {
-                    values.Add(new LocalizedValue
-                    {
-                        LocaleId = locId,
-                        Value = reader.GetString(o_value)
-                    });
-                }
+                await LoadBoothMediaAsync(conn, map, spaceId);
             }
 
             return booth;
         }
-
 
         public async Task<BoothModel> CreateBoothAsync(int spaceId, BoothCreateDto boothDto)
         {
@@ -523,6 +1172,21 @@ VALUES (@SpaceId, @NameKey, @MapSpotId);";
                 var allLocales = values
                     .Select(v => v.LocaleId)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+
+                if (boothDto.MediaItems != null)
+                {
+                    foreach (var locale in boothDto.MediaItems
+                        .Where(m => m?.LinkLocalizations != null)
+                        .SelectMany(m => m.LinkLocalizations!)
+                        .Select(l => l.LocaleId)
+                        .Where(s => !string.IsNullOrWhiteSpace(s)))
+                    {
+                        allLocales.Add(locale);
+                    }
+                }
+
+                allLocales = allLocales
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
@@ -565,7 +1229,31 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                     cmdI18n.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     await cmdI18n.ExecuteNonQueryAsync();
 
-                    insertedValues.Add(new LocalizedValue { LocaleId = val.LocaleId, Value = val.Value });
+                        insertedValues.Add(new LocalizedValue { LocaleId = val.LocaleId, Value = val.Value });
+                }
+
+                var normalizedMedia = NormalizeMediaCreates(boothDto.MediaItems, supported);
+                var insertedMedia = new List<MediaData>();
+
+                foreach (var mediaDto in normalizedMedia)
+                {
+                    var mediaId = await InsertMediaAsync(conn, tx, spaceId, mediaDto);
+                    await InsertBoothMediaAsync(conn, tx, newBoothId, mediaId);
+
+                    insertedMedia.Add(new MediaData
+                    {
+                        Id = mediaId,
+                        MediaTypeId = mediaDto.MediaTypeId,
+                        TextKey = mediaDto.TextKey,
+                        DescriptionKey = mediaDto.DescriptionKey,
+                        LinkLocalizations = mediaDto.LinkLocalizations?
+                            .Select(l => new MediaLocalization
+                            {
+                                LocaleId = l.LocaleId,
+                                MediaLink = l.MediaLink
+                            })
+                            .ToList() ?? new List<MediaLocalization>()
+                    });
                 }
 
                 await tx.CommitAsync();
@@ -575,12 +1263,13 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                     Id = newBoothId,
                     SpaceId = spaceId,
                     MapSpotId = boothDto.MapSpotId,
-                    MapSpot = mapSpot!,
+                   //MapSpot = mapSpot!,
                     LocalizedPairs = new LocalizedPairs
                     {
                         Key = boothDto.LocalizedPairs.Key,
                         Values = insertedValues
-                    }
+                    },
+                    MediaItems = insertedMedia
                 };
             }
             catch
@@ -589,11 +1278,6 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                 throw;
             }
         }
-
-
-
-
-
 
         public async Task<bool> DeleteBoothCascadeAsync(int spaceId, int boothId)
         {
@@ -621,6 +1305,29 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                         return false;
                     }
                     boothKey = Convert.ToString(o);
+                }
+
+                var boothMedia = new List<(string MediaId, string? TextKey, string? DescriptionKey)>();
+                const string fetchBoothMediaSql = @"
+            SELECT bm.media_id, m.text_key, m.description_key
+              FROM booth_media bm
+              INNER JOIN media m ON bm.media_id = m.id
+             WHERE bm.booth_id = @BoothId;";
+
+                await using (var mediaCmd = _db.CreateCommand(conn, fetchBoothMediaSql))
+                {
+                    mediaCmd.Transaction = tx;
+                    mediaCmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+
+                    await using var mediaReader = await mediaCmd.ExecuteReaderAsync();
+                    while (await mediaReader.ReadAsync())
+                    {
+                        boothMedia.Add((
+                            mediaReader.GetString(0),
+                            mediaReader.IsDBNull(1) ? null : mediaReader.GetString(1),
+                            mediaReader.IsDBNull(2) ? null : mediaReader.GetString(2)
+                        ));
+                    }
                 }
 
                 // 2) Fetch portals for this booth
@@ -723,6 +1430,11 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                     }
                 }
 
+                foreach (var media in boothMedia)
+                {
+                    await DeleteMediaCascadeAsync(conn, tx, boothId, media.MediaId, media.TextKey, media.DescriptionKey, spaceId);
+                }
+
                 // 5) Delete booth's i18n & booth
                 const string delBi18nSql = @"DELETE FROM i18n  WHERE `key` = @K AND space_id = @S;";
                 const string delBoothSql = @"DELETE FROM booth WHERE id = @B AND space_id = @S;";
@@ -752,6 +1464,5 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                 throw;
             }
         }
-
     }
 }
