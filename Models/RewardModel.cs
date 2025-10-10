@@ -7,8 +7,6 @@
 
 namespace GMS.TifoXRCoreWebAPI.Models
 {
-    public enum RewardType { Currency = 1, Item = 2, Mixed = 3 }
-
     // ----- Reward definition -----
 
     public sealed class RewardCreateDto
@@ -24,21 +22,50 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public int? CooldownSeconds { get; init; }
         public DateTime? ValidFrom { get; init; }
         public DateTime? ValidTo { get; init; }
+        public IReadOnlyList<RewardItemCreateDto>? Items { get; init; }
+        public IReadOnlyList<RewardCurrencyCreateDto>? Currencies { get; init; }
     }
 
-    public sealed class RewardItemDto
+    public sealed class RewardUpdateDto
+    {
+        public string? DescriptionKey { get; init; }
+        public int? EntityId { get; init; }
+        public bool? ClaimRequired { get; init; }
+        public bool? IsActive { get; init; }
+        public int? MaxTotalClaims { get; init; }
+        public int? MaxClaimsPerUser { get; init; }
+        public int? CooldownSeconds { get; init; }
+        public DateTime? ValidFrom { get; init; }
+        public DateTime? ValidTo { get; init; }
+    }
+
+    public sealed class RewardItemCreateDto
     {
         public int ItemId { get; init; }
         public int Quantity { get; init; }
     }
 
-    public sealed class RewardCurrencyDto
+    public sealed class RewardCurrencyCreateDto
     {
         public int CurrencyId { get; init; }
         public int Amount { get; init; }
     }
 
-    public sealed class RewardView
+    public sealed class RewardItemView
+    {
+        public int Id { get; init; }
+        public int ItemId { get; init; }
+        public int Quantity { get; init; }
+    }
+
+    public sealed class RewardCurrencyView
+    {
+        public int Id { get; init; }
+        public int CurrencyId { get; init; }
+        public int Amount { get; init; }
+    }
+
+    public class RewardSummaryView
     {
         public int Id { get; init; }
         public int RewardCompositionTypeId { get; init; }
@@ -46,6 +73,19 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public string? DescriptionKey { get; init; }
         public int SpaceId { get; init; }
         public int? EntityId { get; init; }
+        public bool IsActive { get; init; }
+        public bool ClaimRequired { get; init; }
+        public DateTime? ValidFrom { get; init; }
+        public DateTime? ValidTo { get; init; }
+    }
+
+    public sealed class RewardDetailView : RewardSummaryView
+    {
+        public int? MaxTotalClaims { get; init; }
+        public int? MaxClaimsPerUser { get; init; }
+        public int? CooldownSeconds { get; init; }
+        public IReadOnlyList<RewardItemView> Items { get; init; } = Array.Empty<RewardItemView>();
+        public IReadOnlyList<RewardCurrencyView> Currencies { get; init; } = Array.Empty<RewardCurrencyView>();
     }
 
     // ----- Grant / Claim flow -----

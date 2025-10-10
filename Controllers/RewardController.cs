@@ -66,11 +66,11 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         /// Get a reward definition by id within a space.
         /// </summary>
         [HttpGet("{rewardId:int}")]
-        [ProducesResponseType(typeof(RewardView), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(RewardDetailView), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<RewardView>> GetRewardById(int spaceId, int rewardId)
+        public async Task<ActionResult<RewardDetailView>> GetRewardById(int spaceId, int rewardId)
         {
             if (spaceId <= 0)
                 throw ErrorService.Exception(
@@ -103,10 +103,10 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         /// List all reward definitions for a space.
         /// </summary>
         [HttpGet]
-        [ProducesResponseType(typeof(IReadOnlyList<RewardView>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(IReadOnlyList<RewardSummaryView>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IReadOnlyList<RewardView>>> ListRewardsBySpace(int spaceId)
+        public async Task<ActionResult<IReadOnlyList<RewardSummaryView>>> ListRewardsBySpace(int spaceId)
         {
             if (spaceId <= 0)
                 throw ErrorService.Exception(
@@ -131,7 +131,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<object>> AddItemToReward(int spaceId, int rewardId, [FromBody] RewardItemDto dto)
+        public async Task<ActionResult<object>> AddItemToReward(int spaceId, int rewardId, [FromBody] RewardItemCreateDto dto)
         {
             if (spaceId <= 0)
                 throw ErrorService.Exception(
@@ -176,7 +176,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<object>> AddCurrencyToReward(int spaceId, int rewardId, [FromBody] RewardCurrencyDto dto)
+        public async Task<ActionResult<object>> AddCurrencyToReward(int spaceId, int rewardId, [FromBody] RewardCurrencyCreateDto dto)
         {
             if (spaceId <= 0)
                 throw ErrorService.Exception(
@@ -212,6 +212,97 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
 
             var id = await _svc.AddCurrencyAsync(rewardId, dto);
             return Ok(new { id });
+        }
+
+        /// <summary>
+        /// Update mutable reward metadata (limits, validity window, etc.).
+        /// </summary>
+        [HttpPatch("{rewardId:int}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateRewardMetadata(int spaceId, int rewardId, [FromBody] RewardUpdateDto dto)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateRewardMetadata),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, rewardId });
+
+            if (rewardId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(UpdateRewardMetadata),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId });
+
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(UpdateRewardMetadata),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, rewardId });
+
+            await _svc.UpdateAsync(rewardId, spaceId, dto);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Activate a reward definition.
+        /// </summary>
+        [HttpPost("{rewardId:int}:activate")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        public async Task<IActionResult> ActivateReward(int spaceId, int rewardId)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(ActivateReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, rewardId });
+
+            if (rewardId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(ActivateReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId });
+
+            await _svc.ToggleActiveAsync(rewardId, spaceId, true);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Deactivate a reward definition.
+        /// </summary>
+        [HttpPost("{rewardId:int}:deactivate")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        public async Task<IActionResult> DeactivateReward(int spaceId, int rewardId)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeactivateReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, rewardId });
+
+            if (rewardId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(DeactivateReward),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(rewardId),
+                    parameters: new { spaceId, rewardId });
+
+            await _svc.ToggleActiveAsync(rewardId, spaceId, false);
+            return NoContent();
         }
     }
 

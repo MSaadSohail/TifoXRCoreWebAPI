@@ -14,22 +14,16 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class RulesRepository : IRulesRepository
+    public sealed class RulesRepository(IDbProvider db, ILogger<RulesRepository> logger) : IRulesRepository
     {
-        private readonly IDbProvider _db;
-        private readonly ILogger<RulesRepository> _logger;
+        private readonly IDbProvider _db = db ?? throw new ArgumentNullException(nameof(db));
+        private readonly ILogger<RulesRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = false,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
-
-        public RulesRepository(IDbProvider db, ILogger<RulesRepository> logger)
-        {
-            _db = db ?? throw new ArgumentNullException(nameof(db));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
 
         private static string Serialize(object? value)
             => JsonSerializer.Serialize(value, JsonOptions);

@@ -5,6 +5,7 @@
 // <date>09/30/2025</date>
 // <summary>Authoring service for workflows, rules, and related objects.</summary>
 
+using System.Collections.Generic;
 using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Services
