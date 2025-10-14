@@ -41,7 +41,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
         private static PortalModel SamplePortal(int spaceId = 1, int portalId = 10, int? boothId = null) =>
             new()
             {
-                PortalId = portalId,
+                Id = portalId,
                 SpaceId = spaceId,
                 BoothId = boothId,
                 PortalTypeId = 2,

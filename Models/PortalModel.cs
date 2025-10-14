@@ -34,7 +34,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalModel
     {
-        public int PortalId { get; set; }
+        public int Id { get; set; }
         public required int SpaceId { get; set; }
         public int? BoothId { get; set; }
         public int? PortalTypeId { get; set; }
