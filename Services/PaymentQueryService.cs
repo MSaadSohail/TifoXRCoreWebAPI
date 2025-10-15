@@ -104,7 +104,8 @@ namespace GMS.TifoXRCoreWebAPI.Services
             };
         }
 
-        public async Task<PendingIntentResponse> FindPendingByItemAsync(int spaceId, string userId, int itemTypeId, int itemRefId)
+        public async Task<PendingIntentResponse> FindPendingByItemAsync(
+    int spaceId, string userId, int itemTypeId, int itemRefId)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 throw new ArgumentException("userId is required.", nameof(userId));
@@ -120,31 +121,45 @@ namespace GMS.TifoXRCoreWebAPI.Services
                  pi.Value.StatusId, pi.Value.IdempotencyKey, pi.Value.AmountMinor, pi.Value.CurrencyId);
 
             string? approveLink = null;
+            var pidToUse = providerIntentId ?? string.Empty;
 
-            if (statusId == (int)PaymentIntentStatus.RequiresAction || statusId == 1)
+            // only try to build an approve link if we're pending
+            if (statusId == 1 /* RequiresAction */ || statusId == 2 /* Processing */)
             {
                 var gateway = _resolver.GetById(gatewayId);
-
-                string? providerApprove = null;
-
-                if (!string.IsNullOrWhiteSpace(providerIntentId))
+                try
                 {
-                    var providerStatus = await gateway.GetIntentAsync(providerIntentId);
-                    providerApprove = providerStatus?.ApproveLink;
+                    string? providerApprove = null;
+
+                    if (!string.IsNullOrWhiteSpace(pidToUse))
+                    {
+                        var providerStatus = await gateway.GetIntentAsync(pidToUse);
+
+                        // auto-refresh stale crypto intents (mirrors GetPendingForOrderAsync)
+                        if (providerStatus is null &&
+                            string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var amountMajor = MoneyConverter.ToMajor(amtMinor);
+                            var (newPid, newApproveLink) = await RefreshCryptoProviderIntentAsync(
+                                spaceId, orderId, intentId, gatewayId, amountMajor, currencyId);
+                            pidToUse = newPid;
+                            providerApprove = newApproveLink;
+                        }
+                        else
+                        {
+                            providerApprove = providerStatus?.ApproveLink;
+                        }
+                    }
+
+                    approveLink = string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase)
+                        ? BuildCryptoApproveLinkFromProviderLink(providerApprove, spaceId, orderId, intentId, pidToUse)
+                        : providerApprove;
                 }
-
-                if (string.Equals(gateway.Name, "crypto", StringComparison.OrdinalIgnoreCase))
+                catch (Exception)
                 {
-                    approveLink = BuildCryptoApproveLinkFromProviderLink(
-                        providerApprove,
-                        spaceId,
-                        orderId,
-                        intentId,
-                        providerIntentId ?? string.Empty);
-                }
-                else
-                {
-                    approveLink = providerApprove;
+                    // Do NOT 500 this discovery endpoint on provider errors (e.g., PayPal 404 INVALID_RESOURCE_ID).
+                    // Let the client fall back to creating a fresh checkout.
+                    approveLink = null;
                 }
             }
 
@@ -155,7 +170,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 PaymentIntentId = intentId,
                 StatusId = statusId,
                 IdempotencyKey = idemKey,
-                ProviderIntentId = providerIntentId,
+                ProviderIntentId = pidToUse,
                 PaymentGatewayId = gatewayId,
                 AmountMinor = amtMinor,
                 CurrencyId = currencyId,

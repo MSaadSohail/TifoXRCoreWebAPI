@@ -14,6 +14,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalUpdateDto
     {
+        public int PortalTypeId { get; set; }
         public int? EventId { get; set; }
         public required LocalizedPairs LocalizedPairs { get; set; }
         public string? ExternalLink { get; set; }
@@ -34,7 +35,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     /// </summary>
     public class PortalModel
     {
-        public int PortalId { get; set; }
+        public int Id { get; set; }
         public required int SpaceId { get; set; }
         public int? BoothId { get; set; }
         public int? PortalTypeId { get; set; }

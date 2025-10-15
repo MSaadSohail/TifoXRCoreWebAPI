@@ -95,7 +95,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     portal = new PortalModel
                     {
-                        PortalId = id,
+                        Id = id,
                         SpaceId = reader.GetInt32("space_id"),
                         BoothId = reader.IsDBNull("booth_id") ? null :
                         reader.GetInt32("booth_id"),
@@ -268,7 +268,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     portal = new PortalModel
                     {
-                        PortalId = id,
+                        Id = id,
                         SpaceId = reader.GetInt32("space_id"),
                         BoothId = reader.GetInt32("booth_id"),
                         PortalTypeId = reader.IsDBNull("portal_type_id") ? null : reader.GetInt32("portal_type_id"),
@@ -440,7 +440,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             {
                 portal ??= new PortalModel
                 {
-                    PortalId = reader.GetInt32("portal_id"),
+                    Id = reader.GetInt32("portal_id"),
                     SpaceId = reader.GetInt32("space_id"),
                     BoothId = reader.IsDBNull("booth_id") ? null : reader.GetInt32("booth_id"),
                     PortalTypeId = reader.IsDBNull("portal_type_id") ? null : reader.GetInt32("portal_type_id"),

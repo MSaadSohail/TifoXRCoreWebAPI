@@ -82,6 +82,54 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
             return CreatedAtAction(nameof(GetPersonalityById), new { id = created.Id }, created);
         }
 
+        // PUT: api/personality/{id}
+        [HttpPut("api/personality/{id}")]
+        public async Task<IActionResult> UpdatePersonality(int id, [FromBody] PersonalityUpdateDto dto)
+        {
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(UpdatePersonality),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { dto });
+
+            if (!ModelState.IsValid)
+                throw ErrorService.Exception(
+                    ErrorType.InvalidOperation,
+                    nameof(UpdatePersonality),
+                    ErrorMessages.Http.Conflict,
+                    parameters: new { dto });
+
+            var updated = await _personalityRepository.UpdatePersonalityAsync(id, dto);
+
+            if (updated is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(UpdatePersonality),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
+
+            return Ok(updated);
+        }
+
+        // DELETE: {id}
+        [HttpDelete("api/personality/{id:int}")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var ok = await _personalityRepository.DeletePersonalityAsync(id);
+
+            if (!ok)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(Delete),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { id });
+
+            return NoContent();
+        }
+
 
     }
 

@@ -198,7 +198,7 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                     parameters: new { spaceId });
             return CreatedAtAction(
                 nameof(GetPortalById),
-                new { spaceId, portalId = created.PortalId },
+                new { spaceId, portalId = created.Id },
                 created);
         }
 
