@@ -99,7 +99,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             SELECT pi.id, pi.status_id, pi.idempotency_key, pi.provider_intent_id,
                    pi.payment_gateway_id, pi.amount, pi.currency_id
             FROM payment_intent pi
-            WHERE pi.order_id=@OrderId AND pi.status_id IN (1,2)
+            WHERE pi.order_id=@OrderId
+              AND pi.status_id IN (1,2)
+              AND (@GatewayId IS NULL OR pi.payment_gateway_id=@GatewayId)
             ORDER BY pi.creation_time DESC LIMIT 1;";
 
         internal const string Intent_FindByIdem = @"

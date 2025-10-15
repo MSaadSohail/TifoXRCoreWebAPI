@@ -20,7 +20,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
         private readonly IOrderRepository _repo = repo;
         private readonly IPaymentGatewayResolver _resolver = resolver;
 
-        public async Task<PendingIntentResponse> GetPendingForOrderAsync(int spaceId, string orderId)
+        public async Task<PendingIntentResponse> GetPendingForOrderAsync(int spaceId, string orderId, int? gatewayId)
         {
             if (string.IsNullOrWhiteSpace(orderId))
                 throw new ArgumentException("orderId is required.", nameof(orderId));
@@ -28,13 +28,13 @@ namespace GMS.TifoXRCoreWebAPI.Services
             var order = await _repo.GetOrderAsync(spaceId, orderId);
             if (order is null) return new PendingIntentResponse { Found = false };
 
-            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
+            var pi = await _repo.GetPendingIntentForOrderAsync(orderId, gatewayId);
             if (pi is null) return new PendingIntentResponse { Found = false };
 
             // Unpack
             var intentId = pi.Value.IntentId;
             var providerIntentId = pi.Value.ProviderIntentId;
-            var gatewayId = pi.Value.PaymentGatewayId;
+            var gatewayIdFromDb = pi.Value.PaymentGatewayId;
             var statusId = pi.Value.StatusId;
             var idemKey = pi.Value.IdempotencyKey;
             var amtMinor = pi.Value.AmountMinor;
@@ -46,7 +46,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
 
             if (statusId == (int)PaymentIntentStatus.RequiresAction || statusId == 1)
             {
-                var gateway = _resolver.GetById(gatewayId);
+                var gateway = _resolver.GetById(gatewayIdFromDb);
                 string? providerApprove = null;
 
                 if (!string.IsNullOrWhiteSpace(providerPidToUse))
@@ -58,7 +58,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                         // auto-refresh in place
                         var amountMajor = MoneyConverter.ToMajor(amtMinor);
                         var (newPid, newApproveLink) = await RefreshCryptoProviderIntentAsync(
-                            spaceId, orderId, intentId, gatewayId, amountMajor, currencyId);
+                            spaceId, orderId, intentId, gatewayIdFromDb, amountMajor, currencyId);
 
                         providerPidToUse = newPid;
                         providerApprove = newApproveLink;
@@ -81,7 +81,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                     StatusId = statusId,
                     IdempotencyKey = idemKey,
                     ProviderIntentId = providerPidToUse,       // may be refreshed
-                    PaymentGatewayId = gatewayId,
+                    PaymentGatewayId = gatewayIdFromDb,
                     AmountMinor = amtMinor,
                     CurrencyId = currencyId,
                     ApproveLink = approveLink
@@ -97,7 +97,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 StatusId = statusId,
                 IdempotencyKey = idemKey,
                 ProviderIntentId = providerIntentId,
-                PaymentGatewayId = gatewayId,
+                PaymentGatewayId = gatewayIdFromDb,
                 AmountMinor = amtMinor,
                 CurrencyId = currencyId,
                 ApproveLink = null
@@ -105,18 +105,19 @@ namespace GMS.TifoXRCoreWebAPI.Services
         }
 
         public async Task<PendingIntentResponse> FindPendingByItemAsync(
-    int spaceId, string userId, int itemTypeId, int itemRefId)
+            int spaceId, string userId, int itemTypeId, int itemRefId, int? gatewayId)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 throw new ArgumentException("userId is required.", nameof(userId));
 
-            var orderId = await _repo.FindLatestOrderIdWithPendingIntentAsync(spaceId, userId, itemTypeId, itemRefId);
+            var orderId = await _repo.FindLatestOrderIdWithPendingIntentAsync(
+                spaceId, userId, itemTypeId, itemRefId, gatewayId);
             if (string.IsNullOrWhiteSpace(orderId)) return new PendingIntentResponse { Found = false };
 
-            var pi = await _repo.GetPendingIntentForOrderAsync(orderId);
+            var pi = await _repo.GetPendingIntentForOrderAsync(orderId, gatewayId);
             if (pi is null) return new PendingIntentResponse { Found = false };
 
-            var (intentId, providerIntentId, gatewayId, statusId, idemKey, amtMinor, currencyId) =
+            var (intentId, providerIntentId, gatewayIdFromDb, statusId, idemKey, amtMinor, currencyId) =
                 (pi.Value.IntentId, pi.Value.ProviderIntentId, pi.Value.PaymentGatewayId,
                  pi.Value.StatusId, pi.Value.IdempotencyKey, pi.Value.AmountMinor, pi.Value.CurrencyId);
 
@@ -126,7 +127,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
             // only try to build an approve link if we're pending
             if (statusId == 1 /* RequiresAction */ || statusId == 2 /* Processing */)
             {
-                var gateway = _resolver.GetById(gatewayId);
+                var gateway = _resolver.GetById(gatewayIdFromDb);
                 try
                 {
                     string? providerApprove = null;
@@ -141,7 +142,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                         {
                             var amountMajor = MoneyConverter.ToMajor(amtMinor);
                             var (newPid, newApproveLink) = await RefreshCryptoProviderIntentAsync(
-                                spaceId, orderId, intentId, gatewayId, amountMajor, currencyId);
+                                spaceId, orderId, intentId, gatewayIdFromDb, amountMajor, currencyId);
                             pidToUse = newPid;
                             providerApprove = newApproveLink;
                         }
@@ -171,7 +172,7 @@ namespace GMS.TifoXRCoreWebAPI.Services
                 StatusId = statusId,
                 IdempotencyKey = idemKey,
                 ProviderIntentId = pidToUse,
-                PaymentGatewayId = gatewayId,
+                PaymentGatewayId = gatewayIdFromDb,
                 AmountMinor = amtMinor,
                 CurrencyId = currencyId,
                 ApproveLink = approveLink
