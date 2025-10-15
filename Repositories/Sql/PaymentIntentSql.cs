@@ -93,6 +93,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             JOIN payment_intent pi ON pi.order_id = o.id AND pi.status_id IN (1,2) -- requires_action / processing
             WHERE o.space_id=@SpaceId AND o.user_id=@UserId
               AND ol.item_type_id=@ItemTypeId AND ol.item_ref_id=@ItemRefId
+              AND (@GatewayId IS NULL OR pi.payment_gateway_id=@GatewayId)
             ORDER BY pi.creation_time DESC
             LIMIT 1;";
 

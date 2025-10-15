@@ -11,7 +11,12 @@ namespace GMS.TifoXRCoreWebAPI.Services
 {
     public interface IPaymentQueryService
     {
-        Task<PendingIntentResponse> GetPendingForOrderAsync(int spaceId, string orderId);
-        Task<PendingIntentResponse> FindPendingByItemAsync(int spaceId, string userId, int itemTypeId, int itemRefId);
+        Task<PendingIntentResponse> GetPendingForOrderAsync(int spaceId, string orderId, int? gatewayId);
+        Task<PendingIntentResponse> FindPendingByItemAsync(
+            int spaceId,
+            string userId,
+            int itemTypeId,
+            int itemRefId,
+            int? gatewayId);
     }
 }

@@ -59,13 +59,20 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
         // ------------- Payment Intents (queries) -------------
 
         [HttpGet("{orderId}/checkout/pending")]
-        public Task<ActionResult<PendingIntentResponse>> GetCheckoutForOrder(int spaceId, string orderId)
-            => Handle(() => _paymentQueries.GetPendingForOrderAsync(spaceId, orderId));
+        public Task<ActionResult<PendingIntentResponse>> GetCheckoutForOrder(
+            int spaceId,
+            string orderId,
+            [FromQuery] int? gatewayId)
+            => Handle(() => _paymentQueries.GetPendingForOrderAsync(spaceId, orderId, gatewayId));
 
         [HttpGet("checkout/by-item")]
         public Task<ActionResult<PendingIntentResponse>> FindPendingIntentByItem(
-            int spaceId, [FromQuery] string userId, [FromQuery] int itemTypeId, [FromQuery] int itemRefId)
-            => Handle(() => _paymentQueries.FindPendingByItemAsync(spaceId, userId, itemTypeId, itemRefId));
+            int spaceId,
+            [FromQuery] string userId,
+            [FromQuery] int itemTypeId,
+            [FromQuery] int itemRefId,
+            [FromQuery] int? gatewayId)
+            => Handle(() => _paymentQueries.FindPendingByItemAsync(spaceId, userId, itemTypeId, itemRefId, gatewayId));
 
         // ------------- Payments -------------
 

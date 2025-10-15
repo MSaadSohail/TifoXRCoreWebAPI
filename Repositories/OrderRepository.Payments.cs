@@ -213,12 +213,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task<(string IntentId, int StatusId, string IdempotencyKey, string? ProviderIntentId,
                           int PaymentGatewayId, long AmountMinor, int CurrencyId)?>
-            GetPendingIntentForOrderAsync(string orderId)
+            GetPendingIntentForOrderAsync(string orderId, int? gatewayId)
         {
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, Intent_FindPendingForOrder);
 
             cmd.Parameters.Add(_db.CreateParameter("@OrderId", orderId));
+            cmd.Parameters.Add(_db.CreateParameter("@GatewayId", gatewayId));
 
             await using var r = await cmd.ExecuteReaderAsync();
 
@@ -235,9 +236,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             );
         }
 
-        // Matches: FindLatestOrderIdWithPendingIntentAsync(int, string, int, int)
+        // Matches: FindLatestOrderIdWithPendingIntentAsync(int, string, int, int, int?)
         public async Task<string?> FindLatestOrderIdWithPendingIntentAsync(
-            int spaceId, string userId, int itemTypeId, int itemRefId)
+            int spaceId, string userId, int itemTypeId, int itemRefId, int? gatewayId)
         {
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, Intent_FindLatestOrderWithPending);
@@ -246,6 +247,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             cmd.Parameters.Add(_db.CreateParameter("@UserId", userId));
             cmd.Parameters.Add(_db.CreateParameter("@ItemTypeId", itemTypeId));
             cmd.Parameters.Add(_db.CreateParameter("@ItemRefId", itemRefId));
+            cmd.Parameters.Add(_db.CreateParameter("@GatewayId", gatewayId));
 
             var o = await cmd.ExecuteScalarAsync();
 

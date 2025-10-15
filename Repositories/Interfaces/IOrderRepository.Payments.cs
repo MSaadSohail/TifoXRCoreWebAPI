@@ -14,10 +14,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         Task<(string IntentId, int StatusId, string IdempotencyKey, string? ProviderIntentId,
               int PaymentGatewayId, long AmountMinor, int CurrencyId)?>
-            GetPendingIntentForOrderAsync(string orderId);
+            GetPendingIntentForOrderAsync(string orderId, int? gatewayId);
 
         Task<string?> FindLatestOrderIdWithPendingIntentAsync(int spaceId, string userId,
-            int itemTypeId, int itemRefId);
+            int itemTypeId, int itemRefId, int? gatewayId);
 
         Task<string> ResolveCurrencyIsoAsync(int currencyId);
 
