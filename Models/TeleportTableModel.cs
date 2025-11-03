@@ -53,6 +53,14 @@ namespace GMS.TifoXRCoreWebAPI.Models
         public bool IsActive { get; set; }
     }
 
+    public class TeleportTableButtonCreateRequest
+    {
+        public string NameKey { get; set; } = default!;
+        public int MapSpotId { get; set; }
+        public LocalizedPairs? LocalizedPairs { get; set; }
+        public bool IsActive { get; set; }
+    }
+
     public class ButtonUpdateDto
     {
         public int? Id { get; set; }

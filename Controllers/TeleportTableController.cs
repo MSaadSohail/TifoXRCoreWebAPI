@@ -101,6 +101,67 @@ namespace GMS.TifoXRCoreWebAPI.Controllers
                 created);
         }
 
+        /// <summary>
+        /// POST /api/space/{spaceId}/teleport_table/{tableId}/button
+        /// Creates a button for an existing teleport table using an existing map spot identifier.
+        /// </summary>
+        [HttpPost("{spaceId}/teleport_table/{tableId}/button")]
+        [ProducesResponseType(typeof(ButtonData), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ButtonData>> CreateTeleportTableButton(
+            [FromRoute] int spaceId,
+            [FromRoute] int tableId,
+            [FromBody] TeleportTableButtonCreateRequest dto)
+        {
+            if (spaceId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateTeleportTableButton),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(spaceId),
+                    parameters: new { spaceId, tableId });
+
+            if (tableId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateTeleportTableButton),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(tableId),
+                    parameters: new { spaceId, tableId });
+
+            if (dto is null)
+                throw ErrorService.Exception(
+                    ErrorType.ArgumentNull,
+                    nameof(CreateTeleportTableButton),
+                    ErrorMessages.Validation.MissingParameter,
+                    paramName: nameof(dto),
+                    parameters: new { spaceId, tableId });
+
+            if (dto.MapSpotId <= 0)
+                throw ErrorService.Exception(
+                    ErrorType.Argument,
+                    nameof(CreateTeleportTableButton),
+                    ErrorMessages.Validation.PositiveIntRequired,
+                    paramName: nameof(dto.MapSpotId),
+                    parameters: new { spaceId, tableId, dto.MapSpotId });
+
+            var created = await _teleportRepository.CreateTeleportTableButtonAsync(spaceId, tableId, dto);
+
+            if (created is null)
+                throw ErrorService.Exception(
+                    ErrorType.NotFound,
+                    nameof(CreateTeleportTableButton),
+                    ErrorMessages.Http.NotFound,
+                    parameters: new { spaceId, tableId, dto.MapSpotId });
+
+            return CreatedAtAction(
+                nameof(GetTeleportTablesBySpace),
+                new { spaceId, tableId },
+                created);
+        }
+
         #endregion
 
         #region PUT
