@@ -869,6 +869,76 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             fakeDb.Rollbacks.Should().Be(0);
         }
 
+        /// <summary>
+        /// Creates a button using the simplified DTO with an existing map spot id.
+        /// Ensures the returned button includes hydrated map spot coordinates.
+        /// </summary>
+        [Fact]
+        public async Task CreateButton_Request_UsesExistingMapSpotId()
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(
+                () => new DataTable().CreateDataReader(),
+                scalarResults: new Queue<object?>(new object?[] { 901 })
+            );
+
+            fakeDb.EnqueueReader(() => MapSpotRow(777, 4.4m, 5.5m, 6.6m));
+
+            var sut = BuildRepo(fakeDb);
+            var request = new TeleportTableButtonCreateRequest
+            {
+                NameKey = "btn.request",
+                MapSpotId = 777,
+                IsActive = true,
+                LocalizedPairs = new LocalizedPairs
+                {
+                    Key = "btn.request",
+                    Values = new List<LocalizedValue>
+                    {
+                        new() { LocaleId = "en-US", Value = "Request" }
+                    }
+                }
+            };
+
+            // Act
+            var created = await sut.CreateTeleportTableButtonAsync(12, 34, request);
+
+            // Assert
+            created.Id.Should().Be(901);
+            created.NameKey.Should().Be("btn.request");
+            created.MapSpot.Should().NotBeNull();
+            created.MapSpot!.Id.Should().Be(777);
+            created.MapSpot.X.Should().Be(4.4m);
+            created.MapSpot.Y.Should().Be(5.5m);
+            created.MapSpot.Z.Should().Be(6.6m);
+            created.LocalizedPairs!.Values.Should().ContainSingle(v => v.LocaleId == "en-US" && v.Value == "Request");
+        }
+
+        /// <summary>
+        /// Guard: MapSpotId must be positive when using the simplified DTO overload.
+        /// </summary>
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-5)]
+        public async Task CreateButton_Request_Throws_OnInvalidMapSpotId(int mapSpotId)
+        {
+            // Arrange
+            var fakeDb = new FakeDbProvider(() => new DataTable().CreateDataReader());
+            var sut = BuildRepo(fakeDb);
+            var request = new TeleportTableButtonCreateRequest
+            {
+                NameKey = "btn.invalid",
+                MapSpotId = mapSpotId,
+                IsActive = true
+            };
+
+            // Act
+            var act = async () => await sut.CreateTeleportTableButtonAsync(1, 2, request);
+
+            // Assert
+            await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        }
+
         #endregion
 
         #region PUT TESTS
@@ -883,6 +953,20 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Repositories
             var t = new DataTable();
             t.Columns.Add("locale_id", typeof(string));
             foreach (var loc in locales) t.Rows.Add(loc);
+            return t.CreateDataReader();
+        }
+
+        /// <summary>
+        /// Creates a reader yielding a single map_spot row with provided coordinates.
+        /// </summary>
+        private static DbDataReader MapSpotRow(int id, decimal x, decimal y, decimal z)
+        {
+            var t = new DataTable();
+            t.Columns.Add("id", typeof(int));
+            t.Columns.Add("x", typeof(decimal));
+            t.Columns.Add("y", typeof(decimal));
+            t.Columns.Add("z", typeof(decimal));
+            t.Rows.Add(id, x, y, z);
             return t.CreateDataReader();
         }
 

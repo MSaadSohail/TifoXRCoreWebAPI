@@ -953,6 +953,46 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     }
                 }
 
+                MapSpotData? mapSpotData = null;
+                if (mapSpotId.HasValue)
+                {
+                    const string fetchMapSpot = @"
+                SELECT id, x, y, z
+                  FROM map_spot
+                 WHERE id = @MapSpotId;";
+
+                    await using var mapSpotCmd = _db.CreateCommand(connection, fetchMapSpot);
+                    mapSpotCmd.Transaction = tx;
+                    mapSpotCmd.Parameters.Add(_db.CreateParameter("@MapSpotId", mapSpotId.Value));
+
+                    await using var mapSpotReader = await mapSpotCmd.ExecuteReaderAsync();
+                    if (await mapSpotReader.ReadAsync())
+                    {
+                        var ordinalId = mapSpotReader.GetOrdinal("id");
+                        var ordinalX = mapSpotReader.GetOrdinal("x");
+                        var ordinalY = mapSpotReader.GetOrdinal("y");
+                        var ordinalZ = mapSpotReader.GetOrdinal("z");
+
+                        mapSpotData = new MapSpotData
+                        {
+                            Id = mapSpotReader.IsDBNull(ordinalId) ? mapSpotId.Value : mapSpotReader.GetInt32(ordinalId),
+                            X = mapSpotReader.IsDBNull(ordinalX) ? 0 : mapSpotReader.GetDecimal(ordinalX),
+                            Y = mapSpotReader.IsDBNull(ordinalY) ? 0 : mapSpotReader.GetDecimal(ordinalY),
+                            Z = mapSpotReader.IsDBNull(ordinalZ) ? 0 : mapSpotReader.GetDecimal(ordinalZ)
+                        };
+                    }
+                    else
+                    {
+                        mapSpotData = new MapSpotData
+                        {
+                            Id = mapSpotId.Value,
+                            X = btnDto.MapSpot?.X ?? 0,
+                            Y = btnDto.MapSpot?.Y ?? 0,
+                            Z = btnDto.MapSpot?.Z ?? 0
+                        };
+                    }
+                }
+
                 // 2) Insert button
                 const string insBtn = @"
             INSERT INTO teleport_table_button (table_id, name_key, map_spot_id, is_active)
@@ -1012,15 +1052,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         Key = btnDto.NameKey ?? string.Empty,
                         Values = new List<LocalizedValue>()
                     },
-                    MapSpot = mapSpotId.HasValue
-                        ? new MapSpotData
-                        {
-                            Id = mapSpotId.Value,
-                            X = btnDto.MapSpot?.X ?? 0,
-                            Y = btnDto.MapSpot?.Y ?? 0,
-                            Z = btnDto.MapSpot?.Z ?? 0
-                        }
-                        : null
+                    MapSpot = mapSpotData
                 };
             }
             catch
@@ -1029,6 +1061,25 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     await tx.RollbackAsync();
                 throw;
             }
+        }
+
+        public async Task<ButtonData> CreateTeleportTableButtonAsync(
+        int spaceId,
+        int tableId,
+        TeleportTableButtonCreateRequest dto)
+        {
+            if (dto == null) throw new ArgumentNullException(nameof(dto));
+            if (dto.MapSpotId <= 0) throw new ArgumentOutOfRangeException(nameof(dto.MapSpotId));
+
+            var buttonDto = new ButtonCreateDto
+            {
+                NameKey = dto.NameKey,
+                IsActive = dto.IsActive,
+                LocalizedPairs = dto.LocalizedPairs,
+                MapSpot = new MapSpotData { Id = dto.MapSpotId }
+            };
+
+            return await CreateTeleportTableButtonAsync(spaceId, tableId, buttonDto);
         }
 
         #endregion
