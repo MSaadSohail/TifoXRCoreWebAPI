@@ -1,21 +1,16 @@
 ﻿// Repositories/BoothCommentRepository.cs
+using System.Data;
+//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
-using System.Data;
-using System.Data.Common;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class BoothCommentRepository : IBoothCommentRepository
+    public sealed class BoothCommentRepository(IDbProvider db) : IBoothCommentRepository
     {
-        private readonly IDbProvider _db;
-
-        public BoothCommentRepository(IConfiguration configuration, IDbProvider db)
-        {
-            _db = db;
-        }
+        private readonly IDbProvider _db = db;
 
         public async Task<BoothCommentModel> CreateBoothCommentAsync(int spaceId, BoothCommentCreateDto dto)
         {

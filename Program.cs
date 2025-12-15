@@ -25,7 +25,6 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Data.SqlClient;
-using MySqlConnector;
 
 // Serilog
 using Serilog;

@@ -5,17 +5,19 @@
 // <date>07/23/2025</date>
 // <summary>Class to handle portal SQL side</summary>
 
-using MySqlConnector;
-using System.Data;
 //
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+using MySqlConnector;
+using System.Data;
+using System.Data.Common;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class PortalRepository(IConfiguration configuration) : IPortalRepository
+    public class PortalRepository(IDbProvider db) : IPortalRepository
     {
-        private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection");
+        private readonly IDbProvider _db = db;
 
         #region GET
         /// <summary>
@@ -26,62 +28,50 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<List<PortalModel>> GetPortalsBySpaceAsync(int spaceId)
         {
             const string sql = @"
-                SELECT 
-                    p.id                          AS portal_id,
-                    p.space_id,
-                    p.booth_id,
-                    p.portal_type_id,
-                    p.event_id,
-                    p.external_link,
-                    p.corresponding_media_id      AS corr_media_id,
-                    p.thumbnail_media_id          AS thumb_media_id,
-                    p.text_field_key              AS text_key,
-                    
-                    cm.media_type_id              AS corr_media_type_id,
-                    tm.media_type_id              AS thumb_media_type_id,
+        SELECT
+            p.id                          AS portal_id,
+            p.space_id,
+            p.booth_id,
+            p.portal_type_id,
+            p.event_id,
+            p.external_link,
+            p.corresponding_media_id,
+            p.thumbnail_media_id,
+            p.text_field_key,
 
-                    sl.locale_id                  AS locale_id,
-                    i.value                       AS localized_text_value,
-                    ml1.media_link                AS corresponding_media_link,
-                    ml2.media_link                AS thumbnail_media_link
-                
-                FROM portal p
-                
-                LEFT JOIN supported_languages sl
-                  ON sl.space_id = p.space_id
-                
-                LEFT JOIN i18n i 
-                  ON p.text_field_key = i.`key`
-                 AND i.space_id      = p.space_id
-                 AND i.locale_id     = sl.locale_id
-                
-                LEFT JOIN media cm
-                  ON cm.id = p.corresponding_media_id
-                 AND cm.space_id = p.space_id
-                
-                LEFT JOIN media tm
-                  ON tm.id = p.thumbnail_media_id
-                 AND tm.space_id = p.space_id
-                
-                LEFT JOIN media_localization ml1 
-                  ON ml1.media_id   = p.corresponding_media_id
-                 AND ml1.locale_id  = sl.locale_id
-                
-                LEFT JOIN media_localization ml2 
-                  ON ml2.media_id   = p.thumbnail_media_id
-                 AND ml2.locale_id  = sl.locale_id
-                
-                WHERE p.space_id = @SpaceId
-                ORDER BY p.id, sl.locale_id;
-            ";
+            sl.locale_id,
+            i.[value]                     AS localized_text_value,
 
-            await using var conn = new MySqlConnection(_connectionString);
+            cm.media_type_id              AS corr_media_type_id,
+            tm.media_type_id              AS thumb_media_type_id,
 
-            await conn.OpenAsync();
+            ml1.media_link                AS corr_media_link,
+            ml2.media_link                AS thumb_media_link
+        FROM portal p
+        LEFT JOIN supported_languages sl
+            ON sl.space_id = p.space_id
+        LEFT JOIN i18n i
+            ON i.[key] = p.text_field_key
+           AND i.space_id = p.space_id
+           AND i.locale_id = sl.locale_id
+        LEFT JOIN media cm
+            ON cm.id = p.corresponding_media_id
+           AND cm.space_id = p.space_id
+        LEFT JOIN media tm
+            ON tm.id = p.thumbnail_media_id
+           AND tm.space_id = p.space_id
+        LEFT JOIN media_localization ml1
+            ON ml1.media_id = p.corresponding_media_id
+           AND ml1.locale_id = sl.locale_id
+        LEFT JOIN media_localization ml2
+            ON ml2.media_id = p.thumbnail_media_id
+           AND ml2.locale_id = sl.locale_id
+        WHERE p.space_id = @SpaceId
+        ORDER BY p.id, sl.locale_id;";
 
-            await using var cmd = new MySqlCommand(sql, conn);
-
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
             var map = new Dictionary<int, PortalModel>();
 
@@ -89,100 +79,78 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             while (await reader.ReadAsync())
             {
-                var id = reader.GetInt32("portal_id");
+                var portalId = reader.GetInt32(reader.GetOrdinal("portal_id"));
 
-                if (!map.TryGetValue(id, out var portal))
+                if (!map.TryGetValue(portalId, out var portal))
                 {
                     portal = new PortalModel
                     {
-                        Id = id,
-                        SpaceId = reader.GetInt32("space_id"),
-                        BoothId = reader.IsDBNull("booth_id") ? null :
-                        reader.GetInt32("booth_id"),
-
-                        PortalTypeId = reader.IsDBNull("portal_type_id") ? null :
-                        reader.GetInt32("portal_type_id"),
-
+                        Id = portalId,
+                        SpaceId = reader.GetInt32(reader.GetOrdinal("space_id")),
+                        BoothId = reader.IsDBNull("booth_id") ? null : reader.GetInt32("booth_id"),
+                        PortalTypeId = reader.IsDBNull("portal_type_id") ? null : reader.GetInt32("portal_type_id"),
                         EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
-
-                        ExternalLink = reader.IsDBNull("external_link") ? null :
-                        reader.GetString("external_link"),
-
+                        ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
                         LocalizedPairs = new LocalizedPairs
                         {
-                            Key = reader.GetString("text_key"),
+                            Key = reader.GetString(reader.GetOrdinal("text_field_key")),
                             Values = new List<LocalizedValue>()
                         },
-
                         CorrespondingMedia = new MediaData
-                            {
-                                Id = reader.GetInt32("corr_media_id"),
-                                MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
-                                reader.GetInt32("corr_media_type_id"),
-                                LinkLocalizations = new List<MediaLocalization>()
-                            },
-
+                        {
+                            Id = reader.IsDBNull("corresponding_media_id") ? 0 : reader.GetInt64("corresponding_media_id"),
+                            MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : reader.GetInt32("corr_media_type_id"),
+                            LinkLocalizations = new List<MediaLocalization>()
+                        },
                         ThumbnailMedia = new MediaData
-                            {
-                                Id = reader.GetInt32("thumb_media_id"),
-                                MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
-                                LinkLocalizations = new List<MediaLocalization>()
-                            }
+                        {
+                            Id = reader.IsDBNull("thumbnail_media_id") ? 0 : reader.GetInt64("thumbnail_media_id"),
+                            MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
+                            LinkLocalizations = new List<MediaLocalization>()
+                        }
                     };
 
-                    map[id] = portal;
+                    map[portalId] = portal;
                 }
 
-                if (!reader.IsDBNull("locale_id"))
+                if (reader.IsDBNull("locale_id"))
+                    continue;
+
+                var locale = reader.GetString("locale_id");
+
+                if (!reader.IsDBNull("localized_text_value") &&
+                    !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
                 {
-                    var locale = reader.GetString("locale_id");
-
-                    // -- Localized Name --
-                    var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    if (textValue != null && !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
+                    portal.LocalizedPairs.Values.Add(new LocalizedValue
                     {
-                        portal.LocalizedPairs.Values.Add(new LocalizedValue
-                        {
-                            LocaleId = locale,
-                            Value = textValue
-                        });
-                    }
+                        LocaleId = locale,
+                        Value = reader.GetString("localized_text_value")
+                    });
+                }
 
-                    // -- CorrespondingMedia Localized Links --
-                    if (portal.CorrespondingMedia != null)
+                if (!reader.IsDBNull("corr_media_link") &&
+                    !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                {
+                    portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
                     {
-                        var link = reader.IsDBNull("corresponding_media_link") ? null : reader.GetString("corresponding_media_link");
+                        LocaleId = locale,
+                        MediaLink = reader.GetString("corr_media_link")
+                    });
+                }
 
-                        if (link != null && !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
-                        {
-                            portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
-                            {
-                                LocaleId = locale,
-                                MediaLink = link
-                            });
-                        }
-                    }
-
-                    // -- ThumbnailMedia Localized Links --
-                    if (portal.ThumbnailMedia != null)
+                if (!reader.IsDBNull("thumb_media_link") &&
+                    !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                {
+                    portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
                     {
-                        var link = reader.IsDBNull("thumbnail_media_link") ? null : reader.GetString("thumbnail_media_link");
-
-                        if (link != null && !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
-                        {
-                            portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
-                            {
-                                LocaleId = locale,
-                                MediaLink = link
-                            });
-                        }
-                    }
+                        LocaleId = locale,
+                        MediaLink = reader.GetString("thumb_media_link")
+                    });
                 }
             }
 
-            return [.. map.Values];
+            return map.Values.ToList();
         }
-
 
         /// <summary>
         /// Retrieves all portals for a given booth within a space, including their localized names and media details.
@@ -193,64 +161,67 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<List<PortalModel>> GetPortalsByBoothAsync(int spaceId, int boothId)
         {
             const string sql = @"
-                SELECT
-                    p.id                      AS portal_id,
-                    p.space_id,
-                    p.booth_id,
-                    p.portal_type_id,
-                    p.event_id,
-                    p.corresponding_media_id  AS corr_media_id,
-                    cm.media_type_id          AS corr_media_type_id,
-                    p.thumbnail_media_id      AS thumb_media_id,
-                    tm.media_type_id          AS thumb_media_type_id,
-                    p.text_field_key          AS text_key,
-                    p.external_link,
-                
-                    sl.locale_id              AS locale_id,
-                    i.value                   AS localized_text_value,
-                
-                    ml1.media_link            AS corr_media_link,
-                    ml2.media_link            AS thumb_media_link
-                
-                FROM portal p
-                
-                LEFT JOIN supported_languages sl
-                    ON sl.space_id = p.space_id
+SELECT
+    p.id                      AS portal_id,
+    p.space_id,
+    p.booth_id,
+    p.portal_type_id,
+    p.event_id,
+    p.corresponding_media_id  AS corr_media_id,
+    cm.media_type_id          AS corr_media_type_id,
+    p.thumbnail_media_id      AS thumb_media_id,
+    tm.media_type_id          AS thumb_media_type_id,
+    p.text_field_key          AS text_key,
+    p.external_link,
 
-                LEFT JOIN i18n i 
-                    ON i.`key`      = p.text_field_key
-                   AND i.space_id   = p.space_id
-                   AND i.locale_id  = sl.locale_id
-                
-                LEFT JOIN media cm
-                    ON cm.id        = p.corresponding_media_id
-                   AND cm.space_id  = p.space_id
-                
-                LEFT JOIN media tm
-                    ON tm.id        = p.thumbnail_media_id
-                   AND tm.space_id  = p.space_id
+    sl.locale_id              AS locale_id,
+    i.[value]                 AS localized_text_value,
 
-                LEFT JOIN media_localization ml1 
-                    ON ml1.media_id  = p.corresponding_media_id
-                   AND ml1.locale_id = sl.locale_id
-                
-                LEFT JOIN media_localization ml2 
-                    ON ml2.media_id  = p.thumbnail_media_id
-                   AND ml2.locale_id = sl.locale_id
-                
-                WHERE p.space_id = @SpaceId
-                  AND p.booth_id = @BoothId
-                ORDER BY p.id, sl.locale_id;
-            ";
+    ml1.media_link            AS corr_media_link,
+    ml2.media_link            AS thumb_media_link
 
-            await using var conn = new MySqlConnection(_connectionString);
+FROM portal p
 
-            await conn.OpenAsync();
+LEFT JOIN supported_languages sl
+    ON sl.space_id = p.space_id
 
-            await using var cmd = new MySqlCommand(sql, conn);
+LEFT JOIN i18n i 
+    ON i.[key]      = p.text_field_key
+   AND i.space_id   = p.space_id
+   AND i.locale_id  = sl.locale_id
+   AND i.is_deleted = 0
 
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-            cmd.Parameters.AddWithValue("@BoothId", boothId);
+LEFT JOIN media cm
+    ON cm.id        = p.corresponding_media_id
+   AND cm.space_id  = p.space_id
+   AND cm.is_deleted = 0
+
+LEFT JOIN media tm
+    ON tm.id        = p.thumbnail_media_id
+   AND tm.space_id  = p.space_id
+   AND tm.is_deleted = 0
+
+LEFT JOIN media_localization ml1 
+    ON ml1.media_id  = p.corresponding_media_id
+   AND ml1.locale_id = sl.locale_id
+   AND ml1.is_deleted = 0
+
+LEFT JOIN media_localization ml2 
+    ON ml2.media_id  = p.thumbnail_media_id
+   AND ml2.locale_id = sl.locale_id
+   AND ml2.is_deleted = 0
+
+WHERE p.space_id = @SpaceId
+  AND p.booth_id = @BoothId
+  AND p.is_deleted = 0
+ORDER BY p.id, sl.locale_id;
+";
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
             var map = new Dictionary<int, PortalModel>();
 
@@ -258,93 +229,95 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             while (await reader.ReadAsync())
             {
-                var id = reader.GetInt32("portal_id");
+                var portalId = reader.GetInt32(reader.GetOrdinal("portal_id"));
 
-                if (!map.TryGetValue(id, out var portal))
+                if (!map.TryGetValue(portalId, out var portal))
                 {
                     portal = new PortalModel
                     {
-                        Id = id,
-                        SpaceId = reader.GetInt32("space_id"),
-                        BoothId = reader.GetInt32("booth_id"),
-                        PortalTypeId = reader.IsDBNull("portal_type_id") ? null : reader.GetInt32("portal_type_id"),
-                        EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
-                        ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
+                        Id = portalId,
+                        SpaceId = reader.GetInt32(reader.GetOrdinal("space_id")),
+                        BoothId = reader.GetInt32(reader.GetOrdinal("booth_id")),
+                        PortalTypeId = reader.IsDBNull(reader.GetOrdinal("portal_type_id"))
+                            ? null
+                            : reader.GetInt32(reader.GetOrdinal("portal_type_id")),
+                        EventId = reader.IsDBNull(reader.GetOrdinal("event_id"))
+                            ? null
+                            : reader.GetInt32(reader.GetOrdinal("event_id")),
+                        ExternalLink = reader.IsDBNull(reader.GetOrdinal("external_link"))
+                            ? null
+                            : reader.GetString(reader.GetOrdinal("external_link")),
 
                         LocalizedPairs = new LocalizedPairs
                         {
-                            Key = reader.GetString("text_key"),
-                            Values = []
+                            Key = reader.GetString(reader.GetOrdinal("text_key")),
+                            Values = new List<LocalizedValue>()
                         },
 
-                        CorrespondingMedia = new MediaData
+                        CorrespondingMedia = reader.IsDBNull(reader.GetOrdinal("corr_media_id"))
+                            ? null
+                            : new MediaData
                             {
-                                Id = reader.GetInt32("corr_media_id"),
-                                MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
-                                reader.GetInt32("corr_media_type_id"),
+                                Id = reader.GetInt32(reader.GetOrdinal("corr_media_id")),
+                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("corr_media_type_id"))
+                                    ? 0
+                                    : reader.GetInt32(reader.GetOrdinal("corr_media_type_id")),
                                 LinkLocalizations = new List<MediaLocalization>()
                             },
 
-                        ThumbnailMedia = new MediaData
+                        ThumbnailMedia = reader.IsDBNull(reader.GetOrdinal("thumb_media_id"))
+                            ? null
+                            : new MediaData
                             {
-                                Id = reader.GetInt32("thumb_media_id"),
-                                MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
-                                reader.GetInt32("thumb_media_type_id"),
+                                Id = reader.GetInt32(reader.GetOrdinal("thumb_media_id")),
+                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("thumb_media_type_id"))
+                                    ? 0
+                                    : reader.GetInt32(reader.GetOrdinal("thumb_media_type_id")),
                                 LinkLocalizations = new List<MediaLocalization>()
                             }
                     };
 
-                    map[id] = portal;
+                    map[portalId] = portal;
                 }
 
-                if (!reader.IsDBNull("locale_id"))
+                if (reader.IsDBNull(reader.GetOrdinal("locale_id")))
+                    continue;
+
+                var locale = reader.GetString(reader.GetOrdinal("locale_id"));
+
+                // --- Portal text localization ---
+                if (!reader.IsDBNull(reader.GetOrdinal("localized_text_value")) &&
+                    !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
                 {
-                    var locale = reader.GetString("locale_id");
-
-                    // --- Localized Name ---
-                    var textValue = reader.IsDBNull("localized_text_value") ? null :
-                        reader.GetString("localized_text_value");
-
-                    if (textValue != null && !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
+                    portal.LocalizedPairs.Values.Add(new LocalizedValue
                     {
-                        portal.LocalizedPairs.Values.Add(new LocalizedValue
-                        {
-                            LocaleId = locale,
-                            Value = textValue
-                        });
-                    }
+                        LocaleId = locale,
+                        Value = reader.GetString(reader.GetOrdinal("localized_text_value"))
+                    });
+                }
 
-                    // --- CorrespondingMedia Localized Links ---
-                    if (portal.CorrespondingMedia != null)
+                // --- Corresponding media localization ---
+                if (portal.CorrespondingMedia != null &&
+                    !reader.IsDBNull(reader.GetOrdinal("corr_media_link")) &&
+                    !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                {
+                    portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
                     {
-                        var link = reader.IsDBNull("corr_media_link") ? null :
-                            reader.GetString("corr_media_link");
+                        LocaleId = locale,
+                        MediaLink = reader.GetString(reader.GetOrdinal("corr_media_link"))
+                    });
+                }
 
-                        if (link != null && !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
-                        {
-                            portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
-                            {
-                                LocaleId = locale,
-                                MediaLink = link
-                            });
-                        }
-                    }
-
-                    // --- ThumbnailMedia Localized Links ---
-                    if (portal.ThumbnailMedia != null)
+                // --- Thumbnail media localization ---
+                if (portal.ThumbnailMedia != null &&
+                    !reader.IsDBNull(reader.GetOrdinal("thumb_media_link")) &&
+                    !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                {
+                    portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
                     {
-                        var link = reader.IsDBNull("thumb_media_link") ? null :
-                            reader.GetString("thumb_media_link");
-
-                        if (link != null && !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
-                        {
-                            portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
-                            {
-                                LocaleId = locale,
-                                MediaLink = link
-                            });
-                        }
-                    }
+                        LocaleId = locale,
+                        MediaLink = reader.GetString(reader.GetOrdinal("thumb_media_link"))
+                    });
                 }
             }
 
@@ -361,68 +334,66 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         public async Task<PortalModel?> GetPortalByIdAsync(int spaceId, int portalId)
         {
             const string sql = @"
-                SELECT 
-                    p.id                          AS portal_id,
-                    p.space_id,
-                    p.booth_id,
-                    p.portal_type_id,
-                    p.event_id,
-                    p.external_link,
-                    p.text_field_key              AS text_key,
+SELECT 
+    p.id                          AS portal_id,
+    p.space_id,
+    p.booth_id,
+    p.portal_type_id,
+    p.event_id,
+    p.external_link,
+    p.text_field_key              AS text_key,
 
-                    -- Corresponding media info
-                    cm.id                         AS corr_media_id,
-                    cm.media_type_id              AS corr_media_type_id,
-                    cm.text_key                   AS corr_media_text_key,
-                    cm.description_key            AS corr_media_desc_key,
-                
-                    -- Thumbnail media info
-                    tm.id                         AS thumb_media_id,
-                    tm.media_type_id              AS thumb_media_type_id,
-                    tm.text_key                   AS thumb_media_text_key,
-                    tm.description_key            AS thumb_media_desc_key,
-                
-                    -- Portal text (i18n)
-                    p.text_field_key              AS i18n_key,
-                    i.locale_id                   AS locale_id,
-                    i.value                       AS localized_text_value,
-                
-                    -- Media localizations for corresponding/thumbnail media
-                    ml1.media_link                AS corresponding_media_link,
-                    ml2.media_link                AS thumbnail_media_link
-                
-                FROM portal p
-                
-                LEFT JOIN media cm 
-                    ON p.corresponding_media_id = cm.id
-                    AND cm.space_id = p.space_id
-                
-                LEFT JOIN media tm 
-                    ON p.thumbnail_media_id = tm.id
-                    AND tm.space_id = p.space_id
-                
-                LEFT JOIN i18n i 
-                    ON p.text_field_key = i.`key`
-                    AND i.space_id = p.space_id
-                
-                LEFT JOIN media_localization ml1 
-                    ON ml1.media_id = p.corresponding_media_id
-                    AND ml1.locale_id = i.locale_id
-                
-                LEFT JOIN media_localization ml2 
-                    ON ml2.media_id = p.thumbnail_media_id
-                    AND ml2.locale_id = i.locale_id
-                
-                WHERE p.id = @PortalId
-                  AND p.space_id = @SpaceId
-                ORDER BY i.locale_id;
-            ";
+    -- Corresponding media info
+    cm.id                         AS corr_media_id,
+    cm.media_type_id              AS corr_media_type_id,
+    cm.text_key                   AS corr_media_text_key,
+    cm.description_key            AS corr_media_desc_key,
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@PortalId", portalId);
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+    -- Thumbnail media info
+    tm.id                         AS thumb_media_id,
+    tm.media_type_id              AS thumb_media_type_id,
+    tm.text_key                   AS thumb_media_text_key,
+    tm.description_key            AS thumb_media_desc_key,
+
+    -- Portal text (i18n)
+    i.locale_id                   AS locale_id,
+    i.[value]                     AS localized_text_value,
+
+    -- Media localizations
+    ml1.media_link                AS corresponding_media_link,
+    ml2.media_link                AS thumbnail_media_link
+
+FROM portal p
+
+LEFT JOIN media cm 
+    ON p.corresponding_media_id = cm.id
+   AND cm.space_id = p.space_id
+
+LEFT JOIN media tm 
+    ON p.thumbnail_media_id = tm.id
+   AND tm.space_id = p.space_id
+
+LEFT JOIN i18n i 
+    ON i.[key] = p.text_field_key
+   AND i.space_id = p.space_id
+
+LEFT JOIN media_localization ml1 
+    ON ml1.media_id  = p.corresponding_media_id
+   AND ml1.locale_id = i.locale_id
+
+LEFT JOIN media_localization ml2 
+    ON ml2.media_id  = p.thumbnail_media_id
+   AND ml2.locale_id = i.locale_id
+
+WHERE p.id = @PortalId
+  AND p.space_id = @SpaceId
+ORDER BY i.locale_id;";
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+
+            cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
@@ -430,83 +401,99 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             while (await reader.ReadAsync())
             {
-                portal ??= new PortalModel
+                if (portal == null)
                 {
-                    Id = reader.GetInt32("portal_id"),
-                    SpaceId = reader.GetInt32("space_id"),
-                    BoothId = reader.IsDBNull("booth_id") ? null : reader.GetInt32("booth_id"),
-                    PortalTypeId = reader.IsDBNull("portal_type_id") ? null : reader.GetInt32("portal_type_id"),
-                    EventId = reader.IsDBNull("event_id") ? null : reader.GetInt32("event_id"),
-                    ExternalLink = reader.IsDBNull("external_link") ? null : reader.GetString("external_link"),
-
-                    LocalizedPairs = new LocalizedPairs
+                    portal = new PortalModel
                     {
-                        Key = reader.GetString("text_key"),
-                        Values = new List<LocalizedValue>()
-                    },
+                        Id = reader.GetInt32(reader.GetOrdinal("portal_id")),
+                        SpaceId = reader.GetInt32(reader.GetOrdinal("space_id")),
+                        BoothId = reader.IsDBNull(reader.GetOrdinal("booth_id"))
+                            ? null
+                            : reader.GetInt32(reader.GetOrdinal("booth_id")),
+                        PortalTypeId = reader.IsDBNull(reader.GetOrdinal("portal_type_id"))
+                            ? null
+                            : reader.GetInt32(reader.GetOrdinal("portal_type_id")),
+                        EventId = reader.IsDBNull(reader.GetOrdinal("event_id"))
+                            ? null
+                            : reader.GetInt32(reader.GetOrdinal("event_id")),
+                        ExternalLink = reader.IsDBNull(reader.GetOrdinal("external_link"))
+                            ? null
+                            : reader.GetString(reader.GetOrdinal("external_link")),
 
-                    CorrespondingMedia = new MediaData
+                        LocalizedPairs = new LocalizedPairs
                         {
-                            Id = reader.GetInt32("corr_media_id"),
-                            MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : reader.GetInt32("corr_media_type_id"),
-                            LinkLocalizations = new List<MediaLocalization>()
+                            Key = reader.GetString(reader.GetOrdinal("text_key")),
+                            Values = new List<LocalizedValue>()
                         },
 
-                    ThumbnailMedia = new MediaData
-                        {
-                            Id = reader.GetInt32("thumb_media_id"),
-                            MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
-                            LinkLocalizations = new List<MediaLocalization>()
-                        }
-                };
+                        CorrespondingMedia = reader.IsDBNull(reader.GetOrdinal("corr_media_id"))
+                            ? null
+                            : new MediaData
+                            {
+                                Id = reader.GetInt32(reader.GetOrdinal("corr_media_id")),
+                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("corr_media_type_id"))
+                                    ? 0
+                                    : reader.GetInt32(reader.GetOrdinal("corr_media_type_id")),
+                                LinkLocalizations = new List<MediaLocalization>()
+                            },
 
-                if (!reader.IsDBNull("locale_id"))
+                        ThumbnailMedia = reader.IsDBNull(reader.GetOrdinal("thumb_media_id"))
+                            ? null
+                            : new MediaData
+                            {
+                                Id = reader.GetInt32(reader.GetOrdinal("thumb_media_id")),
+                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("thumb_media_type_id"))
+                                    ? 0
+                                    : reader.GetInt32(reader.GetOrdinal("thumb_media_type_id")),
+                                LinkLocalizations = new List<MediaLocalization>()
+                            }
+                    };
+                }
+
+                if (reader.IsDBNull(reader.GetOrdinal("locale_id")))
+                    continue;
+
+                var locale = reader.GetString(reader.GetOrdinal("locale_id"));
+
+                // --- Portal text localization ---
+                if (!reader.IsDBNull(reader.GetOrdinal("localized_text_value")) &&
+                    !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
                 {
-                    var locale = reader.GetString("locale_id");
-
-                    // --- Portal Text Localizations ---
-                    var textValue = reader.IsDBNull("localized_text_value") ? null : reader.GetString("localized_text_value");
-                    if (textValue != null && !portal.LocalizedPairs.Values.Any(v => v.LocaleId == locale))
+                    portal.LocalizedPairs.Values.Add(new LocalizedValue
                     {
-                        portal.LocalizedPairs.Values.Add(new LocalizedValue
-                        {
-                            LocaleId = locale,
-                            Value = textValue
-                        });
-                    }
+                        LocaleId = locale,
+                        Value = reader.GetString(reader.GetOrdinal("localized_text_value"))
+                    });
+                }
 
-                    // --- CorrespondingMedia Localized Links ---
-                    if (portal.CorrespondingMedia != null)
+                // --- Corresponding media localization ---
+                if (portal.CorrespondingMedia != null &&
+                    !reader.IsDBNull(reader.GetOrdinal("corresponding_media_link")) &&
+                    !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                {
+                    portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
                     {
-                        var link = reader.IsDBNull("corresponding_media_link") ? null : reader.GetString("corresponding_media_link");
-                        if (link != null && !portal.CorrespondingMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
-                        {
-                            portal.CorrespondingMedia.LinkLocalizations.Add(new MediaLocalization
-                            {
-                                LocaleId = locale,
-                                MediaLink = link
-                            });
-                        }
-                    }
+                        LocaleId = locale,
+                        MediaLink = reader.GetString(reader.GetOrdinal("corresponding_media_link"))
+                    });
+                }
 
-                    // --- ThumbnailMedia Localized Links ---
-                    if (portal.ThumbnailMedia != null)
+                // --- Thumbnail media localization ---
+                if (portal.ThumbnailMedia != null &&
+                    !reader.IsDBNull(reader.GetOrdinal("thumbnail_media_link")) &&
+                    !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
+                {
+                    portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
                     {
-                        var link = reader.IsDBNull("thumbnail_media_link") ? null : reader.GetString("thumbnail_media_link");
-                        if (link != null && !portal.ThumbnailMedia.LinkLocalizations.Any(l => l.LocaleId == locale))
-                        {
-                            portal.ThumbnailMedia.LinkLocalizations.Add(new MediaLocalization
-                            {
-                                LocaleId = locale,
-                                MediaLink = link
-                            });
-                        }
-                    }
+                        LocaleId = locale,
+                        MediaLink = reader.GetString(reader.GetOrdinal("thumbnail_media_link"))
+                    });
                 }
             }
 
             return portal;
         }
+
 
         #endregion
 
@@ -522,109 +509,132 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         {
             ArgumentNullException.ThrowIfNull(portalDto);
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1) Load supported locales for this space
+                // 1️⃣ Load supported locales for this space
                 var supportedLocales = new HashSet<string>();
-                const string fetchLocales = @"
-                    SELECT locale_id FROM supported_languages WHERE space_id = @SpaceId;";
-                
-                await using (var cmd = new MySqlCommand(fetchLocales, conn, tx))
+
+                const string fetchLocalesSql = @"
+SELECT locale_id
+FROM supported_languages
+WHERE space_id = @SpaceId;";
+
+                await using (var cmd = _db.CreateCommand(conn, fetchLocalesSql))
                 {
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
                     await using var rdr = await cmd.ExecuteReaderAsync();
                     while (await rdr.ReadAsync())
-                        supportedLocales.Add(rdr.GetString("locale_id"));
+                    {
+                        supportedLocales.Add(rdr.GetString(rdr.GetOrdinal("locale_id")));
+                    }
                 }
 
-                // 2) Optionally insert corresponding media first
-                string? corrMediaId = null;
+                // 2️⃣ Optionally insert corresponding media
+                int? corrMediaId = null;
                 if (portalDto.CorrespondingMedia != null)
                 {
                     corrMediaId = await FilterAndInsertMediaAsync(
-                        conn, tx, spaceId,
+                        conn,
+                        tx,
+                        spaceId,
                         portalDto.CorrespondingMedia,
                         supportedLocales,
                         InsertMediaAsync
                     );
                 }
 
-                // 3) Optionally insert thumbnail media
-                string? thumbMediaId = null;
+                // 3️⃣ Optionally insert thumbnail media
+                int? thumbMediaId = null;
                 if (portalDto.ThumbnailMedia != null)
                 {
                     thumbMediaId = await FilterAndInsertMediaAsync(
-                        conn, tx, spaceId,
+                        conn,
+                        tx,
+                        spaceId,
                         portalDto.ThumbnailMedia,
                         supportedLocales,
                         InsertMediaAsync
                     );
                 }
 
-                // 4) Insert portal record, let DB set text_field_key
-                const string insertPortal = @"
-                    INSERT INTO portal
-                      (space_id, booth_id, portal_type_id, event_id,
-                       corresponding_media_id, thumbnail_media_id,
-                       external_link)
-                    VALUES
-                      (@SpaceId, @boothId, @PortalTypeId, @EventId,
-                       @CorrId, @ThumbId, @ExternalLink);
-                ";
+                // 4️⃣ Insert portal (IDENTITY id)
+                const string insertPortalSql = @"
+INSERT INTO portal
+    (space_id, booth_id, portal_type_id, event_id,
+     corresponding_media_id, thumbnail_media_id,
+     external_link)
+VALUES
+    (@SpaceId, @BoothId, @PortalTypeId, @EventId,
+     @CorrId, @ThumbId, @ExternalLink);
+
+SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
                 int newPortalId;
-                await using (var cmd = new MySqlCommand(insertPortal, conn, tx))
-                {
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                    cmd.Parameters.AddWithValue("@boothId", portalDto.BoothId);
-                    cmd.Parameters.AddWithValue("@PortalTypeId", portalDto.PortalTypeId);
-                    cmd.Parameters.AddWithValue("@EventId", portalDto.EventId);
-                    cmd.Parameters.AddWithValue("@CorrId", corrMediaId);
-                    cmd.Parameters.AddWithValue("@ThumbId", thumbMediaId);
-                    cmd.Parameters.AddWithValue("@ExternalLink", portalDto.ExternalLink ?? (object)DBNull.Value);
 
-                    await cmd.ExecuteNonQueryAsync();
-                    newPortalId = Convert.ToInt32(cmd.LastInsertedId);
+                await using (var cmd = _db.CreateCommand(conn, insertPortalSql))
+                {
+                    cmd.Transaction = tx;
+
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothId", portalDto.BoothId));
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalTypeId", portalDto.PortalTypeId));
+                    cmd.Parameters.Add(_db.CreateParameter("@EventId", portalDto.EventId));
+                    cmd.Parameters.Add(_db.CreateParameter("@CorrId", (object?)corrMediaId ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter("@ThumbId", (object?)thumbMediaId ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter(
+                        "@ExternalLink",
+                        (object?)portalDto.ExternalLink ?? DBNull.Value
+                    ));
+
+                    newPortalId = (int)await cmd.ExecuteScalarAsync();
                 }
 
-                // 5) Fetch the generated text_field_key from portal table
+                // 5️⃣ Fetch generated text_field_key
+                const string fetchTextKeySql = @"
+SELECT text_field_key
+FROM portal
+WHERE id = @PortalId;";
+
                 string textFieldKey;
-                const string fetchTextFieldKey = @"
-                    SELECT text_field_key FROM portal WHERE id = @PortalId;";
-                
-                await using (var cmd = new MySqlCommand(fetchTextFieldKey, conn, tx))
+
+                await using (var cmd = _db.CreateCommand(conn, fetchTextKeySql))
                 {
-                    cmd.Parameters.AddWithValue("@PortalId", newPortalId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", newPortalId));
+
                     textFieldKey = (string)await cmd.ExecuteScalarAsync();
                 }
 
-                // 6) Insert i18n entries for the portal’s text_field_key, for supported locales only
-                const string insertI18n = @"
-                    INSERT INTO i18n (`key`, locale_id, value, space_id)
-                    VALUES (@TextKey, @LocaleId, @Value, @SpaceId);
-                ";
+                // 6️⃣ Insert i18n values (SQL Server syntax)
+                const string insertI18nSql = @"
+INSERT INTO i18n ([key], locale_id, [value], space_id)
+VALUES (@TextKey, @LocaleId, @Value, @SpaceId);";
 
                 if (portalDto.LocalizedPairs?.Values != null)
                 {
-                    foreach (var loc in portalDto.LocalizedPairs.Values.Where(x => supportedLocales.Contains(x.LocaleId)))
+                    foreach (var loc in portalDto.LocalizedPairs.Values
+                                 .Where(x => supportedLocales.Contains(x.LocaleId)))
                     {
-                        await using var cmdI = new MySqlCommand(insertI18n, conn, tx);
-                        cmdI.Parameters.AddWithValue("@TextKey", textFieldKey);
-                        cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                        cmdI.Parameters.AddWithValue("@Value", loc.Value);
-                        cmdI.Parameters.AddWithValue("@SpaceId", spaceId);
+                        await using var cmdI = _db.CreateCommand(conn, insertI18nSql);
+                        cmdI.Transaction = tx;
+
+                        cmdI.Parameters.Add(_db.CreateParameter("@TextKey", textFieldKey));
+                        cmdI.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                        cmdI.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                        cmdI.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
                         await cmdI.ExecuteNonQueryAsync();
                     }
                 }
 
                 await tx.CommitAsync();
 
-                // 7) Reload full portal and return
+                // 7️⃣ Reload and return full portal
                 return await GetPortalByIdAsync(spaceId, newPortalId);
             }
             catch
@@ -633,6 +643,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 throw;
             }
         }
+
 
 
         #endregion
@@ -648,194 +659,182 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>The updated portal model, or null if the portal does not exist.</returns>
         public async Task<PortalModel?> UpdatePortalAsync(int spaceId, int portalId, PortalUpdateDto dto)
         {
-            await using var conn = new MySqlConnection(_connectionString);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1. Get existing text_key
+                // 1️⃣ Fetch existing text_field_key
                 string textKey;
+
+                const string fetchTextKeySql = @"
+SELECT text_field_key
+FROM portal
+WHERE id = @PortalId
+  AND space_id = @SpaceId;";
+
+                await using (var cmd = _db.CreateCommand(conn, fetchTextKeySql))
                 {
-                    const string fetch = @"
-                        SELECT text_field_key
-                        FROM portal
-                        WHERE id = @PortalId
-                          AND space_id = @SpaceId;
-                    ";
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                    await using var c = new MySqlCommand(fetch, conn, tx);
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result == null)
+                        return null;
 
-                    c.Parameters.AddWithValue("@PortalId", portalId);
-                    c.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    var o = await c.ExecuteScalarAsync();
-
-                    if (o == null) return null;
-
-                    textKey = o.ToString()!;
+                    textKey = (string)result;
                 }
 
-                // 2. Update external_link
-                const string updLink = @"
-                    UPDATE portal
-                    SET external_link = @ExternalLink
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId;";
+                // 2️⃣ Update external_link
+                const string updatePortalLinkSql = @"
+UPDATE portal
+SET external_link = @ExternalLink
+WHERE id = @PortalId
+  AND space_id = @SpaceId;";
 
-                await using (var cmdL = new MySqlCommand(updLink, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, updatePortalLinkSql))
                 {
-                    cmdL.Parameters.AddWithValue("@ExternalLink", (object?)dto.ExternalLink ?? DBNull.Value);
-                    cmdL.Parameters.AddWithValue("@PortalId", portalId);
-                    cmdL.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@ExternalLink", (object?)dto.ExternalLink ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                    await cmdL.ExecuteNonQueryAsync();
+                    await cmd.ExecuteNonQueryAsync();
                 }
 
-                // 3. Upsert i18n for textKey using LocalizedName.Values (list)
-                const string updI18n = @"
-                    UPDATE i18n SET value=@Value
-                    WHERE `key`=@TextKey 
-                      AND locale_id=@LocaleId 
-                      AND space_id=@SpaceId;
-                ";
+                // 3️⃣ Upsert i18n values
+                const string updateI18nSql = @"
+UPDATE i18n
+SET [value] = @Value
+WHERE [key] = @TextKey
+  AND locale_id = @LocaleId
+  AND space_id = @SpaceId;";
 
-                const string insI18n = @"
-                    INSERT INTO i18n (`key`,locale_id,value,space_id)
-                    VALUES(@TextKey,@LocaleId,@Value,@SpaceId);
-                ";
+                const string insertI18nSql = @"
+INSERT INTO i18n ([key], locale_id, [value], space_id)
+VALUES (@TextKey, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedPairs?.Values != null)
                 {
                     foreach (var loc in dto.LocalizedPairs.Values)
                     {
-                        string localeId = loc.LocaleId;
-                        string value = loc.Value;
+                        await using var cmdUpd = _db.CreateCommand(conn, updateI18nSql);
+                        cmdUpd.Transaction = tx;
 
-                        await using var cu = new MySqlCommand(updI18n, conn, tx);
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@TextKey", textKey));
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                        cu.Parameters.AddWithValue("@TextKey", textKey);
-                        cu.Parameters.AddWithValue("@LocaleId", localeId);
-                        cu.Parameters.AddWithValue("@Value", value);
-                        cu.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                        if (await cu.ExecuteNonQueryAsync() == 0)
+                        if (await cmdUpd.ExecuteNonQueryAsync() == 0)
                         {
-                            await using var ci = new MySqlCommand(insI18n, conn, tx);
+                            await using var cmdIns = _db.CreateCommand(conn, insertI18nSql);
+                            cmdIns.Transaction = tx;
 
-                            ci.Parameters.AddWithValue("@TextKey", textKey);
-                            ci.Parameters.AddWithValue("@LocaleId", localeId);
-                            ci.Parameters.AddWithValue("@Value", value);
-                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
+                            cmdIns.Parameters.Add(_db.CreateParameter("@TextKey", textKey));
+                            cmdIns.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                            cmdIns.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                            cmdIns.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                            await ci.ExecuteNonQueryAsync();
+                            await cmdIns.ExecuteNonQueryAsync();
                         }
                     }
                 }
 
-                // 4. Helper to upsert one media block (now using MediaLocalization list)
-                async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
+                // 4️⃣ Local helper: upsert media + localizations
+                async Task UpsertMediaAsync(MediaUpdateDto mDto, string portalColumn)
                 {
-                    int mediaId = mDto.Id;
+                    var mediaId = mDto.Id;
 
-                    // a) Update portal set column = @MediaId
-                    var updPortalMedia = $@"
-                        UPDATE portal
-                        SET {columnIdName} = @MediaId
-                        WHERE id=@PortalId AND space_id=@SpaceId;";
+                    // a) Update portal FK
+                    var updatePortalMediaSql = $@"
+UPDATE portal
+SET {portalColumn} = @MediaId
+WHERE id = @PortalId
+  AND space_id = @SpaceId;";
 
-                    await using (var cm = new MySqlCommand(updPortalMedia, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, updatePortalMediaSql))
                     {
-                        cm.Parameters.AddWithValue("@MediaId", mediaId);
-                        cm.Parameters.AddWithValue("@PortalId", portalId);
-                        cm.Parameters.AddWithValue("@SpaceId", spaceId);
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                        cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                        if (await cm.ExecuteNonQueryAsync() == 0)
+                        if (await cmd.ExecuteNonQueryAsync() == 0)
                             throw new InvalidOperationException("Portal not found");
                     }
 
-                    // b) Upsert media table
-                    const string updMedia = @"
-                        UPDATE media
-                        SET media_type_id=@MediaTypeId, text_key=@TextKey, description_key=@DescKey
-                        WHERE id=@MediaId AND space_id=@SpaceId;
-                    ";
+                    // b) Update media metadata
+                    const string updateMediaSql = @"
+UPDATE media
+SET media_type_id = @MediaTypeId,
+    text_key = @TextKey,
+    description_key = @DescKey
+WHERE id = @MediaId
+  AND space_id = @SpaceId;";
 
-                    const string insMedia = @"
-                        INSERT INTO media (id,space_id,media_type_id,text_key,description_key)
-                        VALUES(@MediaId,@SpaceId,@MediaTypeId,@TextKey,@DescKey);
-                    ";
-
-                    await using (var cm = new MySqlCommand(updMedia, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, updateMediaSql))
                     {
-                        cm.Parameters.AddWithValue("@MediaId", mediaId);
-                        cm.Parameters.AddWithValue("@SpaceId", spaceId);
-                        cm.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
-                        cm.Parameters.AddWithValue("@TextKey", mDto.TextKey);
-                        cm.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", mDto.MediaTypeId));
+                        cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)mDto.TextKey ?? DBNull.Value));
+                        cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)mDto.DescriptionKey ?? DBNull.Value));
 
-                        if (await cm.ExecuteNonQueryAsync() == 0)
-                        {
-                            await using var ci = new MySqlCommand(insMedia, conn, tx);
-                            ci.Parameters.AddWithValue("@MediaId", mediaId);
-                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
-                            ci.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
-                            ci.Parameters.AddWithValue("@TextKey", mDto.TextKey);
-                            ci.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
-
-                            await ci.ExecuteNonQueryAsync();
-                        }
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    // c) Upsert localizations
-                    const string updLoc = @"
-                        UPDATE media_localization
-                        SET media_link=@MediaLink
-                        WHERE media_id=@MediaId AND locale_id=@LocaleId;
-                    ";
+                    // c) Upsert media_localization
+                    const string updateLocSql = @"
+UPDATE media_localization
+SET media_link = @MediaLink
+WHERE media_id = @MediaId
+  AND locale_id = @LocaleId;";
 
-                    const string insLoc = @"
-                        INSERT INTO media_localization (id,media_id,locale_id,media_link)
-                        VALUES(@Id,@MediaId,@LocaleId,@MediaLink);
-                    ";
+                    const string insertLocSql = @"
+INSERT INTO media_localization (media_id, locale_id, media_link)
+VALUES (@MediaId, @LocaleId, @MediaLink);";
 
                     if (mDto.LinkLocalizations != null)
                     {
                         foreach (var loc in mDto.LinkLocalizations)
                         {
-                            await using var cl = new MySqlCommand(updLoc, conn, tx);
+                            await using var cmdUpd = _db.CreateCommand(conn, updateLocSql);
+                            cmdUpd.Transaction = tx;
 
-                            cl.Parameters.AddWithValue("@MediaId", mediaId);
-                            cl.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                            cl.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                            cmdUpd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                            cmdUpd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                            cmdUpd.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
 
-                            if (await cl.ExecuteNonQueryAsync() == 0)
+                            if (await cmdUpd.ExecuteNonQueryAsync() == 0)
                             {
-                                await using var ci = new MySqlCommand(insLoc, conn, tx);
+                                await using var cmdIns = _db.CreateCommand(conn, insertLocSql);
+                                cmdIns.Transaction = tx;
 
-                                ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
-                                ci.Parameters.AddWithValue("@MediaId", mediaId);
-                                ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                                ci.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                                cmdIns.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                                cmdIns.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                                cmdIns.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
 
-                                await ci.ExecuteNonQueryAsync();
+                                await cmdIns.ExecuteNonQueryAsync();
                             }
                         }
                     }
                 }
 
-                // 5. Apply to correspondingMedia & thumbnailMedia if provided
+                // 5️⃣ Apply updates
                 if (dto.CorrespondingMedia != null)
-                    await UpsertMedia(dto.CorrespondingMedia, "corresponding_media_id");
+                    await UpsertMediaAsync(dto.CorrespondingMedia, "corresponding_media_id");
+
                 if (dto.ThumbnailMedia != null)
-                    await UpsertMedia(dto.ThumbnailMedia, "thumbnail_media_id");
+                    await UpsertMediaAsync(dto.ThumbnailMedia, "thumbnail_media_id");
 
                 await tx.CommitAsync();
+
                 return await GetPortalByIdAsync(spaceId, portalId);
             }
-            catch (Exception)
+            catch
             {
                 await tx.RollbackAsync();
                 return null;
@@ -851,201 +850,191 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="portalId">The ID of the portal to update.</param>
         /// <param name="dto">The update data, including new localizations and media details.</param>
         /// <returns>The updated portal model, or null if the portal or booth association is not found.</returns>
-        public async Task<PortalModel?> UpdatePortalAsync(int spaceId, int boothId, int portalId, PortalUpdateDto dto)
+        public async Task<PortalModel?> UpdatePortalAsync(
+    int spaceId,
+    int boothId,
+    int portalId,
+    PortalUpdateDto dto)
         {
-            await using var conn = new MySqlConnection(_connectionString);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // Fetch the text_key, confirm portal and booth match
-                const string fetch = @"
-                   SELECT text_field_key
-                   FROM portal
-                   WHERE id = @PortalId
-                     AND space_id = @SpaceId
-                     AND booth_id = @BoothId;
-                ";
+                // 1️⃣ Fetch text_field_key and validate booth ownership
+                const string fetchTextKeySql = @"
+SELECT text_field_key
+FROM portal
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND booth_id = @BoothId;";
 
                 string textKey;
 
-                await using (var c = new MySqlCommand(fetch, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, fetchTextKeySql))
                 {
-                    c.Parameters.AddWithValue("@PortalId", portalId);
-                    c.Parameters.AddWithValue("@SpaceId", spaceId);
-                    c.Parameters.AddWithValue("@BoothId", boothId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
-                    var o = await c.ExecuteScalarAsync();
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result == null)
+                        return null;
 
-                    if (o == null)
-                    {
-                        await tx.RollbackAsync();
-                        return null; // Not found or booth mismatch
-                    }
-                    textKey = o.ToString()!;
+                    textKey = (string)result;
                 }
 
-                // Update external_link
-                const string updLink = @"
-                    UPDATE portal
-                    SET external_link = @ExternalLink
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId
-                      AND booth_id = @BoothId;
-                ";
+                // 2️⃣ Update external_link
+                const string updatePortalSql = @"
+UPDATE portal
+SET external_link = @ExternalLink
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND booth_id = @BoothId;";
 
-                await using (var cmdL = new MySqlCommand(updLink, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, updatePortalSql))
                 {
-                    cmdL.Parameters.AddWithValue("@ExternalLink", (object?)dto.ExternalLink ?? DBNull.Value);
-                    cmdL.Parameters.AddWithValue("@PortalId", portalId);
-                    cmdL.Parameters.AddWithValue("@SpaceId", spaceId);
-                    cmdL.Parameters.AddWithValue("@BoothId", boothId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@ExternalLink", (object?)dto.ExternalLink ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
-                    await cmdL.ExecuteNonQueryAsync();
+                    await cmd.ExecuteNonQueryAsync();
                 }
 
-                // Upsert i18n for textKey using list of LocalizedValue
-                const string updI18n = @"
-                    UPDATE i18n SET value=@Value
-                    WHERE `key`=@TextKey 
-                      AND locale_id=@LocaleId 
-                      AND space_id=@SpaceId;
-                ";
+                // 3️⃣ Upsert i18n values
+                const string updateI18nSql = @"
+UPDATE i18n
+SET [value] = @Value
+WHERE [key] = @TextKey
+  AND locale_id = @LocaleId
+  AND space_id = @SpaceId;";
 
-                const string insI18n = @"
-                    INSERT INTO i18n (`key`,locale_id,value,space_id)
-                    VALUES(@TextKey,@LocaleId,@Value,@SpaceId);
-                ";
+                const string insertI18nSql = @"
+INSERT INTO i18n ([key], locale_id, [value], space_id)
+VALUES (@TextKey, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedPairs?.Values != null)
                 {
                     foreach (var loc in dto.LocalizedPairs.Values)
                     {
-                        string localeId = loc.LocaleId;
-                        string value = loc.Value;
+                        await using var cmdUpd = _db.CreateCommand(conn, updateI18nSql);
+                        cmdUpd.Transaction = tx;
 
-                        await using var cu = new MySqlCommand(updI18n, conn, tx);
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@TextKey", textKey));
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                        cmdUpd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                        cu.Parameters.AddWithValue("@TextKey", textKey);
-                        cu.Parameters.AddWithValue("@LocaleId", localeId);
-                        cu.Parameters.AddWithValue("@Value", value);
-                        cu.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                        if (await cu.ExecuteNonQueryAsync() == 0)
+                        if (await cmdUpd.ExecuteNonQueryAsync() == 0)
                         {
-                            await using var ci = new MySqlCommand(insI18n, conn, tx);
-                            ci.Parameters.AddWithValue("@TextKey", textKey);
-                            ci.Parameters.AddWithValue("@LocaleId", localeId);
-                            ci.Parameters.AddWithValue("@Value", value);
-                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
-                            await ci.ExecuteNonQueryAsync();
+                            await using var cmdIns = _db.CreateCommand(conn, insertI18nSql);
+                            cmdIns.Transaction = tx;
+
+                            cmdIns.Parameters.Add(_db.CreateParameter("@TextKey", textKey));
+                            cmdIns.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                            cmdIns.Parameters.Add(_db.CreateParameter("@Value", loc.Value));
+                            cmdIns.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
+                            await cmdIns.ExecuteNonQueryAsync();
                         }
                     }
                 }
 
-                // Helper to upsert one media block using MediaLocalization list
-                async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
+                // 4️⃣ Local helper: update media + localizations
+                async Task UpsertMediaAsync(MediaUpdateDto mDto, string portalColumn)
                 {
                     var mediaId = mDto.Id;
 
-                    // Update portal to link to new media ID
-                    var updPortalMedia = $@"
-                        UPDATE portal
-                        SET {columnIdName} = @MediaId
-                        WHERE id = @PortalId AND space_id = @SpaceId AND booth_id = @BoothId;
-                    ";
+                    // a) Update portal FK
+                    var updatePortalMediaSql = $@"
+UPDATE portal
+SET {portalColumn} = @MediaId
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND booth_id = @BoothId;";
 
-                    await using (var cm = new MySqlCommand(updPortalMedia, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, updatePortalMediaSql))
                     {
-                        cm.Parameters.AddWithValue("@MediaId", mediaId);
-                        cm.Parameters.AddWithValue("@PortalId", portalId);
-                        cm.Parameters.AddWithValue("@SpaceId", spaceId);
-                        cm.Parameters.AddWithValue("@BoothId", boothId);
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                        cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
-                        if (await cm.ExecuteNonQueryAsync() == 0)
+                        if (await cmd.ExecuteNonQueryAsync() == 0)
                             throw new InvalidOperationException("Portal not found");
                     }
 
-                    // Upsert media
-                    const string updMedia = @"
-                        UPDATE media
-                        SET media_type_id=@MediaTypeId, text_key=@TextKey, description_key=@DescKey
-                        WHERE id=@MediaId AND space_id=@SpaceId;
-                    ";
+                    // b) Update media metadata
+                    const string updateMediaSql = @"
+UPDATE media
+SET media_type_id   = @MediaTypeId,
+    text_key        = @TextKey,
+    description_key = @DescKey
+WHERE id = @MediaId
+  AND space_id = @SpaceId;";
 
-                    const string insMedia = @"
-                        INSERT INTO media (id,space_id,media_type_id,text_key,description_key)
-                        VALUES(@MediaId,@SpaceId,@MediaTypeId,@TextKey,@DescKey);
-                    ";
-
-                    await using (var cm = new MySqlCommand(updMedia, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, updateMediaSql))
                     {
-                        cm.Parameters.AddWithValue("@MediaId", mediaId);
-                        cm.Parameters.AddWithValue("@SpaceId", spaceId);
-                        cm.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
-                        cm.Parameters.AddWithValue("@TextKey", mDto.TextKey);
-                        cm.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", mDto.MediaTypeId));
+                        cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)mDto.TextKey ?? DBNull.Value));
+                        cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)mDto.DescriptionKey ?? DBNull.Value));
 
-                        if (await cm.ExecuteNonQueryAsync() == 0)
-                        {
-                            await using var ci = new MySqlCommand(insMedia, conn, tx);
-
-                            ci.Parameters.AddWithValue("@MediaId", mediaId);
-                            ci.Parameters.AddWithValue("@SpaceId", spaceId);
-                            ci.Parameters.AddWithValue("@MediaTypeId", mDto.MediaTypeId);
-                            ci.Parameters.AddWithValue("@TextKey", mDto.TextKey);
-                            ci.Parameters.AddWithValue("@DescKey", mDto.DescriptionKey);
-
-                            await ci.ExecuteNonQueryAsync();
-                        }
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    // Upsert localizations using MediaLocalization list
-                    const string updLoc = @"
-                        UPDATE media_localization
-                        SET media_link=@MediaLink
-                        WHERE media_id=@MediaId AND locale_id=@LocaleId;
-                    ";
+                    // c) Upsert media_localization
+                    const string updateLocSql = @"
+UPDATE media_localization
+SET media_link = @MediaLink
+WHERE media_id = @MediaId
+  AND locale_id = @LocaleId;";
 
-                    const string insLoc = @"
-                        INSERT INTO media_localization (id,media_id,locale_id,media_link)
-                        VALUES(@Id,@MediaId,@LocaleId,@MediaLink);
-                    ";
+                    const string insertLocSql = @"
+INSERT INTO media_localization (media_id, locale_id, media_link)
+VALUES (@MediaId, @LocaleId, @MediaLink);";
 
                     if (mDto.LinkLocalizations != null)
                     {
                         foreach (var loc in mDto.LinkLocalizations)
                         {
-                            await using var cl = new MySqlCommand(updLoc, conn, tx);
+                            await using var cmdUpd = _db.CreateCommand(conn, updateLocSql);
+                            cmdUpd.Transaction = tx;
 
-                            cl.Parameters.AddWithValue("@MediaId", mediaId);
-                            cl.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                            cl.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
+                            cmdUpd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                            cmdUpd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                            cmdUpd.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
 
-                            if (await cl.ExecuteNonQueryAsync() == 0)
+                            if (await cmdUpd.ExecuteNonQueryAsync() == 0)
                             {
-                                await using var ci = new MySqlCommand(insLoc, conn, tx);
-                                ci.Parameters.AddWithValue("@Id", Guid.NewGuid().ToString());
-                                ci.Parameters.AddWithValue("@MediaId", mediaId);
-                                ci.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                                ci.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
-                                await ci.ExecuteNonQueryAsync();
+                                await using var cmdIns = _db.CreateCommand(conn, insertLocSql);
+                                cmdIns.Transaction = tx;
+
+                                cmdIns.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                                cmdIns.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                                cmdIns.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
+
+                                await cmdIns.ExecuteNonQueryAsync();
                             }
                         }
                     }
                 }
 
+                // 5️⃣ Apply media updates
                 if (dto.CorrespondingMedia != null)
-                    await UpsertMedia(dto.CorrespondingMedia, "corresponding_media_id");
+                    await UpsertMediaAsync(dto.CorrespondingMedia, "corresponding_media_id");
+
                 if (dto.ThumbnailMedia != null)
-                    await UpsertMedia(dto.ThumbnailMedia, "thumbnail_media_id");
+                    await UpsertMediaAsync(dto.ThumbnailMedia, "thumbnail_media_id");
 
                 await tx.CommitAsync();
 
-                // Load updated portal for response (you should filter by booth as well if needed)
                 return await GetPortalByIdAsync(spaceId, portalId);
             }
             catch
@@ -1067,131 +1056,143 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>True if the portal and all associated records were deleted; false if not found.</returns>
         public async Task<bool> DeletePortalAsync(int spaceId, int portalId)
         {
-            await using var conn = new MySqlConnection(_connectionString);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1. Fetch portal row to get keys and media IDs
+                // 1️⃣ Fetch portal-linked keys and media IDs (only if not already deleted)
                 const string fetchSql = @"
-                    SELECT text_field_key, corresponding_media_id, thumbnail_media_id
-                    FROM portal
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId;
-                ";
+SELECT
+    text_field_key,
+    corresponding_media_id,
+    thumbnail_media_id
+FROM portal
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
                 string textKey;
-                string? corrId;
-                string? thumbId;
+                int? corrMediaId;
+                int? thumbMediaId;
 
-                await using (var fetchCmd = new MySqlCommand(fetchSql, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, fetchSql))
                 {
-                    fetchCmd.Parameters.AddWithValue("@PortalId", portalId);
-                    fetchCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
-                    await using var reader = await fetchCmd.ExecuteReaderAsync();
-
+                    await using var reader = await cmd.ExecuteReaderAsync();
                     if (!await reader.ReadAsync())
-                    {
-                        await tx.RollbackAsync();
-                        return false; // Not found
-                    }
+                        return false;
 
-                    textKey = reader.GetString("text_field_key");
-                    corrId = reader.IsDBNull("corresponding_media_id") ? null : reader.GetString("corresponding_media_id");
-                    thumbId = reader.IsDBNull("thumbnail_media_id") ? null : reader.GetString("thumbnail_media_id");
+                    textKey = reader.GetString(reader.GetOrdinal("text_field_key"));
+                    corrMediaId = reader.IsDBNull(reader.GetOrdinal("corresponding_media_id"))
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("corresponding_media_id"));
+                    thumbMediaId = reader.IsDBNull(reader.GetOrdinal("thumbnail_media_id"))
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("thumbnail_media_id"));
                 }
 
-                // 2. Delete i18n rows for this portal’s key
-                const string delI18n = @"
-                    DELETE FROM i18n
-                    WHERE `key` = @TextKey
-                      AND space_id = @SpaceId;
-                ";
+                // 2️⃣ Soft-delete i18n rows for portal text
+                const string softDeleteI18nSql = @"
+UPDATE i18n
+SET is_deleted = 1
+WHERE [key] = @TextKey
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                await using (var cmdI18n = new MySqlCommand(delI18n, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, softDeleteI18nSql))
                 {
-                    cmdI18n.Parameters.AddWithValue("@TextKey", textKey);
-                    cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    await cmdI18n.ExecuteNonQueryAsync();
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@TextKey", textKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
                 }
 
-                // 3. Delete portal row itself
-                const string delPortal = @"
-                    DELETE FROM portal
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId;
-                ";
+                // 3️⃣ Soft-delete portal
+                const string softDeletePortalSql = @"
+UPDATE portal
+SET is_deleted = 1
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                await using (var cmdPortal = new MySqlCommand(delPortal, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, softDeletePortalSql))
                 {
-                    cmdPortal.Parameters.AddWithValue("@PortalId", portalId);
-                    cmdPortal.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    await cmdPortal.ExecuteNonQueryAsync();
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
                 }
 
-                // 4. Delete media_localization and media for corresponding_media_id
-                if (!string.IsNullOrEmpty(corrId))
+                // 4️⃣ Soft-delete corresponding media and its localizations
+                if (corrMediaId.HasValue)
                 {
-                    const string delLoc1 = @"
-                        DELETE FROM media_localization
-                        WHERE media_id = @MediaId;
-                    ";
+                    const string softDeleteMediaLocSql = @"
+UPDATE media_localization
+SET is_deleted = 1
+WHERE media_id = @MediaId
+  AND is_deleted = 0;";
 
-                    await using (var cmdLoc = new MySqlCommand(delLoc1, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaLocSql))
                     {
-                        cmdLoc.Parameters.AddWithValue("@MediaId", corrId);
-
-                        await cmdLoc.ExecuteNonQueryAsync();
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", corrMediaId.Value));
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    const string delMed1 = @"
-                        DELETE FROM media
-                        WHERE id = @MediaId;
-                    ";
+                    const string softDeleteMediaSql = @"
+UPDATE media
+SET is_deleted = 1
+WHERE id = @MediaId
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                    await using (var cmdMed = new MySqlCommand(delMed1, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaSql))
                     {
-                        cmdMed.Parameters.AddWithValue("@MediaId", corrId);
-
-                        await cmdMed.ExecuteNonQueryAsync();
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", corrMediaId.Value));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        await cmd.ExecuteNonQueryAsync();
                     }
                 }
 
-                // 5. Delete media_localization and media for thumbnail_media_id
-                if (!string.IsNullOrEmpty(thumbId))
+                // 5️⃣ Soft-delete thumbnail media and its localizations
+                if (thumbMediaId.HasValue)
                 {
-                    const string delLoc2 = @"
-                        DELETE FROM media_localization
-                        WHERE media_id = @MediaId;
-                    ";
+                    const string softDeleteMediaLocSql = @"
+UPDATE media_localization
+SET is_deleted = 1
+WHERE media_id = @MediaId
+  AND is_deleted = 0;";
 
-                    await using (var cmdLoc = new MySqlCommand(delLoc2, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaLocSql))
                     {
-                        cmdLoc.Parameters.AddWithValue("@MediaId", thumbId);
-
-                        await cmdLoc.ExecuteNonQueryAsync();
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", thumbMediaId.Value));
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    const string delMed2 = @"
-                        DELETE FROM media
-                        WHERE id = @MediaId;
-                    ";
+                    const string softDeleteMediaSql = @"
+UPDATE media
+SET is_deleted = 1
+WHERE id = @MediaId
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                    await using var cmdMed = new MySqlCommand(delMed2, conn, tx);
-
-                    cmdMed.Parameters.AddWithValue("@MediaId", thumbId);
-
-                    await cmdMed.ExecuteNonQueryAsync();
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaSql))
+                    {
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", thumbMediaId.Value));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        await cmd.ExecuteNonQueryAsync();
+                    }
                 }
 
                 await tx.CommitAsync();
-                return true; // Success
+                return true;
             }
             catch
             {
@@ -1209,136 +1210,147 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <returns>True if the portal and all associated records were deleted; false if not found or booth association mismatch.</returns>
         public async Task<bool> DeletePortalAsync(int spaceId, int boothId, int portalId)
         {
-            await using var conn = new MySqlConnection(_connectionString);
-
-            await conn.OpenAsync();
-
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
-                // 1. Fetch portal row to get keys and media IDs, and confirm booth match
+                // 1️⃣ Fetch portal-linked keys and media IDs (confirm booth + not deleted)
                 const string fetchSql = @"
-                    SELECT text_field_key, corresponding_media_id, thumbnail_media_id
-                    FROM portal
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId
-                      AND booth_id = @BoothId;
-                ";
+SELECT
+    text_field_key,
+    corresponding_media_id,
+    thumbnail_media_id
+FROM portal
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND booth_id = @BoothId
+  AND is_deleted = 0;";
 
                 string textKey;
-                string? corrId;
-                string? thumbId;
+                int? corrMediaId;
+                int? thumbMediaId;
 
-                await using (var fetchCmd = new MySqlCommand(fetchSql, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, fetchSql))
                 {
-                    fetchCmd.Parameters.AddWithValue("@PortalId", portalId);
-                    fetchCmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                    fetchCmd.Parameters.AddWithValue("@BoothId", boothId);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
 
-                    await using var reader = await fetchCmd.ExecuteReaderAsync();
-
+                    await using var reader = await cmd.ExecuteReaderAsync();
                     if (!await reader.ReadAsync())
-                    {
-                        await tx.RollbackAsync();
+                        return false;
 
-                        return false; // Not found or booth mismatch
-                    }
-
-                    textKey = reader.GetString("text_field_key");
-                    corrId = reader.IsDBNull("corresponding_media_id") ? null : reader.GetString("corresponding_media_id");
-                    thumbId = reader.IsDBNull("thumbnail_media_id") ? null : reader.GetString("thumbnail_media_id");
+                    textKey = reader.GetString(reader.GetOrdinal("text_field_key"));
+                    corrMediaId = reader.IsDBNull(reader.GetOrdinal("corresponding_media_id"))
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("corresponding_media_id"));
+                    thumbMediaId = reader.IsDBNull(reader.GetOrdinal("thumbnail_media_id"))
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("thumbnail_media_id"));
                 }
 
-                // 2. Delete i18n rows for this portal’s key
-                const string delI18n = @"
-                    DELETE FROM i18n
-                    WHERE `key` = @TextKey
-                      AND space_id = @SpaceId;
-                ";
+                // 2️⃣ Soft-delete i18n rows
+                const string softDeleteI18nSql = @"
+UPDATE i18n
+SET is_deleted = 1
+WHERE [key] = @TextKey
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                await using (var cmdI18n = new MySqlCommand(delI18n, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, softDeleteI18nSql))
                 {
-                    cmdI18n.Parameters.AddWithValue("@TextKey", textKey);
-                    cmdI18n.Parameters.AddWithValue("@SpaceId", spaceId);
-
-                    await cmdI18n.ExecuteNonQueryAsync();
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@TextKey", textKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
                 }
 
-                // 3. Delete portal row itself
-                const string delPortal = @"
-                    DELETE FROM portal
-                    WHERE id = @PortalId
-                      AND space_id = @SpaceId
-                      AND booth_id = @BoothId;
-                ";
+                // 3️⃣ Soft-delete portal
+                const string softDeletePortalSql = @"
+UPDATE portal
+SET is_deleted = 1
+WHERE id = @PortalId
+  AND space_id = @SpaceId
+  AND booth_id = @BoothId
+  AND is_deleted = 0;";
 
-                await using (var cmdPortal = new MySqlCommand(delPortal, conn, tx))
+                await using (var cmd = _db.CreateCommand(conn, softDeletePortalSql))
                 {
-                    cmdPortal.Parameters.AddWithValue("@PortalId", portalId);
-                    cmdPortal.Parameters.AddWithValue("@SpaceId", spaceId);
-                    cmdPortal.Parameters.AddWithValue("@BoothId", boothId);
-
-                    await cmdPortal.ExecuteNonQueryAsync();
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@PortalId", portalId));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothId", boothId));
+                    await cmd.ExecuteNonQueryAsync();
                 }
 
-                // 4. Delete media_localization and media for corresponding_media_id
-                if (!string.IsNullOrEmpty(corrId))
+                // 4️⃣ Soft-delete corresponding media + localizations
+                if (corrMediaId.HasValue)
                 {
-                    const string delLoc1 = @"
-                        DELETE FROM media_localization
-                        WHERE media_id = @MediaId;
-                    ";
+                    const string softDeleteMediaLocSql = @"
+UPDATE media_localization
+SET is_deleted = 1
+WHERE media_id = @MediaId
+  AND is_deleted = 0;";
 
-                    await using (var cmdLoc = new MySqlCommand(delLoc1, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaLocSql))
                     {
-                        cmdLoc.Parameters.AddWithValue("@MediaId", corrId);
-
-                        await cmdLoc.ExecuteNonQueryAsync();
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", corrMediaId.Value));
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    const string delMed1 = @"
-                        DELETE FROM media
-                        WHERE id = @MediaId;
-                    ";
+                    const string softDeleteMediaSql = @"
+UPDATE media
+SET is_deleted = 1
+WHERE id = @MediaId
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                    await using (var cmdMed = new MySqlCommand(delMed1, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaSql))
                     {
-                        cmdMed.Parameters.AddWithValue("@MediaId", corrId);
-
-                        await cmdMed.ExecuteNonQueryAsync();
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", corrMediaId.Value));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        await cmd.ExecuteNonQueryAsync();
                     }
                 }
 
-                // 5. Delete media_localization and media for thumbnail_media_id
-                if (!string.IsNullOrEmpty(thumbId))
+                // 5️⃣ Soft-delete thumbnail media + localizations
+                if (thumbMediaId.HasValue)
                 {
-                    const string delLoc2 = @"
-                        DELETE FROM media_localization
-                        WHERE media_id = @MediaId;
-                    ";
+                    const string softDeleteMediaLocSql = @"
+UPDATE media_localization
+SET is_deleted = 1
+WHERE media_id = @MediaId
+  AND is_deleted = 0;";
 
-                    await using (var cmdLoc = new MySqlCommand(delLoc2, conn, tx))
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaLocSql))
                     {
-                        cmdLoc.Parameters.AddWithValue("@MediaId", thumbId);
-
-                        await cmdLoc.ExecuteNonQueryAsync();
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", thumbMediaId.Value));
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    const string delMed2 = @"
-                        DELETE FROM media
-                        WHERE id = @MediaId;
-                    ";
+                    const string softDeleteMediaSql = @"
+UPDATE media
+SET is_deleted = 1
+WHERE id = @MediaId
+  AND space_id = @SpaceId
+  AND is_deleted = 0;";
 
-                    await using var cmdMed = new MySqlCommand(delMed2, conn, tx);
-
-                    cmdMed.Parameters.AddWithValue("@MediaId", thumbId);
-
-                    await cmdMed.ExecuteNonQueryAsync();
+                    await using (var cmd = _db.CreateCommand(conn, softDeleteMediaSql))
+                    {
+                        cmd.Transaction = tx;
+                        cmd.Parameters.Add(_db.CreateParameter("@MediaId", thumbMediaId.Value));
+                        cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                        await cmd.ExecuteNonQueryAsync();
+                    }
                 }
 
                 await tx.CommitAsync();
-                return true; // Success
+                return true;
             }
             catch
             {
@@ -1359,100 +1371,92 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="spaceId">The space ID the media belongs to.</param>
         /// <param name="dto">The data transfer object containing all information for the media, including localization dictionaries.</param>
         /// <returns>The ID (UUID) of the newly inserted media row.</returns>
-        private async Task<string> InsertMediaAsync(
-            MySqlConnection conn,
-            MySqlTransaction tx,
-            int spaceId,
-            MediaCreateDto dto
-        )
+        private async Task<int> InsertMediaAsync(
+    DbConnection conn,
+    DbTransaction tx,
+    int spaceId,
+    MediaCreateDto dto
+)
         {
-            // 1. Get UUID for new media row
-            string mediaId;
-            {
-                await using var uuidCmd = new MySqlCommand("SELECT UUID()", conn, tx);
-
-                mediaId = (await uuidCmd.ExecuteScalarAsync())!.ToString()!;
-            }
-
-            // 2. Insert media row
+            // 1️⃣ Insert media row and fetch IDENTITY
             const string insMedia = @"
-                INSERT INTO media (id, space_id, media_type_id, text_key, description_key)
-                VALUES (@Id, @SpaceId, @MediaTypeId, @TextKey, @DescKey);
-            ";
+INSERT INTO media (space_id, media_type_id, text_key, description_key)
+VALUES (@SpaceId, @MediaTypeId, @TextKey, @DescKey);
 
-            await using (var cmd = new MySqlCommand(insMedia, conn, tx))
+SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            int mediaId;
+
+            await using (var cmd = _db.CreateCommand(conn, insMedia))
             {
-                cmd.Parameters.AddWithValue("@Id", mediaId);
-                cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-                cmd.Parameters.AddWithValue("@MediaTypeId", dto.MediaTypeId);
-                cmd.Parameters.AddWithValue("@TextKey", (object?)dto.TextKey ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value);
+                cmd.Transaction = tx;
+                cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", dto.MediaTypeId));
+                cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)dto.TextKey ?? DBNull.Value));
+                cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value));
 
-                await cmd.ExecuteNonQueryAsync();
+                mediaId = (int)(await cmd.ExecuteScalarAsync())!;
             }
 
-            // 3. Insert i18n text values (TextLocalizations is a List<LocalizedValue>)
+            // 2️⃣ Insert i18n text localizations
             if (dto.TextKey != null && dto.TextLocalizations != null)
             {
+                const string insI18n = @"
+INSERT INTO i18n ([key], locale_id, [value], space_id)
+VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
                 foreach (var loc in dto.TextLocalizations)
                 {
-                    const string insI18n = @"
-                        INSERT INTO i18n (`key`, locale_id, value)
-                        VALUES (@Key, @LocaleId, @Value);
-                    ";
-
-                    await using var cmdI = new MySqlCommand(insI18n, conn, tx);
-
-                    cmdI.Parameters.AddWithValue("@Key", dto.TextKey);
-                    cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                    cmdI.Parameters.AddWithValue("@Value", loc.Value);
-
-                    await cmdI.ExecuteNonQueryAsync();
+                    await using var cmd = _db.CreateCommand(conn, insI18n);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.TextKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
                 }
             }
 
-            // 4. Insert i18n description values (DescriptionLocalizations is a List<LocalizedValue>)
+            // 3️⃣ Insert i18n description localizations
             if (dto.DescriptionKey != null && dto.DescriptionLocalizations != null)
             {
+                const string insI18n = @"
+INSERT INTO i18n ([key], locale_id, [value], space_id)
+VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
                 foreach (var loc in dto.DescriptionLocalizations)
                 {
-                    const string insI18n = @"
-                        INSERT INTO i18n (`key`, locale_id, value)
-                        VALUES (@Key, @LocaleId, @Value);
-                    ";
-
-                    await using var cmdI = new MySqlCommand(insI18n, conn, tx);
-
-                    cmdI.Parameters.AddWithValue("@Key", dto.DescriptionKey);
-                    cmdI.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                    cmdI.Parameters.AddWithValue("@Value", loc.Value);
-
-                    await cmdI.ExecuteNonQueryAsync();
+                    await using var cmd = _db.CreateCommand(conn, insI18n);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.DescriptionKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+                    await cmd.ExecuteNonQueryAsync();
                 }
             }
 
-            // 5. Insert media links (media_localization, using List<MediaLocalization>)
+            // 4️⃣ Insert media localizations
             if (dto.LinkLocalizations != null)
             {
+                const string insLoc = @"
+INSERT INTO media_localization (media_id, locale_id, media_link)
+VALUES (@MediaId, @LocaleId, @MediaLink);";
+
                 foreach (var loc in dto.LinkLocalizations)
                 {
-                    const string insLoc = @"
-                        INSERT INTO media_localization (media_id, locale_id, media_link)
-                        VALUES (@MediaId, @LocaleId, @MediaLink);
-                    ";
-
-                    await using var cmdLoc = new MySqlCommand(insLoc, conn, tx);
-
-                    cmdLoc.Parameters.AddWithValue("@MediaId", mediaId);
-                    cmdLoc.Parameters.AddWithValue("@LocaleId", loc.LocaleId);
-                    cmdLoc.Parameters.AddWithValue("@MediaLink", loc.MediaLink);
-
-                    await cmdLoc.ExecuteNonQueryAsync();
+                    await using var cmd = _db.CreateCommand(conn, insLoc);
+                    cmd.Transaction = tx;
+                    cmd.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
+                    await cmd.ExecuteNonQueryAsync();
                 }
             }
 
             return mediaId;
         }
+
 
 
         /// <summary>
@@ -1465,51 +1469,47 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         /// <param name="supportedLocales">A set of supported locale IDs for the space.</param>
         /// <param name="insertFunc">A delegate to the actual insert function for the media.</param>
         /// <returns>The ID of the inserted media if inserted, or null if there were no localizations to insert.</returns>
-        private static async Task<string?> FilterAndInsertMediaAsync(
-            MySqlConnection conn,
-            MySqlTransaction tx,
-            int spaceId,
-            MediaCreateDto? mediaDto,
-            HashSet<string> supportedLocales,
-            Func<MySqlConnection,
-            MySqlTransaction,
-            int, MediaCreateDto,
-            Task<string>> insertFunc
-        )
+        private static async Task<int?> FilterAndInsertMediaAsync(
+    DbConnection conn,
+    DbTransaction tx,
+    int spaceId,
+    MediaCreateDto? mediaDto,
+    HashSet<string> supportedLocales,
+    Func<DbConnection, DbTransaction, int, MediaCreateDto, Task<int>> insertFunc
+)
         {
             if (mediaDto == null)
                 return null;
 
-            // Filter LinkLocalizations (List<MediaLocalization>)
+            // Filter LinkLocalizations
             if (mediaDto.LinkLocalizations != null)
             {
-                mediaDto.LinkLocalizations = [.. mediaDto.LinkLocalizations.Where(
-                    x => supportedLocales.Contains(x.LocaleId)
-                )];
+                mediaDto.LinkLocalizations = mediaDto.LinkLocalizations
+                    .Where(x => supportedLocales.Contains(x.LocaleId))
+                    .ToList();
             }
 
-            // Filter TextLocalizations (List<LocalizedValue>)
+            // Filter TextLocalizations
             if (mediaDto.TextLocalizations != null)
             {
-                mediaDto.TextLocalizations = [.. mediaDto.TextLocalizations.Where(
-                    x => supportedLocales.Contains(x.LocaleId)
-                )];
+                mediaDto.TextLocalizations = mediaDto.TextLocalizations
+                    .Where(x => supportedLocales.Contains(x.LocaleId))
+                    .ToList();
             }
 
-            // Filter DescriptionLocalizations (List<LocalizedValue>)
+            // Filter DescriptionLocalizations
             if (mediaDto.DescriptionLocalizations != null)
             {
-                mediaDto.DescriptionLocalizations = [.. mediaDto.DescriptionLocalizations.Where(
-                    x => supportedLocales.Contains(x.LocaleId)
-                )];
+                mediaDto.DescriptionLocalizations = [.. mediaDto.DescriptionLocalizations.Where(x => supportedLocales.Contains(x.LocaleId))];
             }
 
-            // Only insert if there are any link localizations
+            // Only insert if there is at least one media localization
             if (mediaDto.LinkLocalizations != null && mediaDto.LinkLocalizations.Count > 0)
                 return await insertFunc(conn, tx, spaceId, mediaDto);
 
             return null;
         }
+
 
         #endregion
     }

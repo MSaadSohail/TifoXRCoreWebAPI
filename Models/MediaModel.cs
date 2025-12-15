@@ -15,7 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     public class MediaUpdateDto
     {
         /// <summary>ID of the media row (omit or null to insert new).</summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
@@ -27,7 +27,7 @@ namespace GMS.TifoXRCoreWebAPI.Models
     /// </summary>
     public class MediaData
     {
-        public required int Id { get; set; }
+        public required long Id { get; set; }
         public int MediaTypeId { get; set; }
         public string? TextKey { get; set; }
         public string? DescriptionKey { get; set; }
