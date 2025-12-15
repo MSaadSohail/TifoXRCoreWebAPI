@@ -175,7 +175,7 @@ VALUES (@Key, @LocaleId, @Value, @SpaceId);";
                 o_media_type_id = -1, o_media_text_key = -1, o_media_desc_key = -1,
                 o_locale_id = -1, o_name_value = -1, o_desc_value = -1, o_media_link = -1;
 
-            string? logoMediaId = null;
+            int logoMediaId = 0;
             int? mediaTypeId = null; string? mediaTextKey = null; string? mediaDescKey = null;
 
             while (await reader.ReadAsync())
@@ -208,7 +208,7 @@ VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 if (charity == null)
                 {
-                    logoMediaId = reader.IsDBNull(o_logo_media_id) ? null : reader.GetString(o_logo_media_id);
+                    logoMediaId = reader.IsDBNull(o_logo_media_id) ? 0 : reader.GetInt32(o_logo_media_id);
                     mediaTypeId = reader.IsDBNull(o_media_type_id) ? (int?)null : reader.GetInt32(o_media_type_id);
                     mediaTextKey = reader.IsDBNull(o_media_text_key) ? null : reader.GetString(o_media_text_key);
                     mediaDescKey = reader.IsDBNull(o_media_desc_key) ? null : reader.GetString(o_media_desc_key);
@@ -235,9 +235,7 @@ VALUES (@Key, @LocaleId, @Value, @SpaceId);";
                             Values = descValues
                         },
 
-                        Media = string.IsNullOrWhiteSpace(logoMediaId)
-                            ? null
-                            : new MediaData
+                        Media = new MediaData
                             {
                                 Id = logoMediaId!,
                                 MediaTypeId = mediaTypeId ?? 0,
@@ -258,7 +256,7 @@ VALUES (@Key, @LocaleId, @Value, @SpaceId);";
                     if (!reader.IsDBNull(o_desc_value))
                         descValues.Add(new LocalizedValue { LocaleId = locale, Value = reader.GetString(o_desc_value) });
 
-                    if (!reader.IsDBNull(o_media_link) && !string.IsNullOrWhiteSpace(logoMediaId))
+                    if (!reader.IsDBNull(o_media_link) && logoMediaId != 0)
                     {
                         if (!mediaLocs.Any(x => x.LocaleId == locale))
                         {
@@ -408,7 +406,7 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                 var id = reader.GetInt32(o_id);
                 if (!map.TryGetValue(id, out var charity))
                 {
-                    var logoMediaId = reader.IsDBNull(o_logo_media_id) ? null : reader.GetString(o_logo_media_id);
+                    var logoMediaId = reader.IsDBNull(o_logo_media_id) ? 0 : reader.GetInt32(o_logo_media_id);
                     var mediaTypeId = reader.IsDBNull(o_media_type_id) ? (int?)null : reader.GetInt32(o_media_type_id);
                     var mediaTextKey = reader.IsDBNull(o_media_text_key) ? null : reader.GetString(o_media_text_key);
                     var mediaDescKey = reader.IsDBNull(o_media_desc_key) ? null : reader.GetString(o_media_desc_key);
@@ -431,9 +429,7 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                         LocalizedName = new LocalizedPairs { Key = reader.IsDBNull(o_name_key) ? null : reader.GetString(o_name_key), Values = nameVals },
                         LocalizedDescription = new LocalizedPairs { Key = reader.IsDBNull(o_desc_key) ? null : reader.GetString(o_desc_key), Values = descVals },
 
-                        Media = string.IsNullOrWhiteSpace(logoMediaId)
-                            ? null
-                            : new MediaData
+                        Media = new MediaData
                             {
                                 Id = logoMediaId!,
                                 MediaTypeId = mediaTypeId ?? 0,

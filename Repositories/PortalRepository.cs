@@ -114,21 +114,17 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Values = new List<LocalizedValue>()
                         },
 
-                        CorrespondingMedia = reader.IsDBNull("corr_media_id")
-                            ? null
-                            : new MediaData
+                        CorrespondingMedia = new MediaData
                             {
-                                Id = reader.GetString("corr_media_id"),
+                                Id = reader.GetInt32("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
                                 reader.GetInt32("corr_media_type_id"),
                                 LinkLocalizations = new List<MediaLocalization>()
                             },
 
-                        ThumbnailMedia = reader.IsDBNull("thumb_media_id")
-                            ? null
-                            : new MediaData
+                        ThumbnailMedia = new MediaData
                             {
-                                Id = reader.GetString("thumb_media_id"),
+                                Id = reader.GetInt32("thumb_media_id"),
                                 MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
                                 LinkLocalizations = new List<MediaLocalization>()
                             }
@@ -281,21 +277,17 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Values = []
                         },
 
-                        CorrespondingMedia = reader.IsDBNull("corr_media_id")
-                            ? null
-                            : new MediaData
+                        CorrespondingMedia = new MediaData
                             {
-                                Id = reader.GetString("corr_media_id"),
+                                Id = reader.GetInt32("corr_media_id"),
                                 MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 :
                                 reader.GetInt32("corr_media_type_id"),
                                 LinkLocalizations = new List<MediaLocalization>()
                             },
 
-                        ThumbnailMedia = reader.IsDBNull("thumb_media_id")
-                            ? null
-                            : new MediaData
+                        ThumbnailMedia = new MediaData
                             {
-                                Id = reader.GetString("thumb_media_id"),
+                                Id = reader.GetInt32("thumb_media_id"),
                                 MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 :
                                 reader.GetInt32("thumb_media_type_id"),
                                 LinkLocalizations = new List<MediaLocalization>()
@@ -453,20 +445,16 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         Values = new List<LocalizedValue>()
                     },
 
-                    CorrespondingMedia = reader.IsDBNull("corr_media_id")
-                        ? null
-                        : new MediaData
+                    CorrespondingMedia = new MediaData
                         {
-                            Id = reader.GetString("corr_media_id"),
+                            Id = reader.GetInt32("corr_media_id"),
                             MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : reader.GetInt32("corr_media_type_id"),
                             LinkLocalizations = new List<MediaLocalization>()
                         },
 
-                    ThumbnailMedia = reader.IsDBNull("thumb_media_id")
-                        ? null
-                        : new MediaData
+                    ThumbnailMedia = new MediaData
                         {
-                            Id = reader.GetString("thumb_media_id"),
+                            Id = reader.GetInt32("thumb_media_id"),
                             MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
                             LinkLocalizations = new List<MediaLocalization>()
                         }
@@ -750,9 +738,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 // 4. Helper to upsert one media block (now using MediaLocalization list)
                 async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
                 {
-                    var mediaId = string.IsNullOrWhiteSpace(mDto.Id)
-                        ? Guid.NewGuid().ToString()
-                        : mDto.Id;
+                    int mediaId = mDto.Id;
 
                     // a) Update portal set column = @MediaId
                     var updPortalMedia = $@"
@@ -963,9 +949,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 // Helper to upsert one media block using MediaLocalization list
                 async Task UpsertMedia(MediaUpdateDto mDto, string columnIdName)
                 {
-                    var mediaId = string.IsNullOrWhiteSpace(mDto.Id)
-                        ? Guid.NewGuid().ToString()
-                        : mDto.Id;
+                    var mediaId = mDto.Id;
 
                     // Update portal to link to new media ID
                     var updPortalMedia = $@"

@@ -30,10 +30,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 ms.y,
                 ms.z,
                 i.locale_id,
-                i.value
+                i.[value]
             FROM booth b
-            INNER JOIN i18n i
-                ON i.`key` = b.name_key
+            LEFT JOIN i18n i
+                ON i.[key] = b.name_key
                AND i.space_id = b.space_id
             LEFT JOIN map_spot ms
                 ON b.map_spot_id = ms.id
@@ -87,6 +87,17 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         };
 
                         booths[id] = booth;
+                    }
+                    // When i18n row is missing (LEFT JOIN), locale/value are NULL. Keep booth but skip localization entry.
+                    if (reader.IsDBNull(o_locale_id) || reader.IsDBNull(o_value))
+                    {
+                        continue;
+                    }
+
+                    // When i18n row is missing (LEFT JOIN), locale/value are NULL. Keep booth but skip localization entry.
+                    if (reader.IsDBNull(o_locale_id) || reader.IsDBNull(o_value))
+                    {
+                        continue;
                     }
 
                     var locId = reader.GetString(o_locale_id);
@@ -150,7 +161,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
-            var mediaCache = new Dictionary<(int BoothId, string MediaId), MediaData>();
+            var mediaCache = new Dictionary<(int BoothId, int MediaId), MediaData>();
 
             bool ordReady = false;
             int oBooth = -1, oMedia = -1, oType = -1, oText = -1, oDesc = -1, oLocale = -1, oLink = -1;
@@ -175,14 +186,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     continue;
                 }
 
-                var mediaId = reader.GetString(oMedia);
-                var key = (boothId, mediaId);
+                var mediaId = reader.GetInt64(oMedia);
+                var key = (boothId, Convert.ToInt32(mediaId));
 
                 if (!mediaCache.TryGetValue(key, out var media))
                 {
                     media = new MediaData
                     {
-                        Id = mediaId,
+                        Id = Convert.ToInt32(mediaId),
                         MediaTypeId = reader.GetInt32(oType),
                         TextKey = reader.IsDBNull(oText) ? null : reader.GetString(oText),
                         DescriptionKey = reader.IsDBNull(oDesc) ? null : reader.GetString(oDesc),
@@ -352,76 +363,76 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return -1;
         }
 
-        private async Task<string> InsertMediaAsync(
-            DbConnection conn,
-            DbTransaction tx,
-            int spaceId,
-            MediaCreateDto dto)
+        private async Task<int> InsertMediaAsync(
+    DbConnection conn,
+    DbTransaction tx,
+    int spaceId,
+    MediaCreateDto dto)
         {
-            string mediaId;
-            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT UUID();"))
-            {
-                uuidCmd.Transaction = tx;
-                var result = await uuidCmd.ExecuteScalarAsync();
-                mediaId = Convert.ToString(result);
-                if (string.IsNullOrWhiteSpace(mediaId))
-                {
-                    mediaId = Guid.NewGuid().ToString("N");
-                }
-            }
+            int mediaId;
 
+            // 1️⃣ Insert media row (let DB generate IDENTITY)
             const string insertMediaSql = @"
-            INSERT INTO media (id, space_id, media_type_id, text_key, description_key)
-            VALUES (@Id, @SpaceId, @MediaTypeId, @TextKey, @DescKey);";
+INSERT INTO media (space_id, media_type_id, text_key, description_key)
+VALUES (@SpaceId, @MediaTypeId, @TextKey, @DescKey);
+
+SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
             await using (var cmd = _db.CreateCommand(conn, insertMediaSql))
             {
                 cmd.Transaction = tx;
-                cmd.Parameters.Add(_db.CreateParameter("@Id", mediaId));
+
                 cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                 cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", dto.MediaTypeId));
                 cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)dto.TextKey ?? DBNull.Value));
                 cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value));
 
-                await cmd.ExecuteNonQueryAsync();
+                mediaId = (int)await cmd.ExecuteScalarAsync();
             }
 
+            // 2️⃣ Insert text localizations
             if (dto.TextKey != null && dto.TextLocalizations != null)
             {
                 const string insTextSql = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, [value], space_id)
 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 foreach (var loc in dto.TextLocalizations)
                 {
                     await using var cmd = _db.CreateCommand(conn, insTextSql);
                     cmd.Transaction = tx;
+
                     cmd.Parameters.Add(_db.CreateParameter("@Key", dto.TextKey));
                     cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
                     cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
                     cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
 
+            // 3️⃣ Insert description localizations
             if (dto.DescriptionKey != null && dto.DescriptionLocalizations != null)
             {
                 const string insDescSql = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, [value], space_id)
 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 foreach (var loc in dto.DescriptionLocalizations)
                 {
                     await using var cmd = _db.CreateCommand(conn, insDescSql);
                     cmd.Transaction = tx;
+
                     cmd.Parameters.Add(_db.CreateParameter("@Key", dto.DescriptionKey));
                     cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
                     cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
                     cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
 
+            // 4️⃣ Insert media link localizations
             if (dto.LinkLocalizations != null)
             {
                 const string insLocSql = @"
@@ -432,9 +443,11 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                 {
                     await using var cmdLoc = _db.CreateCommand(conn, insLocSql);
                     cmdLoc.Transaction = tx;
+
                     cmdLoc.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
                     cmdLoc.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
                     cmdLoc.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
+
                     await cmdLoc.ExecuteNonQueryAsync();
                 }
             }
@@ -442,7 +455,95 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             return mediaId;
         }
 
-        private async Task InsertBoothMediaAsync(DbConnection conn, DbTransaction tx, int boothId, string mediaId)
+        //        private async Task<int> InsertMediaAsync(
+        //            DbConnection conn,
+        //            DbTransaction tx,
+        //            int spaceId,
+        //            MediaCreateDto dto)
+        //        {
+        //            int mediaId;
+        //            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT CONVERT(varchar(36), NEWID());"))
+        //            {
+        //                uuidCmd.Transaction = tx;
+        //                var result = await uuidCmd.ExecuteScalarAsync();
+        //                mediaId = Convert.ToInt32(result);
+
+        //                mediaId = Guid.NewGuid().ToString();
+        //            }
+
+        //            const string insertMediaSql = @"
+        //            INSERT INTO media (id, space_id, media_type_id, text_key, description_key)
+        //            VALUES (@Id, @SpaceId, @MediaTypeId, @TextKey, @DescKey);";
+
+        //            await using (var cmd = _db.CreateCommand(conn, insertMediaSql))
+        //            {
+        //                cmd.Transaction = tx;
+        //                cmd.Parameters.Add(_db.CreateParameter("@Id", mediaId));
+        //                cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+        //                cmd.Parameters.Add(_db.CreateParameter("@MediaTypeId", dto.MediaTypeId));
+        //                cmd.Parameters.Add(_db.CreateParameter("@TextKey", (object?)dto.TextKey ?? DBNull.Value));
+        //                cmd.Parameters.Add(_db.CreateParameter("@DescKey", (object?)dto.DescriptionKey ?? DBNull.Value));
+
+        //                await cmd.ExecuteNonQueryAsync();
+        //            }
+
+        //            if (dto.TextKey != null && dto.TextLocalizations != null)
+        //            {
+        //                const string insTextSql = @"
+        //INSERT INTO i18n ([key], locale_id, [value], space_id)
+        //VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+        //                foreach (var loc in dto.TextLocalizations)
+        //                {
+        //                    await using var cmd = _db.CreateCommand(conn, insTextSql);
+        //                    cmd.Transaction = tx;
+        //                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.TextKey));
+        //                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+        //                    cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+        //                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+        //                    await cmd.ExecuteNonQueryAsync();
+        //                }
+        //            }
+
+        //            if (dto.DescriptionKey != null && dto.DescriptionLocalizations != null)
+        //            {
+        //                const string insDescSql = @"
+        //INSERT INTO i18n ([key], locale_id, [value], space_id)
+        //VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+        //                foreach (var loc in dto.DescriptionLocalizations)
+        //                {
+        //                    await using var cmd = _db.CreateCommand(conn, insDescSql);
+        //                    cmd.Transaction = tx;
+        //                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.DescriptionKey));
+        //                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+        //                    cmd.Parameters.Add(_db.CreateParameter("@Value", loc.Value ?? string.Empty));
+        //                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+        //                    await cmd.ExecuteNonQueryAsync();
+        //                }
+        //            }
+
+        //            if (dto.LinkLocalizations != null)
+        //            {
+        //                const string insLocSql = @"
+        //INSERT INTO media_localization (media_id, locale_id, media_link)
+        //VALUES (@MediaId, @LocaleId, @MediaLink);";
+
+        //                foreach (var loc in dto.LinkLocalizations)
+        //                {
+        //                    await using var cmdLoc = _db.CreateCommand(conn, insLocSql);
+        //                    cmdLoc.Transaction = tx;
+        //                    cmdLoc.Parameters.Add(_db.CreateParameter("@MediaId", mediaId));
+        //                    cmdLoc.Parameters.Add(_db.CreateParameter("@LocaleId", loc.LocaleId));
+        //                    cmdLoc.Parameters.Add(_db.CreateParameter("@MediaLink", loc.MediaLink));
+        //                    await cmdLoc.ExecuteNonQueryAsync();
+        //                }
+        //            }
+
+        //            return mediaId;
+        //        }
+
+        private async Task InsertBoothMediaAsync(DbConnection conn, DbTransaction tx, int boothId, int mediaId)
         {
             const string deleteSql = @"
             DELETE FROM booth_media
@@ -546,7 +647,7 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             {
                 const string deleteTextSql = @"
             DELETE FROM i18n
-             WHERE `key` = @Key AND space_id = @SpaceId;";
+             WHERE [key] = @Key AND space_id = @SpaceId;";
 
                 await using var delText = _db.CreateCommand(conn, deleteTextSql);
                 delText.Transaction = tx;
@@ -559,7 +660,7 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             {
                 const string deleteDescSql = @"
             DELETE FROM i18n
-             WHERE `key` = @Key AND space_id = @SpaceId;";
+             WHERE [key] = @Key AND space_id = @SpaceId;";
 
                 await using var delDesc = _db.CreateCommand(conn, deleteDescSql);
                 delDesc.Transaction = tx;
@@ -809,10 +910,10 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                 // 4) Upsert i18n for booth name_key
                 const string updI18n = @"
                 UPDATE i18n
-                   SET value = @Value
-                 WHERE `key` = @NameKey AND locale_id = @LocaleId AND space_id = @SpaceId;";
+                   SET [value] = @Value
+                 WHERE [key] = @NameKey AND locale_id = @LocaleId AND space_id = @SpaceId;";
                 const string insI18n = @"
-                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                INSERT INTO i18n ([key], locale_id, [value], space_id)
                 VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedPairs?.Values != null)
@@ -1029,10 +1130,10 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                 ms.y,
                 ms.z,
                 i.locale_id,
-                i.value
+                i.[value]
             FROM booth b
-            INNER JOIN i18n i
-                ON i.`key` = b.name_key
+            LEFT JOIN i18n i
+                ON i.[key] = b.name_key
                AND i.space_id = b.space_id
             LEFT JOIN map_spot ms
                 ON b.map_spot_id = ms.id
@@ -1088,6 +1189,12 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                     };
 
                     // accumulate locales
+                    // When i18n row is missing (LEFT JOIN), locale/value are NULL. Keep booth but skip localization entry.
+                    if (reader.IsDBNull(o_locale_id) || reader.IsDBNull(o_value))
+                    {
+                        continue;
+                    }
+
                     var locId = reader.GetString(o_locale_id);
                     if (!values.Any(v => v.LocaleId == locId))
                     {
@@ -1148,22 +1255,18 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
                 // 2) Insert booth (references existing map_spot)
                 const string insertBoothSql = @"
 INSERT INTO booth (space_id, name_key, map_spot_id)
+OUTPUT INSERTED.id
 VALUES (@SpaceId, @NameKey, @MapSpotId);";
 
+                int newBoothId;
                 await using (var cmd = _db.CreateCommand(conn, insertBoothSql))
                 {
                     cmd.Transaction = tx;
                     cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     cmd.Parameters.Add(_db.CreateParameter("@NameKey", boothDto.LocalizedPairs.Key));
                     cmd.Parameters.Add(_db.CreateParameter("@MapSpotId", boothDto.MapSpotId));
-                    await cmd.ExecuteNonQueryAsync();
-                }
 
-                int newBoothId;
-                await using (var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();"))
-                {
-                    idCmd.Transaction = tx;
-                    newBoothId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
+                    newBoothId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                 }
 
                 // 3) Insert i18n for supported locales only (batch validate)
@@ -1214,7 +1317,7 @@ VALUES (@SpaceId, @NameKey, @MapSpotId);";
                 }
 
                 const string insertI18nSql = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, [value], space_id)
 VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
                 foreach (var val in values)
@@ -1229,7 +1332,7 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                     cmdI18n.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     await cmdI18n.ExecuteNonQueryAsync();
 
-                        insertedValues.Add(new LocalizedValue { LocaleId = val.LocaleId, Value = val.Value });
+                    insertedValues.Add(new LocalizedValue { LocaleId = val.LocaleId, Value = val.Value });
                 }
 
                 var normalizedMedia = NormalizeMediaCreates(boothDto.MediaItems, supported);
@@ -1263,7 +1366,7 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                     Id = newBoothId,
                     SpaceId = spaceId,
                     MapSpotId = boothDto.MapSpotId,
-                   //MapSpot = mapSpot!,
+                    //MapSpot = mapSpot!,
                     LocalizedPairs = new LocalizedPairs
                     {
                         Key = boothDto.LocalizedPairs.Key,
@@ -1371,7 +1474,7 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                 // 3) Delete each portal's i18n and the portal row
                 foreach (var (pid, key, _, _) in portals)
                 {
-                    const string delI18nSql = @"DELETE FROM i18n   WHERE `key` = @K AND space_id = @S;";
+                    const string delI18nSql = @"DELETE FROM i18n   WHERE [key] = @K AND space_id = @S;";
                     const string delPortalSql = @"DELETE FROM portal WHERE id = @P AND space_id = @S;";
 
                     await using (var delI18n = _db.CreateCommand(conn, delI18nSql))
@@ -1436,7 +1539,7 @@ VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
                 }
 
                 // 5) Delete booth's i18n & booth
-                const string delBi18nSql = @"DELETE FROM i18n  WHERE `key` = @K AND space_id = @S;";
+                const string delBi18nSql = @"DELETE FROM i18n  WHERE [key] = @K AND space_id = @S;";
                 const string delBoothSql = @"DELETE FROM booth WHERE id = @B AND space_id = @S;";
 
                 await using (var delBi18n = _db.CreateCommand(conn, delBi18nSql))

@@ -217,6 +217,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Controllers
 
             var dto = new BoothCreateDtoBuilder()
                         .WithSpaceId(5)
+                        .WithMapSpot(1.1m, 2.2m, 3.3m)
                         .WithKey("booth_key")
                         .WithLocalizedPair("en_us", "Booth EN")
                         .Build();

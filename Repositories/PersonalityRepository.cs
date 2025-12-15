@@ -114,11 +114,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Key = reader.IsDBNull(o_bio_data_key) ? null : reader.GetString(o_bio_data_key),
                             Values = bioValues
                         },
-                        Media = reader.IsDBNull(o_media_id)
-                            ? null
-                            : new MediaData
+                        Media = new MediaData
                             {
-                                Id = reader.GetString(o_media_id),
+                                Id = reader.GetInt32(o_media_id),
                                 LinkLocalizations = mediaLocalizations
                             }
                     };

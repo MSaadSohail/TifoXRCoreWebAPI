@@ -21,6 +21,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         {
             new LocalizedValue { LocaleId = "en_us", Value = "Booth Name" }
         };
+        private MapSpotModel _mapSpot = new() { X = 1.1m, Y = 2.2m, Z = 3.3m };
 
         /// <summary>
         /// Sets the SpaceId field for the DTO.
@@ -50,18 +51,28 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         }
 
         /// <summary>
+        /// Sets the MapSpot coordinates for the new booth.
+        /// </summary>
+        public BoothCreateDtoBuilder WithMapSpot(decimal x, decimal y, decimal z)
+        {
+            _mapSpot = new MapSpotModel { X = x, Y = y, Z = z };
+            return this;
+        }
+
+        /// <summary>
         /// Builds a BoothCreateDto instance with the configured state.
         /// </summary>
         public BoothCreateDto Build()
         {
             return new BoothCreateDto
             {
-                //SpaceId = _spaceId,
+                SpaceId = _spaceId,
                 LocalizedPairs = new LocalizedPairs
                 {
                     Key = _key,
                     Values = _values
-                }
+                },
+                MapSpot = _mapSpot
             };
         }
     }

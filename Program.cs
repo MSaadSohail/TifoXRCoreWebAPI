@@ -7,10 +7,26 @@
 
 
 
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
+using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
+using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
+//
+using GMS.TifoXRCoreWebAPI.Data;
+using GMS.TifoXRCoreWebAPI.Middleware;
+using GMS.TifoXRCoreWebAPI.Repositories;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Services;
+using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Data.SqlClient;
 using MySqlConnector;
+
 // Serilog
 using Serilog;
 using Serilog.Context;
@@ -19,19 +35,6 @@ using System.Data.Common;
 using System.Reflection;
 //
 using Thirdweb;
-//
-using GMS.TifoXRCoreWebAPI.Data;
-using GMS.TifoXRCoreWebAPI.Services;
-using GMS.TifoXRCoreWebAPI.Middleware;
-using GMS.TifoXRCoreWebAPI.Repositories;
-using GMS.TifoXRCoreWebAPI.Services.PaymentHandlers;
-using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways;
-using GMS.TifoXRCoreWebAPI.Application.Payments.Refunds;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Utils;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Paypal;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Stripe;
-using GMS.TifoXRCoreWebAPI.Application.PaymentGateways.Crypto.Chiliz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,11 +49,15 @@ builder.Host.UseSerilog((ctx, lc) =>
       .Enrich.WithProperty("Version", typeof(Program).Assembly.GetName().Version?.ToString());
 });
 
+
 // 1) Services
 ConfigureServices(builder.Services, builder.Configuration);
 
 // 2) Build
 var app = builder.Build();
+
+app.MapGet("/", () => Results.Ok("TifoXRCoreWebAPI is running"));
+app.MapGet("/health", () => Results.Ok("OK"));
 
 // 3) HTTP Pipeline
 ConfigurePipeline(app, builder.Environment);
@@ -77,13 +84,23 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
              ?? config["Database:ConnectionString"]               // optional fallback shape
              ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is missing.");
 
+    #region MySQL
+    //services.AddDbContext<AppDbContext>(options =>
+    //    options.UseMySql(dsn, ServerVersion.AutoDetect(dsn)));
+
+    //DbProviderFactories.RegisterFactory("MySqlConnector", MySqlConnectorFactory.Instance);
+
+    #endregion
+
+    #region SQL SERVER
+    //USE SQL SERVER
     services.AddDbContext<AppDbContext>(options =>
-        options.UseMySql(dsn, ServerVersion.AutoDetect(dsn)));
+    options.UseSqlServer(dsn));
+    #endregion
+    DbProviderFactories.RegisterFactory("Microsoft.Data.SqlClient", SqlClientFactory.Instance);
 
     // ---- Provider-agnostic wrapper (DbProviderFactories) ----
-    var providerInvariant = config["Database:ProviderInvariantName"] ?? "MySqlConnector";
-
-    DbProviderFactories.RegisterFactory("MySqlConnector", MySqlConnectorFactory.Instance);
+    var providerInvariant = config["Database:ProviderInvariantName"] ?? "Microsoft.Data.SqlClient";
 
     services.AddSingleton(new DbProviderOptions
     {
@@ -127,6 +144,14 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.AddScoped<IPaymentService, PaymentService>();
     services.AddScoped<IOrderService, OrderService>();
     services.AddScoped<IPaymentQueryService, PaymentQueryService>();
+    services.AddScoped<IShopRepository, ShopRepository>();
+    services.AddScoped<IShopService, ShopService>();
+    services.AddScoped<IShopItemsRepository,ShopItemsRepository>();
+    services.AddScoped<IShopItemsService,ShopItemsService>();
+    services.AddScoped<IDiscountsRepository, DiscountsRepository>();
+    services.AddScoped<IDiscountsService, DiscountsService>();
+    services.AddScoped<IItemRepository, ItemRepository>();
+    services.AddScoped<IItemService, ItemService>();
 
     // thirdweb client (server-side) from secret key
     services.AddSingleton(sp =>
@@ -170,13 +195,13 @@ static void ConfigureServices(IServiceCollection services,  IConfiguration confi
     services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+            policy.WithOrigins("http://localhost:3000").AllowAnyMethod().AllowAnyHeader().AllowCredentials());
     });
 
     #endregion
 
     #region LOGGER
-    
+
     services.AddSingleton(typeof(GMS.TifoXRCoreWebAPI.Utilities.Logger.Interface.IAppLogger<>), typeof(GMS.TifoXRCoreWebAPI.Utilities.Logger.AppLogger<>));
 
     #endregion

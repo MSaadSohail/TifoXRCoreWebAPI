@@ -116,7 +116,7 @@ namespace GMS.TifoXRCoreWebAPI.Tests.Helpers
         {
             return new PortalModel
             {
-                PortalId = _portalId,
+                Id = _portalId,
                 SpaceId = _spaceId,
                 BoothId = _boothId,
                 PortalTypeId = _portalTypeId,
