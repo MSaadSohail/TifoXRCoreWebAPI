@@ -7,14 +7,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class PredefinedCommentRepository : IPredefinedCommentRepository
+    public sealed class PredefinedCommentRepository(IDbProvider db) : IPredefinedCommentRepository
     {
-        private readonly IDbProvider _db;
-
-        public PredefinedCommentRepository(IConfiguration configuration, IDbProvider db)
-        {
-            _db = db;
-        }
+        private readonly IDbProvider _db = db;
 
         public async Task<List<PredefinedCommentModel>> GetPredefinedCommentsBySpaceAsync(int spaceId, bool includeInactive = false)
         {

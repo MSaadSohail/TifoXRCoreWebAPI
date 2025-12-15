@@ -14,7 +14,7 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class BoothRepository(IConfiguration configuration, IDbProvider db) : IBoothRepository
+    public class BoothRepository(IDbProvider db) : IBoothRepository
     {
         private readonly IDbProvider _db = db;
 

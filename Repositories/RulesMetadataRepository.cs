@@ -14,12 +14,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class RulesMetadataRepository : IRulesMetadataRepository
+    public sealed class RulesMetadataRepository(IDbProvider db) : IRulesMetadataRepository
     {
-        private readonly IDbProvider _db;
-
-        public RulesMetadataRepository(IDbProvider db)
-            => _db = db ?? throw new ArgumentNullException(nameof(db));
+        private readonly IDbProvider _db = db ?? throw new ArgumentNullException(nameof(db));
 
         public async Task<IReadOnlyList<EventTypeView>> GetEventTypesAsync()
         {

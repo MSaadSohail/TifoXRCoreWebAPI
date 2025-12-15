@@ -5,25 +5,17 @@
 // <date>07/28/2025</date>
 // <summary>Class to handle space SQL side</summary>
 
-using MySqlConnector;
-//
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
-using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
+
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class SpaceRepository : ISpaceRepository
+    public class SpaceRepository(IDbProvider db) : ISpaceRepository
     {
-        private readonly string _connStr;
-        private readonly IDbProvider _db;
-        public SpaceRepository(IConfiguration cfg, IDbProvider db)
-        { 
-            _connStr = cfg.GetConnectionString("DefaultConnection");
-            _db = db;
+        private readonly IDbProvider _db = db;
 
-        }
-        public async Task<SpaceData?> GetSpaceByIdAsync(int id)
+        public async Task<SpaceData> GetSpaceByIdAsync(int id)
         {
             const string sql = @"
         SELECT 

@@ -13,11 +13,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class TeleportTableRepository(IConfiguration configuration, IDbProvider db) : ITeleportTableRepository
+    public class TeleportTableRepository(IDbProvider db) : ITeleportTableRepository
     {
         private readonly IDbProvider _db = db;
-
-        private readonly string _connStr = configuration.GetConnectionString("DefaultConnection");
 
         #region GET
 

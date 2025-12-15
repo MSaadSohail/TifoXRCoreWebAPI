@@ -10,7 +10,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     public sealed class CharityRepository : ICharityRepository
     {
         private readonly IDbProvider _db;
-        public CharityRepository(IConfiguration configuration, IDbProvider db) => _db = db;
+        public CharityRepository(IDbProvider db) => _db = db;
 
         public async Task<CharityData> CreateCharityAsync(CharityCreateDto dto)
         {

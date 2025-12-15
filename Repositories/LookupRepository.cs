@@ -10,10 +10,9 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class LookupRepository : ILookupRepository
+    public sealed class LookupRepository(IDbProvider db) : ILookupRepository
     {
-        private readonly IDbProvider _db;
-        public LookupRepository(IDbProvider db) => _db = db;
+        private readonly IDbProvider _db = db;
 
         public Task<IReadOnlyList<IDictionary<string, object?>>> GetRewardCompositionTypesAsync()
             => QueryAsync(LookupSql.RewardCompositionTypes);

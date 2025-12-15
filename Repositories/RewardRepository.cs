@@ -16,10 +16,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     /// <summary>
     /// Concrete repository for Reward &amp; UserReward operations.
     /// </summary>
-    public sealed class RewardRepository : IRewardRepository
+    public sealed class RewardRepository(IDbProvider db) : IRewardRepository
     {
-        private readonly IDbProvider _db;
-        public RewardRepository(IDbProvider db) => _db = db;
+        private readonly IDbProvider _db = db;
 
         // ---------- Reward definitions ----------
 
