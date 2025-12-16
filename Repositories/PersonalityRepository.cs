@@ -43,9 +43,9 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 ml.media_link             AS media_link
             FROM personality p
             LEFT JOIN i18n AS ic
-                   ON ic.`key` = p.country_name_key
+                   ON ic.[key] = p.country_name_key
             LEFT JOIN i18n AS ib
-                   ON ib.`key` = p.bio_data_key
+                   ON ib.[key] = p.bio_data_key
                   AND ib.locale_id = ic.locale_id
             LEFT JOIN media_localization AS ml
                    ON ml.media_id = p.media_id
@@ -213,7 +213,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 int newId;
-                await using (var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();"))
+                await using (var idCmd = _db.CreateCommand(conn, "SELECT CAST(SCOPE_IDENTITY() AS int);"))
                 {
                     idCmd.Transaction = tx;
                     newId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
@@ -221,7 +221,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // 3) Insert i18n for country and bio (space-scoped)
                 const string insertI18n = @"
-                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                INSERT INTO i18n ([key], locale_id, value, space_id)
                 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedCountry?.Values != null)
@@ -276,7 +276,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             // 1) Get a new UUID from the DB (MySQL)
             string mediaId;
-            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT UUID();"))
+            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT NEWID();"))
             {
                 uuidCmd.Transaction = tx;
                 var o = await uuidCmd.ExecuteScalarAsync();
@@ -371,9 +371,9 @@ WHERE id = @Id;";
                 const string updI18n = @"
 UPDATE i18n
    SET value = @Value
- WHERE `key` = @NameKey AND locale_id = @LocaleId AND space_id = @SpaceId;";
+ WHERE [key] = @NameKey AND locale_id = @LocaleId AND space_id = @SpaceId;";
                 const string insI18n = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, value, space_id)
 VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedCountry?.Values != null)
@@ -582,7 +582,7 @@ VALUES (@Id, @MediaId, @LocaleId, @MediaLink);";
                 // 2) Delete i18n rows for the keys (no space filter)
                 if (!string.IsNullOrWhiteSpace(countryKey))
                 {
-                    const string delI18nCountry = "DELETE FROM i18n WHERE `key` = @Key;";
+                    const string delI18nCountry = "DELETE FROM i18n WHERE [key] = @Key;";
                     await using var c1 = _db.CreateCommand(conn, delI18nCountry);
                     c1.Transaction = tx;
                     c1.Parameters.Add(_db.CreateParameter("@Key", countryKey!));
@@ -591,7 +591,7 @@ VALUES (@Id, @MediaId, @LocaleId, @MediaLink);";
 
                 if (!string.IsNullOrWhiteSpace(bioKey))
                 {
-                    const string delI18nBio = "DELETE FROM i18n WHERE `key` = @Key;";
+                    const string delI18nBio = "DELETE FROM i18n WHERE [key] = @Key;";
                     await using var c2 = _db.CreateCommand(conn, delI18nBio);
                     c2.Transaction = tx;
                     c2.Parameters.Add(_db.CreateParameter("@Key", bioKey!));

@@ -16,8 +16,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
 
         public const string InsertEventType = @"
             INSERT INTO re_event_type (name, creation_time, modified_by)
-            VALUES (@Name, NOW(6), 'system');
-            SELECT LAST_INSERT_ID();";
+            VALUES (@Name, SYSUTCDATETIME(), 'system');
+            SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         public const string UpdateEventType = @"
             UPDATE re_event_type
@@ -27,7 +27,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
 
         public const string SelectContextParameters = @"
             SELECT cp.id AS Id,
-                   cp.`key` AS `Key`,
+                   cp.[key] AS [Key],
                    cp.source AS Source,
                    cp.path AS Path,
                    cp.re_path_type_id AS RePathTypeId,
@@ -47,18 +47,18 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
 
         public const string InsertContextParameter = @"
             INSERT INTO re_context_parameter
-                (`key`, source, path, re_path_type_id, data_type,
+                ([key], source, path, re_path_type_id, data_type,
                  ui_label, ui_help_key, unit, re_dropdown_value_provider_id,
                  example_value, creation_time, modified_by)
             VALUES
                 (@Key, @Source, @Path, @RePathTypeId, @DataType,
                  @UiLabel, @UiHelpKey, @Unit, @DropdownProviderId,
-                 @ExampleValue, NOW(6), 'system');
-            SELECT LAST_INSERT_ID();";
+                 @ExampleValue, SYSUTCDATETIME(), 'system');
+            SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         public const string UpdateContextParameter = @"
             UPDATE re_context_parameter
-            SET `key` = @Key,
+            SET [key] = @Key,
                 source = @Source,
                 path = @Path,
                 re_path_type_id = @RePathTypeId,
@@ -75,8 +75,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             SELECT etp.id AS Id,
                    etp.re_event_type_id AS EventTypeId,
                    etp.parameter_id AS ParameterId,
-                   cp.`key` AS ParameterKey,
-                   (etp.is_required + 0) AS IsRequired,
+                   cp.[key] AS ParameterKey,
+                   CAST(etp.is_required AS int) AS IsRequired,
                    etp.default_value_json AS DefaultValueJson
             FROM re_event_type_parameter etp
             JOIN re_context_parameter cp ON cp.id = etp.parameter_id
@@ -86,8 +86,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
         public const string InsertEventTypeParameter = @"
             INSERT INTO re_event_type_parameter
                 (re_event_type_id, parameter_id, is_required, default_value_json, creation_time, modified_by)
-            VALUES (@EventTypeId, @ParameterId, @IsRequired, @DefaultValueJson, NOW(6), 'system');
-            SELECT LAST_INSERT_ID();";
+            VALUES (@EventTypeId, @ParameterId, @IsRequired, @DefaultValueJson, SYSUTCDATETIME(), 'system');
+            SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         public const string UpdateEventTypeParameter = @"
             UPDATE re_event_type_parameter

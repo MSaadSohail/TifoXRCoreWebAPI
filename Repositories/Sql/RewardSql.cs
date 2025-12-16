@@ -14,13 +14,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             INSERT INTO reward
             (reward_composition_type_id, name_key, description_key, space_id, entity_id, 
             max_total_claims, max_claims_per_user, cooldown_seconds,
-            claim_required, is_active, valid_from, valid_to, 
+            claim_required, is_active, valid_from, valid_to,
             creation_time, modified_by)
-            VALUES (@RewardCompositionTypeId, @NameKey, @DescriptionKey, @SpaceId, @EntityId, 
+            VALUES (@RewardCompositionTypeId, @NameKey, @DescriptionKey, @SpaceId, @EntityId,
             @MaxTotalClaims, @MaxClaimsPerUser, @CooldownSeconds,
-            @ClaimRequired, @IsActive, @ValidFrom, @ValidTo, 
-            NOW(6), 'system');
-            SELECT LAST_INSERT_ID();";
+            @ClaimRequired, @IsActive, @ValidFrom, @ValidTo,
+            SYSUTCDATETIME(), 'system');
+            SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         public const string GetReward = @"
             SELECT
@@ -33,13 +33,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
               max_total_claims AS MaxTotalClaims, 
               max_claims_per_user AS MaxClaimsPerUser,
               cooldown_seconds AS CooldownSeconds,
-              (claim_required + 0) AS ClaimRequired,
-              (is_active + 0) AS IsActive,
-              valid_from AS ValidFrom, 
+              CAST(claim_required AS int) AS ClaimRequired,
+              CAST(is_active AS int) AS IsActive,
+              valid_from AS ValidFrom,
               valid_to AS ValidTo
             FROM reward
             WHERE id=@Id AND space_id=@SpaceId
-            LIMIT 1;";
+            ;";
 
         public const string ListRewardsBySpace = @"
             SELECT
@@ -52,8 +52,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
               max_total_claims    AS MaxTotalClaims,
               max_claims_per_user AS MaxClaimsPerUser,
               cooldown_seconds    AS CooldownSeconds,
-              (claim_required + 0) AS ClaimRequired,
-              (is_active + 0)      AS IsActive,
+              CAST(claim_required AS int) AS ClaimRequired,
+              CAST(is_active AS int)      AS IsActive,
               valid_from          AS ValidFrom,
               valid_to            AS ValidTo
             FROM reward
@@ -62,13 +62,13 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
 
         public const string InsertRewardItem = @"
             INSERT INTO reward_items (reward_id, item_id, quantity, creation_time, modified_by)
-            VALUES (@RewardId, @ItemId, @Quantity, NOW(6), 'system');
-            SELECT LAST_INSERT_ID();";
+            VALUES (@RewardId, @ItemId, @Quantity, SYSUTCDATETIME(), 'system');
+            SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         public const string InsertRewardCurrency = @"
             INSERT INTO reward_currency (reward_id, currency_id, amount, creation_time, modified_by)
-            VALUES (@RewardId, @CurrencyId, @Amount, NOW(6), 'system');
-            SELECT LAST_INSERT_ID();";
+            VALUES (@RewardId, @CurrencyId, @Amount, SYSUTCDATETIME(), 'system');
+            SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         public const string ListRewardItems = @"
             SELECT id, item_id AS ItemId, quantity AS Quantity
@@ -113,18 +113,23 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             WHERE rar.reward_id = @RewardId;";
 
         // User rewards
-        public const string LookupPendingStatus = @"SELECT id FROM reward_status WHERE status = 'Pending' LIMIT 1;";
+        public const string LookupPendingStatus = @"SELECT TOP 1 id FROM reward_status WHERE status = 'Pending';";
 
         public const string InsertUserRewardIdempotent = @"
-            INSERT INTO user_reward
-            (user_id, reward_id, space_id, reward_status_id, 
-            grant_source, source_event_id, idempotency_key, 
-            claimed_at, expired_at, creation_time, modified_by)
-            VALUES (@UserId, @RewardId, @SpaceId, @PendingId, 
-            @GrantSource, @SourceEventId, @Idem, 
-            NOW(6), NULL, NOW(6), 'system')
-            ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id);
-            SELECT LAST_INSERT_ID();";
+            MERGE user_reward AS target
+            USING (VALUES (@UserId, @RewardId, @SpaceId, @PendingId, @GrantSource, @SourceEventId, @Idem)) AS src
+                (user_id, reward_id, space_id, reward_status_id, grant_source, source_event_id, idempotency_key)
+            ON target.idempotency_key = src.idempotency_key
+            WHEN NOT MATCHED THEN
+                INSERT (user_id, reward_id, space_id, reward_status_id,
+                        grant_source, source_event_id, idempotency_key,
+                        claimed_at, expired_at, creation_time, modified_by)
+                VALUES (src.user_id, src.reward_id, src.space_id, src.reward_status_id,
+                        src.grant_source, src.source_event_id, src.idempotency_key,
+                        SYSUTCDATETIME(), NULL, SYSUTCDATETIME(), 'system')
+            WHEN MATCHED THEN
+                UPDATE SET id = target.id
+            OUTPUT inserted.id;";
 
         public const string GetUserRewardView = @"
             SELECT
@@ -145,21 +150,21 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
 
         public const string SetDeliveredGuarded = @"
             UPDATE user_reward
-            SET reward_status_id = (SELECT id FROM reward_status WHERE status='Delivered' LIMIT 1),
+            SET reward_status_id = (SELECT TOP 1 id FROM reward_status WHERE status='Delivered'),
                 modified_by = 'system'
             WHERE id=@Id
-              AND reward_status_id = (SELECT id FROM reward_status WHERE status='Pending' LIMIT 1);";
+              AND reward_status_id = (SELECT TOP 1 id FROM reward_status WHERE status='Pending');";
 
         public const string SetClaimedGuarded = @"
             UPDATE user_reward
-            SET reward_status_id = (SELECT id FROM reward_status WHERE status='Claimed' LIMIT 1),
-                claimed_at = NOW(6),
+            SET reward_status_id = (SELECT TOP 1 id FROM reward_status WHERE status='Claimed'),
+                claimed_at = SYSUTCDATETIME(),
                 modified_by = 'system'
             WHERE id=@Id
                 AND reward_status_id IN (
                     SELECT id FROM reward_status WHERE status IN ('Pending','Delivered'));";
 
         public const string ExistsUserReward = @"
-            SELECT 1 FROM user_reward WHERE id = @Id LIMIT 1;";
+            SELECT TOP 1 1 FROM user_reward WHERE id = @Id;";
     }
 }

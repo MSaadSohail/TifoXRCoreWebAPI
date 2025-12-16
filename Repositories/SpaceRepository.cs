@@ -34,7 +34,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             i.value
         FROM space s
         LEFT JOIN i18n i 
-            ON i.`key` = s.description_key 
+            ON i.[key] = s.description_key
            AND i.space_id = s.id
         WHERE s.id = @Id
         ORDER BY i.locale_id;";
@@ -150,7 +150,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // 2) Get new id
                 int newId;
-                await using (var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();"))
+                await using (var idCmd = _db.CreateCommand(conn, "SELECT CAST(SCOPE_IDENTITY() AS int);"))
                 {
                     idCmd.Transaction = tx;
                     newId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
@@ -158,7 +158,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // 3) Insert localized descriptions
                 const string insertI18n = @"
-            INSERT INTO i18n (`key`, locale_id, value, space_id)
+            INSERT INTO i18n ([key], locale_id, value, space_id)
             VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 if (spaceDto.LocalizedDescription?.Values != null)
@@ -236,9 +236,9 @@ UPDATE space
                 const string updateI18n = @"
 UPDATE i18n
    SET value = @Value
- WHERE `key` = @Key AND locale_id = @LocaleId AND space_id = @SpaceId;";
+ WHERE [key] = @Key AND locale_id = @LocaleId AND space_id = @SpaceId;";
                 const string insertI18n = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, value, space_id)
 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 if (spaceDto.LocalizedDescription?.Values != null)
