@@ -51,7 +51,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 
                 FROM teleport_table t
                 LEFT JOIN i18n i ON i.[key] = t.name_key AND i.space_id = t.space_id
-                LEFT JOIN teleport_table_button b ON b.table_id = t.id
+                LEFT JOIN teleport_table_button b ON b.teleport_table_id = t.id
                 LEFT JOIN map_spot ms ON ms.id = b.map_spot_id
                 LEFT JOIN i18n bi ON bi.[key] = b.name_key AND bi.space_id = t.space_id
                 WHERE t.space_id = @SpaceId
