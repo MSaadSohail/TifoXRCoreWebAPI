@@ -5,15 +5,14 @@
 // <date>07/28/2025</date>
 // <summary>Class to handle booth activity SQL side</summary>
 
-using MySqlConnector;
-//
 using GMS.TifoXRCoreWebAPI.Models;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class BoothActivityRepository(IConfiguration configuration) : IBoothActivityRepository
+    public class BoothActivityRepository(IDbProvider db) : IBoothActivityRepository
     {
-        private readonly string _connectionString = configuration.GetConnectionString("DefaultConnection");
+        private readonly IDbProvider _db = db;
 
         public async Task<List<BoothActivity>> AddUserBoothActivitiesAsync(List<BoothActivity> boothActivityList)
         {
@@ -22,8 +21,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
             var createdRecords = new List<BoothActivity>();
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
@@ -38,15 +36,15 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 foreach (var act in boothActivityList)
                 {
-                    await using var cmd = new MySqlCommand(insertSql, conn, tx);
-                    cmd.Parameters.AddWithValue("@BoothId", act.BoothId);
-                    cmd.Parameters.AddWithValue("@UserId", act.UserId);
-                    cmd.Parameters.AddWithValue("@ExitCode", act.ExitCode);
-                    cmd.Parameters.AddWithValue("@BoothNameKey", act.BoothNameKey);
-                    cmd.Parameters.AddWithValue("@SessionId", act.SessionId);
-                    cmd.Parameters.AddWithValue("@EntryDatetime", act.EntryDatetime);
-                    cmd.Parameters.AddWithValue("@SessionDuration", act.SessionDuration);
-                    cmd.Parameters.AddWithValue("@ExitDatetime", (object?)act.ExitDatetime ?? DBNull.Value);
+                    await using var cmd = _db.CreateCommand(conn, insertSql, tx);
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothId", act.BoothId));
+                    cmd.Parameters.Add(_db.CreateParameter("@UserId", act.UserId));
+                    cmd.Parameters.Add(_db.CreateParameter("@ExitCode", act.ExitCode));
+                    cmd.Parameters.Add(_db.CreateParameter("@BoothNameKey", act.BoothNameKey));
+                    cmd.Parameters.Add(_db.CreateParameter("@SessionId", act.SessionId));
+                    cmd.Parameters.Add(_db.CreateParameter("@EntryDatetime", act.EntryDatetime));
+                    cmd.Parameters.Add(_db.CreateParameter("@SessionDuration", act.SessionDuration));
+                    cmd.Parameters.Add(_db.CreateParameter("@ExitDatetime", act.ExitDatetime));
 
                     await cmd.ExecuteNonQueryAsync();
 
