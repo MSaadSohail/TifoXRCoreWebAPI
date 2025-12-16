@@ -5,9 +5,6 @@
 // <date>10/01/2025</date>
 // <summary>CRUD operations for rules metadata (re_*) tables.</summary>
 
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Repositories.Sql;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
@@ -40,7 +37,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         public async Task<int> InsertEventTypeAsync(EventTypeCreateDto dto)
         {
-            if (dto is null) throw new ArgumentNullException(nameof(dto));
+            ArgumentNullException.ThrowIfNull(dto);
 
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, RulesMetadataSql.InsertEventType);

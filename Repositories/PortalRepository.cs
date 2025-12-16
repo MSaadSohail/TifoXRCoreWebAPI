@@ -9,7 +9,7 @@
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
-using MySqlConnector;
+//
 using System.Data;
 using System.Data.Common;
 
@@ -35,8 +35,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             p.portal_type_id,
             p.event_id,
             p.external_link,
-            p.corresponding_media_id,
-            p.thumbnail_media_id,
+            p.corresponding_media_id      AS corr_media_id,
+            p.thumbnail_media_id          AS thumb_media_id,
             p.text_field_key,
 
             sl.locale_id,
@@ -96,18 +96,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             Key = reader.GetString(reader.GetOrdinal("text_field_key")),
                             Values = new List<LocalizedValue>()
                         },
-                        CorrespondingMedia = new MediaData
-                        {
-                            Id = reader.IsDBNull("corresponding_media_id") ? 0 : reader.GetInt64("corresponding_media_id"),
-                            MediaTypeId = reader.IsDBNull("corr_media_type_id") ? 0 : reader.GetInt32("corr_media_type_id"),
-                            LinkLocalizations = new List<MediaLocalization>()
-                        },
-                        ThumbnailMedia = new MediaData
-                        {
-                            Id = reader.IsDBNull("thumbnail_media_id") ? 0 : reader.GetInt64("thumbnail_media_id"),
-                            MediaTypeId = reader.IsDBNull("thumb_media_type_id") ? 0 : reader.GetInt32("thumb_media_type_id"),
-                            LinkLocalizations = new List<MediaLocalization>()
-                        }
+                        CorrespondingMedia = BuildMediaData(reader, "corr_media_id", "corr_media_type_id")!,
+                        ThumbnailMedia = BuildMediaData(reader,"thumb_media_id","thumb_media_type_id")
                     };
 
                     map[portalId] = portal;
@@ -254,27 +244,8 @@ ORDER BY p.id, sl.locale_id;
                             Values = new List<LocalizedValue>()
                         },
 
-                        CorrespondingMedia = reader.IsDBNull(reader.GetOrdinal("corr_media_id"))
-                            ? null
-                            : new MediaData
-                            {
-                                Id = reader.GetInt32(reader.GetOrdinal("corr_media_id")),
-                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("corr_media_type_id"))
-                                    ? 0
-                                    : reader.GetInt32(reader.GetOrdinal("corr_media_type_id")),
-                                LinkLocalizations = new List<MediaLocalization>()
-                            },
-
-                        ThumbnailMedia = reader.IsDBNull(reader.GetOrdinal("thumb_media_id"))
-                            ? null
-                            : new MediaData
-                            {
-                                Id = reader.GetInt32(reader.GetOrdinal("thumb_media_id")),
-                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("thumb_media_type_id"))
-                                    ? 0
-                                    : reader.GetInt32(reader.GetOrdinal("thumb_media_type_id")),
-                                LinkLocalizations = new List<MediaLocalization>()
-                            }
+                        CorrespondingMedia = BuildMediaData(reader, "corr_media_id", "corr_media_type_id")!,
+                        ThumbnailMedia = BuildMediaData(reader, "thumb_media_id", "thumb_media_type_id")
                     };
 
                     map[portalId] = portal;
@@ -323,7 +294,6 @@ ORDER BY p.id, sl.locale_id;
 
             return map.Values.ToList();
         }
-
 
         /// <summary>
         /// Retrieves a single portal by its ID and space, with full localization and media details.
@@ -426,27 +396,8 @@ ORDER BY i.locale_id;";
                             Values = new List<LocalizedValue>()
                         },
 
-                        CorrespondingMedia = reader.IsDBNull(reader.GetOrdinal("corr_media_id"))
-                            ? null
-                            : new MediaData
-                            {
-                                Id = reader.GetInt32(reader.GetOrdinal("corr_media_id")),
-                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("corr_media_type_id"))
-                                    ? 0
-                                    : reader.GetInt32(reader.GetOrdinal("corr_media_type_id")),
-                                LinkLocalizations = new List<MediaLocalization>()
-                            },
-
-                        ThumbnailMedia = reader.IsDBNull(reader.GetOrdinal("thumb_media_id"))
-                            ? null
-                            : new MediaData
-                            {
-                                Id = reader.GetInt32(reader.GetOrdinal("thumb_media_id")),
-                                MediaTypeId = reader.IsDBNull(reader.GetOrdinal("thumb_media_type_id"))
-                                    ? 0
-                                    : reader.GetInt32(reader.GetOrdinal("thumb_media_type_id")),
-                                LinkLocalizations = new List<MediaLocalization>()
-                            }
+                        CorrespondingMedia = BuildMediaData(reader, "corr_media_id", "corr_media_type_id")!,
+                        ThumbnailMedia = BuildMediaData(reader, "thumb_media_id", "thumb_media_type_id")!
                     };
                 }
 
@@ -493,7 +444,6 @@ ORDER BY i.locale_id;";
 
             return portal;
         }
-
 
         #endregion
 
@@ -643,8 +593,6 @@ VALUES (@TextKey, @LocaleId, @Value, @SpaceId);";
                 throw;
             }
         }
-
-
 
         #endregion
 
@@ -841,7 +789,6 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             }
         }
 
-
         /// <summary>
         /// Updates the details, localizations, and associated media for a specific portal that belongs to a booth.
         /// </summary>
@@ -851,10 +798,10 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
         /// <param name="dto">The update data, including new localizations and media details.</param>
         /// <returns>The updated portal model, or null if the portal or booth association is not found.</returns>
         public async Task<PortalModel?> UpdatePortalAsync(
-    int spaceId,
-    int boothId,
-    int portalId,
-    PortalUpdateDto dto)
+            int spaceId,
+            int boothId,
+            int portalId,
+            PortalUpdateDto dto)
         {
             await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
@@ -1372,11 +1319,11 @@ WHERE id = @MediaId
         /// <param name="dto">The data transfer object containing all information for the media, including localization dictionaries.</param>
         /// <returns>The ID (UUID) of the newly inserted media row.</returns>
         private async Task<int> InsertMediaAsync(
-    DbConnection conn,
-    DbTransaction tx,
-    int spaceId,
-    MediaCreateDto dto
-)
+            DbConnection conn,
+            DbTransaction tx,
+            int spaceId,
+            MediaCreateDto dto
+        )
         {
             // 1️⃣ Insert media row and fetch IDENTITY
             const string insMedia = @"
@@ -1457,8 +1404,6 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             return mediaId;
         }
 
-
-
         /// <summary>
         /// Filters the given media DTO’s localizations to only those supported by the space, and inserts the media if any localizations remain.
         /// </summary>
@@ -1470,13 +1415,13 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
         /// <param name="insertFunc">A delegate to the actual insert function for the media.</param>
         /// <returns>The ID of the inserted media if inserted, or null if there were no localizations to insert.</returns>
         private static async Task<int?> FilterAndInsertMediaAsync(
-    DbConnection conn,
-    DbTransaction tx,
-    int spaceId,
-    MediaCreateDto? mediaDto,
-    HashSet<string> supportedLocales,
-    Func<DbConnection, DbTransaction, int, MediaCreateDto, Task<int>> insertFunc
-)
+            DbConnection conn,
+            DbTransaction tx,
+            int spaceId,
+            MediaCreateDto? mediaDto,
+            HashSet<string> supportedLocales,
+            Func<DbConnection, DbTransaction, int, MediaCreateDto, Task<int>> insertFunc
+        )
         {
             if (mediaDto == null)
                 return null;
@@ -1510,6 +1455,22 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
             return null;
         }
 
+        private static MediaData? BuildMediaData(DbDataReader reader, string idColumn, string mediaTypeColumn)
+        {
+            int idOrdinal = reader.GetOrdinal(idColumn);
+
+            if (reader.IsDBNull(idOrdinal))
+                return null;
+
+            return new MediaData
+            {
+                Id = reader.GetInt64(idOrdinal),
+                MediaTypeId = reader.IsDBNull(reader.GetOrdinal(mediaTypeColumn))
+                    ? 0
+                    : reader.GetInt32(reader.GetOrdinal(mediaTypeColumn)),
+                LinkLocalizations = new List<MediaLocalization>()
+            };
+        }
 
         #endregion
     }

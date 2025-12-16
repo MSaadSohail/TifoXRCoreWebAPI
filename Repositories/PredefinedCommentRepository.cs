@@ -1,4 +1,10 @@
-﻿// Repositories/PredefinedCommentRepository.cs
+﻿// <copyright file="PredefinedCommentRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>10/23/2025</date>
+// <summary>Predefined Comment Repository</summary>
+
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
@@ -7,9 +13,14 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure; // IDbProvider
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public sealed class PredefinedCommentRepository(IDbProvider db) : IPredefinedCommentRepository
+    public sealed class PredefinedCommentRepository : IPredefinedCommentRepository
     {
-        private readonly IDbProvider _db = db;
+        private readonly IDbProvider _db;
+
+        public PredefinedCommentRepository(IConfiguration configuration, IDbProvider db)
+        {
+            _db = db;
+        }
 
         public async Task<List<PredefinedCommentModel>> GetPredefinedCommentsBySpaceAsync(int spaceId, bool includeInactive = false)
         {

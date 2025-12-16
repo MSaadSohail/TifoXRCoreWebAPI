@@ -5,49 +5,50 @@
 // <date>07/31/2025</date>
 // <summary>Class to handle localization SQL side</summary>
 
-using MySqlConnector;
-using System.Data;
-//
+using System.Data.Common;
 using GMS.TifoXRCoreWebAPI.Models.Common;
+using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
+using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class LocalizationRepository : ILocalizationRepository
+    public sealed class LocalizationRepository : ILocalizationRepository
     {
-        private readonly string _connectionString;
+        private readonly IDbProvider _db;
 
-        public LocalizationRepository(IConfiguration cfg)
+        public LocalizationRepository(IConfiguration cfg, IDbProvider db)
         {
-            _connectionString = cfg.GetConnectionString("DefaultConnection");
+            _db = db;
         }
 
         #region GET
 
-        /// <summary>
-        /// Gets all i18n keys and their localizations for a given space.
-        /// </summary>
         public async Task<List<LocalizedPairs>> GetAllLocalizationsBySpaceAsync(int spaceId)
         {
             const string sql = @"
-            SELECT `key`, locale_id, value
-            FROM i18n
-            WHERE space_id = @SpaceId
-            ORDER BY `key`, locale_id;
-        ";
+SELECT
+    [key] AS i18n_key,
+    locale_id,
+    value
+FROM i18n
+WHERE space_id = @SpaceId
+ORDER BY i18n_key, locale_id;";
+
+
 
             var result = new Dictionary<string, LocalizedPairs>();
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
 
             await using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                string key = reader.GetString("key");
-                string localeId = reader.GetString("locale_id");
-                string value = reader.IsDBNull("value") ? "" : reader.GetString("value");
+                // Read aliased column to avoid reserved-word headaches
+                string key = reader.GetString(reader.GetOrdinal("i18n_key"));
+                string localeId = reader.GetString(reader.GetOrdinal("locale_id"));
+                string value = reader.IsDBNull(reader.GetOrdinal("value")) ? "" : reader.GetString(reader.GetOrdinal("value"));
 
                 if (!result.TryGetValue(key, out var locPairs) || locPairs == null)
                 {
@@ -61,23 +62,24 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             return result.Values.ToList();
         }
 
-        /// <summary>
-        /// Gets all localizations for a key in the given space.
-        /// </summary>
         public async Task<LocalizedPairs?> GetLocalizationByKeyAsync(int spaceId, string key)
         {
             const string sql = @"
-            SELECT locale_id, value
-            FROM i18n
-            WHERE space_id = @SpaceId AND `key` = @Key
-            ORDER BY locale_id;
-        ";
+SELECT
+    locale_id,
+    value
+FROM i18n
+WHERE space_id = @SpaceId AND [key] = @Key
+ORDER BY locale_id;";
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-            cmd.Parameters.AddWithValue("@Key", key);
+
+            // Provider-safe version (recommended):
+            // WHERE space_id = @SpaceId AND key = @Key
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@Key", key));
 
             var values = new List<LocalizedValue>();
             await using var reader = await cmd.ExecuteReaderAsync();
@@ -85,8 +87,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             {
                 values.Add(new LocalizedValue
                 {
-                    LocaleId = reader.GetString("locale_id"),
-                    Value = reader.IsDBNull("value") ? null : reader.GetString("value")
+                    LocaleId = reader.GetString(reader.GetOrdinal("locale_id")),
+                    Value = reader.IsDBNull(reader.GetOrdinal("value")) ? null : reader.GetString(reader.GetOrdinal("value"))
                 });
             }
 
@@ -96,34 +98,35 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
         #endregion
 
         #region POST
-        /// <summary>
-        /// Inserts a new localization key with values for all given locales (bulk insert).
-        /// </summary>
+
         public async Task<LocalizedPairs> CreateLocalizationAsync(int spaceId, LocalizedPairs dto)
         {
-            if (dto == null || string.IsNullOrEmpty(dto.Key) || dto.Values == null || dto.Values.Count == 0)
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Key) || dto.Values == null || dto.Values.Count == 0)
                 throw new ArgumentException("Invalid localization data");
 
             const string insertSql = @"
-            INSERT INTO i18n (`key`, locale_id, value, space_id)
-            VALUES (@Key, @LocaleId, @Value, @SpaceId);
-        ";
+INSERT INTO i18n ([key], locale_id, value, space_id)
+VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
+
+            // Provider-safe version (recommended):
+            // INSERT INTO i18n (key, locale_id, value, space_id) ...
+
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
                 foreach (var val in dto.Values)
                 {
-                    await using var cmd = new MySqlCommand(insertSql, conn, tx);
-                    cmd.Parameters.AddWithValue("@Key", dto.Key);
-                    cmd.Parameters.AddWithValue("@LocaleId", val.LocaleId);
-                    cmd.Parameters.AddWithValue("@Value", val.Value);
-                    cmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    await using var cmd = _db.CreateCommand(conn, insertSql, tx);
+                    cmd.Parameters.Add(_db.CreateParameter("@Key", dto.Key));
+                    cmd.Parameters.Add(_db.CreateParameter("@LocaleId", val.LocaleId));
+                    cmd.Parameters.Add(_db.CreateParameter("@Value", (object?)val.Value ?? DBNull.Value));
+                    cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                     await cmd.ExecuteNonQueryAsync();
                 }
+
                 await tx.CommitAsync();
                 return dto;
             }
@@ -138,49 +141,50 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         #region PUT
 
-        /// <summary>
-        /// Updates all localizations for a key. Upserts all values (updates if exists, inserts if not).
-        /// </summary>
         public async Task<LocalizedPairs?> UpdateLocalizationAsync(int spaceId, string key, LocalizedPairs dto)
         {
-            if (dto == null || string.IsNullOrEmpty(key) || dto.Values == null || dto.Values.Count == 0)
+            if (dto == null || string.IsNullOrWhiteSpace(key) || dto.Values == null || dto.Values.Count == 0)
                 return null;
 
-            // We'll use upsert pattern (update or insert)
             const string updateSql = @"
-            UPDATE i18n
-            SET value = @Value
-            WHERE `key` = @Key AND locale_id = @LocaleId AND space_id = @SpaceId;
-        ";
-            const string insertSql = @"
-            INSERT INTO i18n (`key`, locale_id, value, space_id)
-            VALUES (@Key, @LocaleId, @Value, @SpaceId);
-        ";
+UPDATE i18n
+   SET value = @Value
+ WHERE [key] = @Key AND locale_id = @LocaleId AND space_id = @SpaceId;";
 
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
+            const string insertSql = @"
+INSERT INTO i18n ([key], locale_id, value, space_id)
+VALUES (@Key, @LocaleId, @Value, @SpaceId);";
+
+
+            // Provider-safe version (recommended):
+            // WHERE key = @Key ...
+
+            await using var conn = await _db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
 
             try
             {
                 foreach (var val in dto.Values)
                 {
-                    await using var updateCmd = new MySqlCommand(updateSql, conn, tx);
-                    updateCmd.Parameters.AddWithValue("@Key", key);
-                    updateCmd.Parameters.AddWithValue("@LocaleId", val.LocaleId);
-                    updateCmd.Parameters.AddWithValue("@Value", val.Value);
-                    updateCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                    await using var updateCmd = _db.CreateCommand(conn, updateSql, tx);
+                    updateCmd.Parameters.Add(_db.CreateParameter("@Key", key));
+                    updateCmd.Parameters.Add(_db.CreateParameter("@LocaleId", val.LocaleId));
+                    updateCmd.Parameters.Add(_db.CreateParameter("@Value", (object?)val.Value ?? DBNull.Value));
+                    updateCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+
                     int affected = await updateCmd.ExecuteNonQueryAsync();
+
                     if (affected == 0)
                     {
-                        await using var insertCmd = new MySqlCommand(insertSql, conn, tx);
-                        insertCmd.Parameters.AddWithValue("@Key", key);
-                        insertCmd.Parameters.AddWithValue("@LocaleId", val.LocaleId);
-                        insertCmd.Parameters.AddWithValue("@Value", val.Value);
-                        insertCmd.Parameters.AddWithValue("@SpaceId", spaceId);
+                        await using var insertCmd = _db.CreateCommand(conn, insertSql, tx);
+                        insertCmd.Parameters.Add(_db.CreateParameter("@Key", key));
+                        insertCmd.Parameters.Add(_db.CreateParameter("@LocaleId", val.LocaleId));
+                        insertCmd.Parameters.Add(_db.CreateParameter("@Value", (object?)val.Value ?? DBNull.Value));
+                        insertCmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
                         await insertCmd.ExecuteNonQueryAsync();
                     }
                 }
+
                 await tx.CommitAsync();
                 return dto;
             }
@@ -195,19 +199,18 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
         #region DELETE
 
-        /// <summary>
-        /// Deletes all localizations for a key in the space.
-        /// </summary>
         public async Task<bool> DeleteLocalizationAsync(int spaceId, string key)
         {
             const string sql = @"
-            DELETE FROM i18n WHERE space_id = @SpaceId AND `key` = @Key;
-        ";
-            await using var conn = new MySqlConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@SpaceId", spaceId);
-            cmd.Parameters.AddWithValue("@Key", key);
+DELETE FROM i18n
+WHERE space_id = @SpaceId AND [key] = @Key;";
+
+
+            await using var conn = await _db.OpenConnectionAsync();
+            await using var cmd = _db.CreateCommand(conn, sql);
+            cmd.Parameters.Add(_db.CreateParameter("@SpaceId", spaceId));
+            cmd.Parameters.Add(_db.CreateParameter("@Key", key));
+
             var affected = await cmd.ExecuteNonQueryAsync();
             return affected > 0;
         }

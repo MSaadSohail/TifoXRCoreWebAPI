@@ -1,4 +1,9 @@
-﻿// Repositories/CharityRepository.cs
+﻿// <copyright file="CharityRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>12/08/2025</date>
+// <summary>Charity Repository</summary>
 using GMS.TifoXRCoreWebAPI.Models;
 using GMS.TifoXRCoreWebAPI.Models.Common;
 using GMS.TifoXRCoreWebAPI.Repositories.Interfaces;
@@ -10,7 +15,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
     public sealed class CharityRepository : ICharityRepository
     {
         private readonly IDbProvider _db;
-        public CharityRepository(IDbProvider db) => _db = db;
+        public CharityRepository(IConfiguration configuration, IDbProvider db) => _db = db;
 
         public async Task<CharityData> CreateCharityAsync(CharityCreateDto dto)
         {
@@ -324,43 +329,44 @@ VALUES (@MediaId, @LocaleId, @MediaLink);";
         public async Task<List<CharityData>> GetCharitiesBySpaceAsync(int spaceId)
         {
             const string sql = @"
-    SELECT
-        c.id,
-        c.space_id,
-        c.name_key,
-        c.description_key,
-        c.website_url,
-        c.logo_media_id,
-        c.donation_url,
-        c.is_active,
-        c.creation_time,
-        c.modified_time,
-        c.modified_by,
+SELECT
+    c.id,
+    c.space_id,
+    c.name_key,
+    c.description_key,
+    c.website_url,
+    c.logo_media_id,
+    c.donation_url,
+    c.is_active,
+    c.creation_time,
+    c.modified_time,
+    c.modified_by,
 
-        m.media_type_id       AS media_type_id,
-        m.text_key            AS media_text_key,
-        m.description_key     AS media_desc_key,
+    m.media_type_id       AS media_type_id,
+    m.text_key            AS media_text_key,
+    m.description_key     AS media_desc_key,
 
-        iname.locale_id       AS locale_id,
-        iname.value           AS name_value,
-        idesc.value           AS description_value,
-        ml.media_link         AS media_link
-    FROM charity c
-    LEFT JOIN i18n AS iname
-           ON iname.`key`   = c.name_key
-          AND iname.space_id = @SpaceId
-    LEFT JOIN i18n AS idesc
-           ON idesc.`key`    = c.description_key
-          AND idesc.locale_id= iname.locale_id
-          AND idesc.space_id = iname.space_id
-    LEFT JOIN media AS m
-           ON m.id      = c.logo_media_id
-          AND m.space_id= @SpaceId
-    LEFT JOIN media_localization AS ml
-           ON ml.media_id = c.logo_media_id
-          AND ml.locale_id= iname.locale_id
-    WHERE c.space_id = @SpaceId
-    ORDER BY c.id, iname.locale_id;";
+    iname.locale_id       AS locale_id,
+    iname.value           AS name_value,
+    idesc.value           AS description_value,
+    ml.media_link         AS media_link
+FROM charity c
+LEFT JOIN i18n AS iname
+       ON iname.[key]   = c.name_key
+      AND iname.space_id = @SpaceId
+LEFT JOIN i18n AS idesc
+       ON idesc.[key]    = c.description_key
+      AND idesc.locale_id= iname.locale_id
+      AND idesc.space_id = iname.space_id
+LEFT JOIN media AS m
+       ON m.id      = c.logo_media_id
+      AND m.space_id= @SpaceId
+LEFT JOIN media_localization AS ml
+       ON ml.media_id = c.logo_media_id
+      AND ml.locale_id= iname.locale_id
+WHERE c.space_id = @SpaceId
+ORDER BY c.id, iname.locale_id;";
+
 
             await using var conn = await _db.OpenConnectionAsync();
             await using var cmd = _db.CreateCommand(conn, sql);

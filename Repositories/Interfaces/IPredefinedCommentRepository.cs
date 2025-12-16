@@ -1,4 +1,9 @@
-﻿// Repositories/Interfaces/IPredefinedCommentRepository.cs
+﻿// <copyright file="IPredefinedCommentRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>10/23/2025</date>
+// <summary>Interface Predefined Comment Repository</summary>
 using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces

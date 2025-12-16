@@ -1,4 +1,9 @@
-﻿// Repositories/Interfaces/IBoothCommentRepository.cs
+﻿// <copyright file="IBoothCommentRepository.cs" company="Global Mobile Software LLC">
+// Copyright © 2025 All Rights Reserved
+// </copyright>
+// <author>Syed Hussain</author>
+// <date>12/08/2025</date>
+// <summary>Interface BoothCommentRepository</summary>
 using GMS.TifoXRCoreWebAPI.Models;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories.Interfaces

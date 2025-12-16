@@ -13,9 +13,14 @@ using GMS.TifoXRCoreWebAPI.Utilities.Infrastructure;
 
 namespace GMS.TifoXRCoreWebAPI.Repositories
 {
-    public class PersonalityRepository(IDbProvider db) : IPersonalityRepository
+    public class PersonalityRepository : IPersonalityRepository
     {
-        private readonly IDbProvider _db = db;
+        private readonly IDbProvider _db;
+
+        public PersonalityRepository(IConfiguration configuration, IDbProvider db)
+        {
+            _db = db;
+        }
 
         public async Task<PersonalityData?> GetPersonalityByIdAsync(int id)
         {
