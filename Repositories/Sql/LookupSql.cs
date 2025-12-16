@@ -62,7 +62,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
 
         public const string ContextParameters = @"
             SELECT cp.id,
-                   cp.`key` AS `Key`,
+                   cp.[key] AS [Key],
                    cp.source AS Source,
                    cp.path AS Path,
                    cp.re_path_type_id AS RePathTypeId,
@@ -83,8 +83,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.Sql
             SELECT etp.id,
                    etp.re_event_type_id AS EventTypeId,
                    etp.parameter_id AS ParameterId,
-                   cp.`key` AS ParameterKey,
-                   (etp.is_required + 0) AS IsRequired,
+                   cp.[key] AS ParameterKey,
+                   CAST(etp.is_required AS int) AS IsRequired,
                    etp.default_value_json AS DefaultValueJson
             FROM re_event_type_parameter etp
             JOIN re_context_parameter cp ON cp.id = etp.parameter_id

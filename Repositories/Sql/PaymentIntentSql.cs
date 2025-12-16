@@ -26,7 +26,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                   pi.provider_intent_id   AS ProviderIntentId,
                   ch.last_charge_id       AS LastChargeId,
                   o.total_net_amount      AS ExpectedPaidMinor
-                FROM `order` o
+                  FROM [order] o
                 LEFT JOIN (
                     SELECT order_id, MAX(creation_time) AS last_ct
                     FROM payment_intent GROUP BY order_id
@@ -47,7 +47,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                     JOIN payment_intent pi ON pi.id = pc.payment_intent_id
                     GROUP BY pi.order_id
                 ) ch ON ch.order_id = o.id
-                WHERE (pi.status_id IN (1,2)) OR (o.status_id = 3 AND (IFNULL(inv.cnt,0)=0 OR IFNULL(ent.cnt,0)=0));
+                  WHERE (pi.status_id IN (1,2)) OR (o.status_id = 3 AND (ISNULL(inv.cnt,0)=0 OR ISNULL(ent.cnt,0)=0));
             ";
 
         internal const string Order_Snapshot = @"
@@ -59,16 +59,14 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                             FROM order_adjustment oa WHERE oa.order_id=o.id),0) AS tax_major,
                   COALESCE((SELECT SUM(CASE WHEN (@FeeTypeId IS NOT NULL AND oa.item_type_id=@FeeTypeId) OR (@FeeTypeId IS NULL AND oa.code LIKE 'FEE_%') THEN oa.amount/@MinorDiv ELSE 0 END)
                             FROM order_adjustment oa WHERE oa.order_id=o.id),0) AS fee_major
-                FROM `order` o
-                WHERE o.id=@OrderId AND o.space_id=@SpaceId
-                LIMIT 1;";
+                  FROM [order] o
+                  WHERE o.id=@OrderId AND o.space_id=@SpaceId;";
 
         internal const string Charge_Snapshot = @"
                 SELECT pc.provider_charge_id, pi.payment_gateway_id
-                FROM payment_charge pc
-                JOIN payment_intent pi ON pi.id = pc.payment_intent_id
-                WHERE pc.id=@ChargeId
-                LIMIT 1;";
+                  FROM payment_charge pc
+                  JOIN payment_intent pi ON pi.id = pc.payment_intent_id
+                  WHERE pc.id=@ChargeId;";
 
         internal const string Invoice_Insert = @"
                 INSERT INTO invoice
@@ -79,30 +77,30 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                  bill_to_name, bill_to_email, notes, pdf_url, metadata,
                  creation_time, modified_by)
                 VALUES
-                (@Id, @No, @UserId, @OrderId, NULL,
-                 @Status, @ChargeId, @GatewayId, @ProvChargeId,
-                 @SpaceId, NOW(6), @CurrencyId,
-                 @Subtotal, @Discount, @Tax, @Fee, @Total,
-                 @BillToName, @BillToEmail, @Notes, NULL, @Metadata,
-                 NOW(6), @ModBy);";
+                  (@Id, @No, @UserId, @OrderId, NULL,
+                   @Status, @ChargeId, @GatewayId, @ProvChargeId,
+                   @SpaceId, SYSUTCDATETIME(), @CurrencyId,
+                   @Subtotal, @Discount, @Tax, @Fee, @Total,
+                   @BillToName, @BillToEmail, @Notes, NULL, @Metadata,
+                   SYSUTCDATETIME(), @ModBy);";
 
         internal const string Intent_FindLatestOrderWithPending = @"
             SELECT o.id
-            FROM `order` o
+              FROM [order] o
             JOIN order_line ol ON ol.order_id = o.id
             JOIN payment_intent pi ON pi.order_id = o.id AND pi.status_id IN (1,2) -- requires_action / processing
             WHERE o.space_id=@SpaceId AND o.user_id=@UserId
               AND ol.item_type_id=@ItemTypeId AND ol.item_ref_id=@ItemRefId
               AND (@GatewayId IS NULL OR pi.payment_gateway_id=@GatewayId)
-            ORDER BY pi.creation_time DESC
-            LIMIT 1;";
+              ORDER BY pi.creation_time DESC
+              OFFSET 0 ROWS FETCH NEXT 1 ROW ONLY;";
 
         internal const string Refund_Insert = @"
             INSERT INTO payment_refund
             (id, payment_charge_id, status_id, amount, currency_id, provider_refund_id, reason,
              refund_datetime, creation_time, modified_by)
-            VALUES (@Id, @ChargeId, @Status, @Amt, @Ccy, @ProvRefund, @Reason,
-                    NOW(6), NOW(6), @ModBy);";
+              VALUES (@Id, @ChargeId, @Status, @Amt, @Ccy, @ProvRefund, @Reason,
+                      SYSUTCDATETIME(), SYSUTCDATETIME(), @ModBy);";
 
         internal const string Charge_GetContext = @"
             SELECT
@@ -114,8 +112,8 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
               pc.amount_captured                              AS amount_captured_minor,
               COALESCE(SUM(pr.amount), 0)                     AS total_refunded_so_far_minor
             FROM payment_charge pc
-            JOIN payment_intent pi ON pi.id = pc.payment_intent_id
-            JOIN `order` o        ON o.id  = pi.order_id
+              JOIN payment_intent pi ON pi.id = pc.payment_intent_id
+              JOIN [order] o        ON o.id  = pi.order_id
             LEFT JOIN payment_refund pr ON pr.payment_charge_id = pc.id
                                        AND pr.status_id = 2      -- succeeded only
             WHERE pc.id = @ChargeId
@@ -126,21 +124,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
                 INSERT INTO entitlement
                     (id, order_line_id, user_id, status, quantity, granted_datetime,
                      revoked_reason, metadata, creation_time, modified_by)
-                SELECT UUID(), ol.id, o.user_id, @GrantedStatus, ol.quantity, NOW(6),
-                       NULL, ol.metadata, NOW(6), @ModBy
-                FROM order_line ol
-                JOIN `order` o ON o.id = ol.order_id
-                LEFT JOIN entitlement e ON e.order_line_id = ol.id
-                WHERE ol.order_id = @OrderId
-                  AND o.status_id = @OrderStatusPaid
+                  SELECT NEWID(), ol.id, o.user_id, @GrantedStatus, ol.quantity, SYSUTCDATETIME(),
+                         NULL, ol.metadata, SYSUTCDATETIME(), @ModBy
+                  FROM order_line ol
+                  JOIN [order] o ON o.id = ol.order_id
+                  LEFT JOIN entitlement e ON e.order_line_id = ol.id
+                  WHERE ol.order_id = @OrderId
+                    AND o.status_id = @OrderStatusPaid
                   AND e.id IS NULL;";
 
         internal const string Entitlement_RevokeByOrder = @"
-            UPDATE entitlement e
-            JOIN order_line ol ON ol.id = e.order_line_id
+            UPDATE e
             SET e.status = @RevokedStatus,
                 e.revoked_reason = @Reason,
                 e.modified_by = @ModBy
+            FROM entitlement e
+            JOIN order_line ol ON ol.id = e.order_line_id
             WHERE ol.order_id = @OrderId;";
     }
 }

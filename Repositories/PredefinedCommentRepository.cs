@@ -34,12 +34,12 @@ SELECT
     i.value
 FROM predefined_comments pc
 LEFT JOIN i18n i
-       ON i.`key` = pc.comment_key
+       ON i.[key] = pc.comment_key
       AND i.space_id = @SpaceId
 {0}
 ORDER BY pc.id, i.locale_id;";
 
-            var where = includeInactive ? "" : "WHERE pc.is_active = TRUE";
+            var where = includeInactive ? "" : "WHERE pc.is_active = 1";
             var sql = string.Format(sqlBase, where);
 
             await using var conn = await _db.OpenConnectionAsync();
@@ -125,7 +125,7 @@ ORDER BY pc.id, i.locale_id;";
                 // 1) Insert predefined_comments
                 const string sqlIns = @"
 INSERT INTO predefined_comments (comment_key, is_active, creation_time, modified_by)
-VALUES (@K, @A, NOW(6), 'system');";
+VALUES (@K, @A, SYSUTCDATETIME(), 'system');";
                 await using (var insCmd = _db.CreateCommand(conn, sqlIns))
                 {
                     insCmd.Transaction = tx;
@@ -135,7 +135,7 @@ VALUES (@K, @A, NOW(6), 'system');";
                 }
 
                 int newId;
-                await using (var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();"))
+                await using (var idCmd = _db.CreateCommand(conn, "SELECT CAST(SCOPE_IDENTITY() AS int);"))
                 {
                     idCmd.Transaction = tx;
                     newId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
@@ -178,7 +178,7 @@ SELECT locale_id
                 if (values.Count > 0)
                 {
                     const string sqlInsI18n = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, value, space_id)
 VALUES (@K, @L, @V, @S);";
 
                     foreach (var v in values)
@@ -251,10 +251,9 @@ VALUES (@K, @L, @V, @S);";
             {
                 // 0) Fetch comment_key and current fields by id
                 const string sqlFind = @"
-SELECT comment_key, is_active, creation_time
+SELECT TOP 1 comment_key, is_active, creation_time
 FROM predefined_comments
-WHERE id = @Id
-LIMIT 1;";
+WHERE id = @Id;";
                 string? commentKey = null;
                 DateTime creation = default;
                 bool isActive = true;
@@ -324,9 +323,9 @@ SELECT locale_id
                     const string sqlUpdateI18n = @"
 UPDATE i18n
    SET value = @V
- WHERE `key` = @K AND locale_id = @L AND space_id = @S;";
+ WHERE [key] = @K AND locale_id = @L AND space_id = @S;";
                     const string sqlInsertI18n = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, value, space_id)
 VALUES (@K, @L, @V, @S);";
 
                     foreach (var v in incoming)
@@ -376,7 +375,7 @@ SELECT
     i.value
 FROM predefined_comments pc
 LEFT JOIN i18n i
-       ON i.`key` = pc.comment_key
+       ON i.[key] = pc.comment_key
       AND i.space_id = @SpaceId
 WHERE pc.comment_key = @K
 ORDER BY i.locale_id;";
@@ -441,7 +440,7 @@ ORDER BY i.locale_id;";
             try
             {
                 // 0) Load comment_key (and existence)
-                const string sqlFind = @"SELECT comment_key FROM predefined_comments WHERE id = @Id LIMIT 1;";
+                const string sqlFind = @"SELECT TOP 1 comment_key FROM predefined_comments WHERE id = @Id;";
                 string? commentKey = null;
                 await using (var find = _db.CreateCommand(conn, sqlFind))
                 {
@@ -476,7 +475,7 @@ ORDER BY i.locale_id;";
                     }
 
                     // 2) Delete i18n for ALL spaces for this key
-                    const string sqlDelI18nAll = @"DELETE FROM i18n WHERE `key` = @K;";
+                    const string sqlDelI18nAll = @"DELETE FROM i18n WHERE [key] = @K;";
                     await using (var di = _db.CreateCommand(conn, sqlDelI18nAll))
                     {
                         di.Transaction = tx;
@@ -499,7 +498,7 @@ ORDER BY i.locale_id;";
                 else
                 {
                     // SOFT DELETE: mark inactive
-                    const string sqlSoft = @"UPDATE predefined_comments SET is_active = FALSE WHERE id = @Id;";
+                    const string sqlSoft = @"UPDATE predefined_comments SET is_active = 0 WHERE id = @Id;";
                     await using (var sd = _db.CreateCommand(conn, sqlSoft))
                     {
                         sd.Transaction = tx;
@@ -510,7 +509,7 @@ ORDER BY i.locale_id;";
                     if (deleteI18nForSpace)
                     {
                         // Remove i18n only for this space to "unregister" in that context
-                        const string sqlDelI18nSpace = @"DELETE FROM i18n WHERE `key` = @K AND space_id = @S;";
+                        const string sqlDelI18nSpace = @"DELETE FROM i18n WHERE [key] = @K AND space_id = @S;";
                         await using (var ds = _db.CreateCommand(conn, sqlDelI18nSpace))
                         {
                             ds.Transaction = tx;

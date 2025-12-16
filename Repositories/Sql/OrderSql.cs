@@ -14,7 +14,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             SELECT id, user_id, space_id, transaction_type_id, currency_id, status_id,
                    total_gross_amount, total_discount_amount, total_tax_amount, total_fee_amount, total_net_amount,
                    change_reason, original_order_id, session_id, gateway_preferred_id, order_datetime, remarks
-            FROM `order` WHERE id=@OrderId AND space_id=@SpaceId;";
+            FROM [order] WHERE id=@OrderId AND space_id=@SpaceId;";
 
         internal const string Order_SelectLines = @"
             SELECT id, item_type_id, item_ref_id, entity_id, shop_id, quantity, unit_amount, currency_id, metadata
@@ -56,20 +56,19 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             ORDER BY refund_datetime;";
 
         internal const string Order_Insert = @"
-                    INSERT INTO `order`
+                    INSERT INTO [order]
                     (id, user_id, space_id, transaction_type_id, currency_id, status_id,
                      total_gross_amount, total_discount_amount, change_reason, total_tax_amount, total_fee_amount, total_net_amount,
                      original_order_id, session_id, gateway_preferred_id, order_datetime, remarks, idempotency_key, modified_by)
                     VALUES
                     (@Id, @UserId, @SpaceId, @Trx, @CcyId, @StatusId,
                      @Gross, @Disc, NULL, @Tax, @Fees, @Net,
-                     NULL, @SessionId, @GatewayPreferredId, NOW(6), @Remarks, @IdemKey, @ModBy);";
+                     NULL, @SessionId, @GatewayPreferredId, SYSUTCDATETIME(), @Remarks, @IdemKey, @ModBy);";
 
         internal const string Order_FindExisting = @"
-                    SELECT id, total_net_amount, space_id
-                    FROM `order`
-                    WHERE idempotency_key = @IdemKey
-                    LIMIT 1;";
+                    SELECT TOP 1 id, total_net_amount, space_id
+                    FROM [order]
+                    WHERE idempotency_key = @IdemKey;";
 
         internal const string Order_InsertLine = @"
                     INSERT INTO order_line
@@ -93,26 +92,26 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             INSERT INTO payment_charge
             (id, payment_intent_id, status_id, amount_captured, currency_id, provider_charge_id,
              payment_datetime, creation_time, modified_by)
-            VALUES (@Id, @IntentId, @Status, @Amt, @Ccy, @ProvCharge, @PaidAt, NOW(6), @ModBy);";
+            VALUES (@Id, @IntentId, @Status, @Amt, @Ccy, @ProvCharge, @PaidAt, SYSUTCDATETIME(), @ModBy);";
 
         internal const string Intent_FindPendingForOrder = @"
-            SELECT pi.id, pi.status_id, pi.idempotency_key, pi.provider_intent_id,
+            SELECT TOP 1 pi.id, pi.status_id, pi.idempotency_key, pi.provider_intent_id,
                    pi.payment_gateway_id, pi.amount, pi.currency_id
             FROM payment_intent pi
             WHERE pi.order_id=@OrderId
               AND pi.status_id IN (1,2)
               AND (@GatewayId IS NULL OR pi.payment_gateway_id=@GatewayId)
-            ORDER BY pi.creation_time DESC LIMIT 1;";
+            ORDER BY pi.creation_time DESC;";
 
         internal const string Intent_FindByIdem = @"
-            SELECT id, provider_intent_id FROM payment_intent
-            WHERE order_id=@OrderId AND idempotency_key=@Key LIMIT 1;";
+            SELECT TOP 1 id, provider_intent_id FROM payment_intent
+            WHERE order_id=@OrderId AND idempotency_key=@Key;";
 
         internal const string Intent_Insert = @"
             INSERT INTO payment_intent
             (id, order_id, payment_gateway_id, status_id, amount, currency_id,
              client_secret, provider_intent_id, idempotency_key, creation_time, modified_by)
-            VALUES (@Id, @OrderId, @Gw, @Status, @Amt, @Ccy, NULL, @ProvId, @Key, NOW(6), @ModBy);";
+            VALUES (@Id, @OrderId, @Gw, @Status, @Amt, @Ccy, NULL, @ProvId, @Key, SYSUTCDATETIME(), @ModBy);";
 
         internal const string Intent_UpdateProvideId = @"
                 UPDATE payment_intent
@@ -125,11 +124,11 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
 
         internal const string Intent_Context = @"
             SELECT i.order_id, o.space_id, o.currency_id, o.total_net_amount, o.user_id, i.provider_intent_id, i.payment_gateway_id
-            FROM payment_intent i JOIN `order` o ON o.id=i.order_id
-            WHERE i.id=@IntentId LIMIT 1;";
+            FROM payment_intent i JOIN [order] o ON o.id=i.order_id
+            WHERE i.id=@IntentId;";
 
         internal const string Order_UpdateStatus = @"
-            UPDATE `order`
+            UPDATE [order]
             SET status_id=@StatusId,
                 change_reason=@ChangeReason,
                 modified_by=@ModBy
@@ -141,22 +140,22 @@ namespace GMS.TifoXRCoreWebAPI.Repositories.SQL
             JOIN payment_intent pi ON pi.id = pc.payment_intent_id
             WHERE pi.order_id=@OrderId;";
 
-        internal const string Order_GetTotalNet = @"SELECT total_net_amount FROM `order` WHERE id=@OrderId LIMIT 1;";
+        internal const string Order_GetTotalNet = @"SELECT TOP 1 total_net_amount FROM [order] WHERE id=@OrderId;";
 
         internal const string Order_UpdatePaidStatus = @"
-            UPDATE `order` SET status_id=@PaidStatusId, modified_by=@ModBy
+            UPDATE [order] SET status_id=@PaidStatusId, modified_by=@ModBy
             WHERE id=@OrderId AND status_id<>@PaidStatusId;";
 
         internal const string Order_GetHeader = @"
             SELECT space_id, currency_id, total_net_amount, gateway_preferred_id
-            FROM `order` WHERE id=@OrderId LIMIT 1;";
+            FROM [order] WHERE id=@OrderId;";
 
-        internal const string Currency_ResolveIso = @"SELECT ISO FROM currency WHERE id=@Id LIMIT 1;";
+        internal const string Currency_ResolveIso = @"SELECT TOP 1 ISO FROM currency WHERE id=@Id;";
 
-        internal const string Currency_SelectIsoById = @"SELECT ISO FROM currency WHERE id=@Id LIMIT 1;";
+        internal const string Currency_SelectIsoById = @"SELECT TOP 1 ISO FROM currency WHERE id=@Id;";
 
         // ----- Misc -----
-        internal const string Order_ExistsInSpace = @"SELECT 1 FROM `order` WHERE id=@OrderId AND space_id=@SpaceId;";
+        internal const string Order_ExistsInSpace = @"SELECT 1 FROM [order] WHERE id=@OrderId AND space_id=@SpaceId;";
     }
 }
 

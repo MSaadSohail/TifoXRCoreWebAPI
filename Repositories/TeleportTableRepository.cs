@@ -50,10 +50,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     bi.value AS button_localized_value
                 
                 FROM teleport_table t
-                LEFT JOIN i18n i ON i.`key` = t.name_key AND i.space_id = t.space_id
+                LEFT JOIN i18n i ON i.[key] = t.name_key AND i.space_id = t.space_id
                 LEFT JOIN teleport_table_button b ON b.table_id = t.id
                 LEFT JOIN map_spot ms ON ms.id = b.map_spot_id
-                LEFT JOIN i18n bi ON bi.`key` = b.name_key AND bi.space_id = t.space_id
+                LEFT JOIN i18n bi ON bi.[key] = b.name_key AND bi.space_id = t.space_id
                 WHERE t.space_id = @SpaceId
                 ORDER BY b.id, bi.locale_id;
             ";
@@ -213,7 +213,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // Retrieve the new table id (MySQL)
                 int tableId;
-                const string getLastIdSql = "SELECT LAST_INSERT_ID();";
+                const string getLastIdSql = "SELECT CAST(SCOPE_IDENTITY() AS int);";
                 await using (var idCmd = _db.CreateCommand(conn, getLastIdSql))
                 {
                     idCmd.Transaction = tx;
@@ -225,7 +225,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 if (dto.LocalizedPairs?.Values != null && !string.IsNullOrWhiteSpace(dto.LocalizedPairs.Key))
                 {
                     const string insI18n = @"
-                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                INSERT INTO i18n ([key], locale_id, value, space_id)
                 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                     foreach (var loc in dto.LocalizedPairs.Values)
@@ -358,12 +358,12 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 const string updI18n = @"
             UPDATE i18n
                SET value = @Value
-             WHERE `key`     = @NameKey
+             WHERE [key]     = @NameKey
                AND locale_id = @LocaleId
                AND space_id  = @SpaceId;";
 
                 const string insI18n = @"
-            INSERT INTO i18n (`key`, locale_id, value, space_id)
+            INSERT INTO i18n ([key], locale_id, value, space_id)
             VALUES (@NameKey, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedPairs?.Values != null)
@@ -441,7 +441,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                             await cmdI.ExecuteNonQueryAsync();
 
                             // get new id
-                            await using var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();");
+                            await using var idCmd = _db.CreateCommand(conn, "SELECT CAST(SCOPE_IDENTITY() AS int);");
                             idCmd.Transaction = tx;
                             btnId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
                         }
@@ -566,7 +566,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         paramNames.Add($"@BtnKey{i}");
 
                     var delBtnI18nSql =
-                        $"DELETE FROM i18n WHERE `key` IN ({string.Join(",", paramNames)}) AND space_id = @SpaceId;";
+                        $"DELETE FROM i18n WHERE [key] IN ({string.Join(",", paramNames)}) AND space_id = @SpaceId;";
 
                     await using var delBtnI18nCmd = _db.CreateCommand(conn, delBtnI18nSql);
                     delBtnI18nCmd.Transaction = tx;
@@ -584,7 +584,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 {
                     const string delTableI18n = @"
                 DELETE FROM i18n 
-                 WHERE `key` = @NameKey AND space_id = @SpaceId;";
+                 WHERE [key] = @NameKey AND space_id = @SpaceId;";
 
                     await using var delTableI18nCmd = _db.CreateCommand(conn, delTableI18n);
                     delTableI18nCmd.Transaction = tx;
@@ -700,7 +700,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 // 2) Delete i18n for this button (no space filter to match original behavior)
                 if (!string.IsNullOrWhiteSpace(btnKey))
                 {
-                    const string delBtnI18nSql = @"DELETE FROM i18n WHERE `key` = @BtnKey;";
+                    const string delBtnI18nSql = @"DELETE FROM i18n WHERE [key] = @BtnKey;";
                     await using var delBtnI18nCmd = _db.CreateCommand(conn, delBtnI18nSql);
                     delBtnI18nCmd.Transaction = tx;
                     delBtnI18nCmd.Parameters.Add(_db.CreateParameter("@BtnKey", btnKey!));
@@ -768,10 +768,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             bi.locale_id AS button_locale_id,
             bi.value AS button_localized_value
         FROM teleport_table t
-        LEFT JOIN i18n i  ON i.`key` = t.name_key AND i.space_id = t.space_id
+        LEFT JOIN i18n i  ON i.[key] = t.name_key AND i.space_id = t.space_id
         LEFT JOIN teleport_table_button b ON b.table_id = t.id
         LEFT JOIN map_spot ms ON ms.id = b.map_spot_id
-        LEFT JOIN i18n bi ON bi.`key` = b.name_key AND bi.space_id = t.space_id
+        LEFT JOIN i18n bi ON bi.[key] = b.name_key AND bi.space_id = t.space_id
         WHERE t.space_id = @SpaceId AND t.id = @TableId
         ORDER BY b.id, bi.locale_id;";
 
@@ -941,7 +941,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                         }
 
                         // fetch new id
-                        const string getLastIdSql = "SELECT LAST_INSERT_ID();";
+                        const string getLastIdSql = "SELECT CAST(SCOPE_IDENTITY() AS int);";
                         await using (var idCmd = _db.CreateCommand(connection, getLastIdSql))
                         {
                             idCmd.Transaction = tx;
@@ -1008,7 +1008,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 // fetch new button id
-                const string getButtonIdSql = "SELECT LAST_INSERT_ID();";
+                const string getButtonIdSql = "SELECT CAST(SCOPE_IDENTITY() AS int);";
                 await using (var idBtn = _db.CreateCommand(connection, getButtonIdSql))
                 {
                     idBtn.Transaction = tx;
@@ -1021,7 +1021,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                     !string.IsNullOrWhiteSpace(btnDto.LocalizedPairs.Key))
                 {
                     const string insI18n = @"
-                INSERT INTO i18n (`key`, locale_id, value, space_id)
+                INSERT INTO i18n ([key], locale_id, value, space_id)
                 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                     foreach (var loc in btnDto.LocalizedPairs.Values)

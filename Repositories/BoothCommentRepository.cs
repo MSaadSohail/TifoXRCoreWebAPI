@@ -34,7 +34,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
             try
             {
                 // 0) Validate user exists (optional but nicer than FK error)
-                const string sqlUser = @"SELECT 1 FROM `user` WHERE id = @U LIMIT 1;";
+                const string sqlUser = @"SELECT TOP 1 1 FROM [user] WHERE id = @U;";
                 await using (var u = _db.CreateCommand(conn, sqlUser))
                 {
                     u.Transaction = tx;
@@ -45,7 +45,7 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
                 }
 
                 // 1) Fetch predefined comment (must exist and be active)
-                const string sqlPc = @"SELECT comment_key, is_active FROM predefined_comments WHERE id = @Pid LIMIT 1;";
+                const string sqlPc = @"SELECT TOP 1 comment_key, is_active FROM predefined_comments WHERE id = @Pid;";
                 string? commentKey = null;
                 bool pcActive = false;
 
@@ -66,11 +66,10 @@ namespace GMS.TifoXRCoreWebAPI.Repositories
 
                 // 2) Idempotency on (spaceId, userId, predefined_comment_id)
                 const string sqlFindExisting = @"
-SELECT id, is_active, creation_time
+SELECT TOP 1 id, is_active, creation_time
 FROM booth_comment
 WHERE space_id = @S AND user_id = @U AND predefined_comment_id = @Pid
-ORDER BY id
-LIMIT 1;";
+ORDER BY id;";
 
                 int? existingId = null;
                 bool existingActive = false;
@@ -100,7 +99,7 @@ LIMIT 1;";
                     if (!existingActive && dto.IsActive)
                     {
                         // Revive inactive entry
-                        const string sqlUpd = @"UPDATE booth_comment SET is_active = TRUE WHERE id = @Id;";
+                        const string sqlUpd = @"UPDATE booth_comment SET is_active = 1 WHERE id = @Id;";
                         await using var upd = _db.CreateCommand(conn, sqlUpd);
                         upd.Transaction = tx;
                         upd.Parameters.Add(_db.CreateParameter("@Id", existingId.Value));
@@ -123,7 +122,7 @@ LIMIT 1;";
                     // 3) Insert new booth_comment
                     const string sqlIns = @"
 INSERT INTO booth_comment (space_id, user_id, predefined_comment_id, is_active, creation_time, modified_by)
-VALUES (@S, @U, @Pid, @A, NOW(6), 'system');";
+VALUES (@S, @U, @Pid, @A, SYSUTCDATETIME(), 'system');";
                     await using (var ins = _db.CreateCommand(conn, sqlIns))
                     {
                         ins.Transaction = tx;
@@ -134,7 +133,7 @@ VALUES (@S, @U, @Pid, @A, NOW(6), 'system');";
                         await ins.ExecuteNonQueryAsync();
                     }
 
-                    await using (var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();"))
+                    await using (var idCmd = _db.CreateCommand(conn, "SELECT CAST(SCOPE_IDENTITY() AS int);"))
                     {
                         idCmd.Transaction = tx;
                         resultingId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
@@ -146,7 +145,7 @@ VALUES (@S, @U, @Pid, @A, NOW(6), 'system');";
 
                 // 4) Load localized values for this comment_key in the space
                 var localized = new List<LocalizedValue>();
-                const string sqlI18n = @"SELECT locale_id, value FROM i18n WHERE space_id = @S AND `key` = @K ORDER BY locale_id;";
+                const string sqlI18n = @"SELECT locale_id, value FROM i18n WHERE space_id = @S AND [key] = @K ORDER BY locale_id;";
                 await using (var i18n = _db.CreateCommand(conn, sqlI18n))
                 {
                     i18n.Transaction = tx;
@@ -212,13 +211,13 @@ SELECT
 FROM booth_comment bc
 INNER JOIN predefined_comments pc
         ON pc.id = bc.predefined_comment_id
-LEFT JOIN `user` u
+LEFT JOIN [user] u
        ON u.id = bc.user_id
 WHERE bc.space_id = @S
 {0}
 ORDER BY bc.id;";
 
-            var where = includeInactive ? string.Empty : "AND bc.is_active = TRUE";
+            var where = includeInactive ? string.Empty : "AND bc.is_active = 1";
             var sql = string.Format(sqlBase, where);
 
             await using var conn = await _db.OpenConnectionAsync();
@@ -281,11 +280,11 @@ ORDER BY bc.id;";
             var pNames = keyList.Select((_, i) => $"@k{i}").ToList();
 
             var sqlI18n = $@"
-SELECT `key`, locale_id, value
+SELECT [key], locale_id, value
 FROM i18n
 WHERE space_id = @S
-  AND `key` IN ({string.Join(", ", pNames)})
-ORDER BY `key`, locale_id;";
+  AND [key] IN ({string.Join(", ", pNames)})
+ORDER BY [key], locale_id;";
 
             var map = new Dictionary<string, List<LocalizedValue>>(StringComparer.Ordinal);
 
@@ -349,11 +348,10 @@ ORDER BY `key`, locale_id;";
             {
                 // 0) Load current row (scoped to space)
                 const string sqlLoad = @"
-SELECT bc.id, bc.space_id, bc.user_id, bc.predefined_comment_id, bc.is_active, bc.creation_time, pc.comment_key
+SELECT TOP 1 bc.id, bc.space_id, bc.user_id, bc.predefined_comment_id, bc.is_active, bc.creation_time, pc.comment_key
 FROM booth_comment bc
 INNER JOIN predefined_comments pc ON pc.id = bc.predefined_comment_id
-WHERE bc.id = @Id AND bc.space_id = @S
-LIMIT 1;";
+WHERE bc.id = @Id AND bc.space_id = @S;";
 
                 int currentPid;
                 bool currentActive;
@@ -387,7 +385,7 @@ LIMIT 1;";
                 if (finalPid != currentPid)
                 {
                     // a) Validate target predefined comment exists; must be active if finalActive=true
-                    const string sqlPc = @"SELECT comment_key, is_active FROM predefined_comments WHERE id = @Pid LIMIT 1;";
+                    const string sqlPc = @"SELECT TOP 1 comment_key, is_active FROM predefined_comments WHERE id = @Pid;";
                     string? newKey = null;
                     bool targetActive;
 
@@ -408,10 +406,9 @@ LIMIT 1;";
 
                     // b) Enforce uniqueness for (space, user, newPid) — avoid duplicate row for same selection
                     const string sqlDup = @"
-SELECT id, is_active
+SELECT TOP 1 id, is_active
 FROM booth_comment
-WHERE space_id = @S AND user_id = @U AND predefined_comment_id = @Pid AND id <> @Id
-LIMIT 1;";
+WHERE space_id = @S AND user_id = @U AND predefined_comment_id = @Pid AND id <> @Id;";
 
                     await using (var dup = _db.CreateCommand(conn, sqlDup))
                     {
@@ -453,11 +450,10 @@ LIMIT 1;";
                 }
 
                 // 3) Reload current basics (in case only is_active changed)
-                const string sqlReload = @"
-SELECT bc.id, bc.space_id, bc.user_id, bc.predefined_comment_id, bc.is_active, bc.creation_time
+const string sqlReload = @"
+SELECT TOP 1 bc.id, bc.space_id, bc.user_id, bc.predefined_comment_id, bc.is_active, bc.creation_time
 FROM booth_comment bc
-WHERE bc.id = @Id
-LIMIT 1;";
+WHERE bc.id = @Id;";
                 int resPid;
                 bool resActive;
                 DateTime resCreation;
@@ -474,7 +470,7 @@ LIMIT 1;";
 
                 // 4) Load i18n for the (possibly new) comment key in this space
                 var localized = new List<LocalizedValue>();
-                const string sqlI18n = @"SELECT locale_id, value FROM i18n WHERE space_id = @S AND `key` = @K ORDER BY locale_id;";
+                const string sqlI18n = @"SELECT locale_id, value FROM i18n WHERE space_id = @S AND [key] = @K ORDER BY locale_id;";
                 await using (var i18n = _db.CreateCommand(conn, sqlI18n))
                 {
                     i18n.Transaction = tx;

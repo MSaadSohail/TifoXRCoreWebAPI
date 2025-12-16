@@ -66,7 +66,7 @@ VALUES
                 }
 
                 int newId;
-                await using (var idCmd = _db.CreateCommand(conn, "SELECT LAST_INSERT_ID();"))
+                await using (var idCmd = _db.CreateCommand(conn, "SELECT CAST(SCOPE_IDENTITY() AS int);"))
                 {
                     idCmd.Transaction = tx;
                     newId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
@@ -74,7 +74,7 @@ VALUES
 
                 // (3) Insert i18n rows (space-scoped)
                 const string insI18n = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, value, space_id)
 VALUES (@Key, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedName?.Values != null)
@@ -146,10 +146,10 @@ VALUES (@Key, @LocaleId, @Value, @SpaceId);";
         ml.media_link         AS media_link
     FROM charity c
     LEFT JOIN i18n AS iname
-           ON iname.`key` = c.name_key
+           ON iname.[key] = c.name_key
           AND iname.space_id = @SpaceId
     LEFT JOIN i18n AS idesc
-           ON idesc.`key` = c.description_key
+           ON idesc.[key] = c.description_key
           AND idesc.locale_id = iname.locale_id
           AND idesc.space_id  = iname.space_id
     LEFT JOIN media AS m
@@ -284,7 +284,7 @@ VALUES (@Key, @LocaleId, @Value, @SpaceId);";
             if (spaceId == 0) throw new InvalidOperationException("SpaceId is zero or not set properly.");
 
             string mediaId;
-            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT UUID();"))
+            await using (var uuidCmd = _db.CreateCommand(conn, "SELECT NEWID();"))
             {
                 uuidCmd.Transaction = tx;
                 mediaId = Convert.ToString(await uuidCmd.ExecuteScalarAsync())!;
@@ -560,9 +560,9 @@ WHERE id = @Id AND space_id = @SpaceId;";
                 const string updI18n = @"
 UPDATE i18n
    SET value = @Value
- WHERE `key` = @K AND locale_id = @LocaleId AND space_id = @SpaceId;";
+ WHERE [key] = @K AND locale_id = @LocaleId AND space_id = @SpaceId;";
                 const string insI18n = @"
-INSERT INTO i18n (`key`, locale_id, value, space_id)
+INSERT INTO i18n ([key], locale_id, value, space_id)
 VALUES (@K, @LocaleId, @Value, @SpaceId);";
 
                 if (dto.LocalizedName?.Values != null)
@@ -782,7 +782,7 @@ VALUES (@Mid, @Loc, @Link);";
                 // 4) Delete i18n rows for name/description keys (space-scoped)
                 if (!string.IsNullOrWhiteSpace(nameKey))
                 {
-                    const string delI18n = @"DELETE FROM i18n WHERE `key` = @K AND space_id = @SpaceId;";
+                    const string delI18n = @"DELETE FROM i18n WHERE [key] = @K AND space_id = @SpaceId;";
                     await using var di = _db.CreateCommand(conn, delI18n);
                     di.Transaction = tx;
                     di.Parameters.Add(_db.CreateParameter("@K", nameKey!));
@@ -791,7 +791,7 @@ VALUES (@Mid, @Loc, @Link);";
                 }
                 if (!string.IsNullOrWhiteSpace(descKey))
                 {
-                    const string delI18n = @"DELETE FROM i18n WHERE `key` = @K AND space_id = @SpaceId;";
+                    const string delI18n = @"DELETE FROM i18n WHERE [key] = @K AND space_id = @SpaceId;";
                     await using var di = _db.CreateCommand(conn, delI18n);
                     di.Transaction = tx;
                     di.Parameters.Add(_db.CreateParameter("@K", descKey!));
